@@ -9,7 +9,12 @@ stan_dir=$root_dir/stanfrontend
 # store the name of the program
 prog=${1##*/}
 name=${prog%.*}
-parent_dir="$(dirname -- "$(readlink -f -- "$1")")"
+
+function universal-abspath() {
+  perl -MCwd -e 'print Cwd::abs_path shift' "$1"
+}
+
+parent_dir="$(dirname -- "$(universal-abspath "$1")")"
 
 cd $root_dir
 
@@ -35,7 +40,7 @@ echo_and_run ccomp -g3 -lm -c stanlib.c
 echo_and_run ccomp -g3 -I${stan_dir} -c ${parent_dir}/${name}_runtime.c
 
 # compile the final binary
-echo_and_run ccomp -g3 -L${stan_dir} -L../out/lib/compcert -lm stanlib.o ${name}_prelude.o ${name}.o ${name}_runtime.o -o runit
+echo_and_run ccomp -g3 -L${stan_dir} -L../out/lib/compcert stanlib.o ${name}_prelude.o ${name}.o ${name}_runtime.o -lm -o runit
 
 # tell the user what to do next
 echo "compiled! ./stanfrontend/runit INT"

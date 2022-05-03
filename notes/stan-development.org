@@ -229,9 +229,8 @@ ls ../stanfrontend | grep 'v$' | grep -Ev "(Stan|CStan|Scompil|Denum|Sampl|Const
 - System.v :: initial attempt to state the desired final theorem of ProbCompCert
 
 * Development Workflow
-I had two development workflows when working on this project. For context, this
-project was developed on a NixOS box using flakes, but because of some version
-mismatches, opam was used to provide the development environment.
+Opam was used to provide the development environment.
+
 ** Opam information
 Opam outputs an unreadable end-of-file character for emacs, here I supress the
 terminal output and paste it in a comment (see [[file:stan-development.org][stan-development.org]]).
@@ -401,53 +400,41 @@ utop                    2.7.0
 :PROPERTIES:
 :ID:       c4a1d2d3-7ccf-4b21-94af-1a659f3fa204
 :END:
-If you drop into a ~nix develop~ shell, you can access my helper scripts by
-invoking ~menu~. I have this loaded with direnv via a ~use flake~ .envrc file.
+You can access helper scripts by checking out the ~.bin~ folder.
 
 *** Compiling ccompstan
-To compile a program, you can use the ~ccompstan~ script found in flake.nix.
-This has also been moved to ~.bin/ccompstan~. This should work out-of-the-box,
-however I noticed a difference due to link order from the underlying gcc
-(AFAICT). If this script doesn't work, you examine how CI builds a binary:
+To compile a program, you can use the ~ccompstan~ script found in ~.bin/~. This
+should work out-of-the-box. If something is off, you examine how CI builds the
+binary, which is done on both ubuntu and macos:
 https://github.com/jtristan/ProbCompCert/blob/pcp/.github/workflows/simple.yaml
 
+A simplified version of what ~../.bin/ccompstan~ is:
 # #+begin_src sh
 # cat ../.bin/ccompstan
 # #+end_src
 
 #+begin_example sh
-#!/usr/bin/env bash
-set -euo pipefail
+sudo make -j install
 
-# store some directory variables.
-current_dir=$PWD
-root_dir=$(git rev-parse --show-toplevel)
-stan_dir=$root_dir/stanfrontend
-
-# store the name of the program
-prog=${1##*/}
-name=${prog%.*}
-parent_dir="$(dirname -- "$(readlink -f -- "$1")")"
-cd $root_dir
-
-# working directory is stan dir
+# this is important for looking up ./Runtime.c file (see FIXME in printRuntimeFile)
 cd stanfrontend
+ccomp -c stanlib.c
+ccomp -c tests/classics/coin_flip.stan
+ccomp -c coin_flip.s
+ccomp -I. -c tests/classics/coin_flip_prelude.c
+ccomp -I. -c tests/classics/coin_flip_runtime.c
+ccomp stanlib.o coin_flip_prelude.o coin_flip.o coin_flip_runtime.o -lm -o runit
 
-# ccomp doesn't compile down to object files, just asm
-ccomp -g3 -c $parent_dir/$name.stan && ccomp -c ${name}.s || exit 1
+./runit 10
+#+end_example
 
-# build libstan.so
-ccomp -g3 -c stanlib.c
-ld -shared stanlib.o -o libstan.so
+Loading data requires that you pass in a csv file for each feild (in order of appearance):
+#+begin_example sh
+./.bin/ccompstan stanfrontend/tests/simple/simple.stan
 
-# runtime is dependent on libstan, temporarily.
-ccomp -g3 -I${stan_dir} -c Runtime.c
+echo "1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0" > foobar.csv
 
-# compile the final binary
-ccomp -g3 -L${stan_dir} -Wl,-rpath=${stan_dir} -L../out/lib/compcert -lm -lstan ${name}.o Runtime.o -o runit
-
-# tell the user what to do next
-echo "compiled! ./stanfrontend/runit INT"
+./stanfrontend/runit 100 ./foobar.csv 
 #+end_example
 
 *** Working on non-proof code

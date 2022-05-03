@@ -12,6 +12,7 @@ on:
 
 jobs:
   check-stan-admits:
+    name: Show admits in ./stanfrontend (but don't fail)
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -23,17 +24,21 @@ jobs:
           curl   -L -o ripgrep.deb https://github.com/BurntSushi/ripgrep/releases/download/13.0.0/ripgrep_13.0.0_amd64.deb
           sudo dpkg -i ripgrep.deb
           rg --version
-      - run: ./.bin/find-stan-admits
+
+        # admits are acceptable in the codebase at this stage of development
+      - name: Report admits in ./stanfrontend
+        run: ./.bin/find-stan-admits
+        continue-on-error: true
+
 
   build-simple:
+    name: build simple binaries
     strategy:
       fail-fast: false
       matrix:
         os:
           - ubuntu-latest
-          # - macos-latest
-          # FIXME: errors when compiling stanlib.c. See:
-          # https://github.com/stites/ProbCompCert/runs/4754816523?check_suite_focus=true#step:8:75
+          - macos-latest
         ocaml-compiler:
           - 4.10.2
 
@@ -88,28 +93,26 @@ jobs:
         run: |
           eval $(opam env);
 
-          # install bin and lib outputs to ./out
-          #make -j install
           sudo make -j install
 
+          # *_runtime.c and *_prelude.c generation requires being in stanfrontend
           cd stanfrontend
 
           # ccomp doesn't compile down to object files, just asm
-          #export CCOMP="../out/bin/ccomp -L$LIBCCOMP_INSTALL"
-          export CCOMP="ccomp -L. -I."
-
-          $CCOMP -c stanlib.c
-          echo [DONE] stanlib.o
-
-          $CCOMP -c tests/simple/simple.stan && $CCOMP -c simple.s
+          ccomp -c tests/simple/simple.stan
+          ccomp -c simple.s
           echo [DONE] simple.o
 
-          $CCOMP -c Runtime.c
-          echo [DONE] Runtime.o
+          ccomp -I. -c tests/simple/simple_prelude.c -lm
+          echo [DONE] simple_prelude.o
 
-          $CCOMP stanlib.o simple.o Runtime.o -lm -o runit
+          ccomp -I. -c tests/simple/simple_runtime.c -lm
+          echo [DONE] simple_runtime.o
 
-          # tell the user what to do next
+          ccomp -c stanlib.c -lm
+          echo [DONE] stanlib.o
+
+          ccomp stanlib.o simple_prelude.o simple.o simple_runtime.o -lm -o runit
           echo [DONE] compiled! run: ./stanfrontend/runit INT
 
           # ensure that binary has correct runtime execution
@@ -128,3 +131,26 @@ jobs:
         run: |
           echo $PWD
           ./stanfrontend/runit 100
+
+      - name: Build stanfrontend/tests/classics/coin_flip.stan
+        run: |
+          eval $(opam env);
+
+          sudo make -j install
+
+          # this is important for looking up ./Runtime.c file (see FIXME in printRuntimeFile)
+          cd stanfrontend
+          ccomp -c stanlib.c
+          ccomp -c tests/classics/coin_flip.stan
+          ccomp -c coin_flip.s
+          ccomp -I. -c tests/classics/coin_flip_prelude.c
+          ccomp -I. -c tests/classics/coin_flip_runtime.c
+          ccomp stanlib.o coin_flip_prelude.o coin_flip.o coin_flip_runtime.o -lm -o runit
+
+      - name: test that ccompstan script works on stanfrontend/tests/simple/simple.stan
+        run: |
+          eval $(opam env);
+
+          sudo make -j install
+
+          ./.bin/ccompstan stanfrontend/tests/simple/simple.stan
