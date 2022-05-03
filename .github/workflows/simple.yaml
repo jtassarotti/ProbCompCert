@@ -6,13 +6,13 @@ on:
   push:
     branches:
       - pcp
-      - ci-admits
   pull_request:
     branches:
       - pcp
 
 jobs:
   check-stan-admits:
+    name: Show admits in ./stanfrontend (but don't fail)
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -26,9 +26,13 @@ jobs:
           rg --version
 
         # admits are acceptable in the codebase at this stage of development
-      - run: ./.bin/find-stan-admits || true
+      - name: Report admits in ./stanfrontend
+        run: ./.bin/find-stan-admits
+        continue-on-error: true
+
 
   build-simple:
+    name: build simple binaries
     strategy:
       fail-fast: false
       matrix:
@@ -86,7 +90,6 @@ jobs:
           make -j
 
       - name: Build stanfrontend/tests/simple/simple.stan
-        continue-on-error: true
         run: |
           eval $(opam env);
 
@@ -125,13 +128,11 @@ jobs:
           fi
 
       - name: Run compiled binary
-        continue-on-error: true
         run: |
           echo $PWD
           ./stanfrontend/runit 100
 
       - name: Build stanfrontend/tests/classics/coin_flip.stan
-        continue-on-error: true
         run: |
           eval $(opam env);
 
@@ -147,7 +148,6 @@ jobs:
           ccomp stanlib.o coin_flip_prelude.o coin_flip.o coin_flip_runtime.o -lm -o runit
 
       - name: test that ccompstan script works on stanfrontend/tests/simple/simple.stan
-        continue-on-error: true
         run: |
           eval $(opam env);
 
