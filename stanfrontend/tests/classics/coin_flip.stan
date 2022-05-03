@@ -1,5 +1,5 @@
 data {
-  int flips[10];
+  int flips[100];
 }
 parameters {
   real<lower=0.0,upper=1.0> mu;

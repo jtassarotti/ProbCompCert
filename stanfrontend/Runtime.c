@@ -64,7 +64,7 @@ int main(int argc, char* argv[]) {
       printf("setting state... newpi is: "); print_params(newpi);
       set_state(newpi);
       printf("setting state in iteration %d. target log_prob: %f\n", i+1, lp_candidate); // 1-index iterations
-      print_params(&pi);
+      print_params(pi);
     }
 
     generated_quantities();
@@ -72,7 +72,7 @@ int main(int argc, char* argv[]) {
 
   printf("\n...completed execution!");
   printf("\n\nSummary:\n\t");
-  print_params(&pi);
+  print_params(pi);
   printf("\n");
   return 0;
   
