@@ -45,30 +45,34 @@ int main(int argc, char* argv[]) {
 
   for (int i = 0; i < n; ++i) {
 
+    printf("\n\n\nIteration: %i\n\n\n", i);
+    
     void* pi = get_state();
-    printf("get pi           : "); print_params(pi);
-    transformed_parameters(pi);
-    printf("transformed      : "); print_params(pi);
+    print_params(pi);
+    //transformed_parameters(pi);
     double lp_parameters = model(pi);
+    printf("P = %f\n",exp(lp_parameters));
 
+    printf("\nproposal:\n");
     void* newpi = propose(pi);
-    printf("proposed    newpi: "); print_params(newpi);
-    transformed_parameters(newpi);
-    printf("transformed newpi: "); print_params(newpi);
+    //transformed_parameters(newpi);
+    print_params(newpi);
     double lp_candidate = model(newpi);
+    printf("P = %f\n",exp(lp_candidate));
+    
     double lu = log((double) rand() / RAND_MAX);
 
-    printf("lu <= lp_candidate - lp_parameters: %i = %f <= %f - %f \n", lu <= lp_candidate - lp_parameters, lu, lp_candidate, lp_parameters);
+
     if (lu <= lp_candidate - lp_parameters) {
-      printf("--------------------------\n");
-      printf("setting state... newpi is: "); print_params(newpi);
+      printf("\n-> Accepted\n");
       set_state(newpi);
-      printf("setting state in iteration %d. target log_prob: %f\n", i+1, lp_candidate); // 1-index iterations
       print_params(pi);
+    } else {
+      printf("\n-> Rejected\n");
     }
 
     generated_quantities();
-  }
+  } 
 
   printf("\n...completed execution!");
   printf("\n\nSummary:\n\t");

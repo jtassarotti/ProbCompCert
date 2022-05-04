@@ -565,7 +565,7 @@ let renderParameters struct_type struct_vars =
     match (t, var.Stan.vd_dims, var.Stan.vd_constraint) with
     (* See: https://mc-stan.org/docs/2_29/reference-manual/initialization.html *)
     (* If there are no user-supplied initial values, the default initialization strategy is to initialize the unconstrained parameters directly with values drawn uniformly from the interval (−2,2) *)
-    | (t, [], _)              -> ("  "^ret^"->" ^ v ^" = 0.5; // For debugging. uniform_sample(-2,2);")
+    | (t, [], _)              -> ("  "^ret^"->" ^ v ^" = 0.0; // For debugging. uniform_sample(-2,2);")
     | _ -> raise (NIY_elab "renderParameters.renderField: incomplete for this type")
   in
   String.concat "\n" ([
@@ -618,8 +618,6 @@ let renderPropose global_state struct_type struct_vars =
       "  " ^ (String.concat "\n  " [
           "double eps = my_randn(0.0,1.0);";
            "c->" ^ v ^" = s->" ^ v ^" + eps;";
-           "printf(\"eps: %f\\ns->"^ v ^": %f\\n\", eps, s->" ^ v ^");";
-           "printf(\"c->"^ v ^": %f\\n\", c->" ^ v ^");";
       ])
     | _ -> raise (NIY_elab "renderPropose.proposeField: incomplete for this type")
   in

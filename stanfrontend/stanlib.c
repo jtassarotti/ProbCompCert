@@ -38,7 +38,7 @@ double randn (double mu, double sigma)
 double uniform_lpdf(double x, double a, double b)
 {
     /* printf("uniform_lpdf(%f, %f, %f)\n", x, a, b); */
-    return (x < a || x > b) ? INFINITY : 0;
+    return (x < a || x > b) ? INFINITY : (-log(b - a));
 }
 
 double uniform_lpmf(int x, double a, double b)

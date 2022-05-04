@@ -172,14 +172,19 @@ Definition density_of_transformed_var (p:program) (i: AST.ident) (c: constraint)
     let call := snd rt_call in
     do a <~ int2float a;
     do b <~ int2float b;
+    do J1 <~ stan_log p (Ebinop Omul (Ebinop Osub b a t) (Etempvar rt tdouble) t);
+    do J2 <~ stan_log p (Ebinop Osub (Econst_float float_one t) (Etempvar rt tdouble) t);
     ret
       (Some
         (Ssequence
           call
+          (Ssequence (snd J1)
+          (Ssequence (snd J2)
           (Starget
             (Ebinop Oadd
-              (Ebinop Omul (Ebinop Osub b a t) (Etempvar rt tdouble) t)
-              (Ebinop Osub (Econst_float float_one t) (Etempvar rt tdouble) t) t))))
+              (Etempvar (fst J1) t)
+              (Etempvar (fst J2) t)
+               t))))))
 
   | Coffset e => error (msg "NYI constrained_to_unconstrained: Coffset")
   | Cmultiplier e => error (msg "NYI constrained_to_unconstrained: Cmultiplier")
