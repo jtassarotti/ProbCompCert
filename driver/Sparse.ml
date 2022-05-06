@@ -553,11 +553,6 @@ let renderGetAndSet global_name struct_type =
     "";
   ])
 
-(* void* propose() { *)
-
-(*   candidate.mu = state.mu + uniform_sample(0,1); *)
-(* } *)
-
 let renderParameters struct_type struct_vars =
   let ret = "s" in
   let renderField (var, p, t) =
@@ -605,7 +600,7 @@ let renderPropose global_state struct_type struct_vars =
     match (t, var.Stan.vd_dims) with
     | (t, [])                   ->
       "  " ^ (String.concat "\n  " [
-          "double eps = my_randn(0.0,1.0);";
+          "eps = my_randn(0.0,1.0);";
            "c->" ^ v ^" = s->" ^ v ^" + eps;";
       ])
     | _ -> raise (NIY_elab "renderPropose.proposeField: incomplete for this type")
@@ -641,6 +636,7 @@ let renderPropose global_state struct_type struct_vars =
     ("void* propose (void * opaque_state) {");
     ("  struct " ^ struct_type ^ "* s = (struct " ^ struct_type ^ "*) opaque_state;");
     ("  struct " ^ struct_type ^ "* c = malloc(sizeof (struct " ^ struct_type ^ "));");
+    ("double eps;")
   ] @ (List.map proposeField struct_vars) @ [
     ("  return c;");
     "}";
