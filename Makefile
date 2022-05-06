@@ -42,11 +42,6 @@ DIRS += MenhirLib
 COQINCLUDES += -R MenhirLib MenhirLib
 endif
 
-ifeq ($(LIBRARY_COQPROBA),local)
- DIRS += coq-proba/theories/basic coq-proba/theories/measure coq-proba/theories/monad coq-proba/theories/prob coq-proba/theories/rec
- COQINCLUDES += -R coq-proba/theories discprob
-endif
-
 # Notes on silenced Coq warnings:
 #
 # undeclared-scope:
@@ -208,7 +203,6 @@ GENERATED=\
   cparser/Parser.v stanfrontend/Sparser.v
 
 all:
-	cd coq-proba && $(MAKE)
 	@test -f .depend || $(MAKE) depend
 	$(MAKE) proof
 	$(MAKE) extraction

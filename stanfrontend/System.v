@@ -13,7 +13,6 @@ Require Import Rbase.
 Require Import Events.
 From Coquelicot Require Import Lim_seq.
 From Coquelicot Require Import Rbar.
-Require Import borel.
 
 
 Parameter from_trace: Events.traceinf -> (nat -> R).

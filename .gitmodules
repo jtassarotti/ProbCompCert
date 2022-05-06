@@ -1,3 +1,0 @@
-[submodule "coq-proba"]
-	path = coq-proba
-	url = git@github.com:jtassarotti/coq-proba.git
