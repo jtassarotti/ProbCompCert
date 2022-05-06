@@ -2,6 +2,14 @@
 
 # This script is for development use
 
+# Clean everything
+pushd tests/classics/$1/
+rm *.c
+rm *.o
+rm *.s
+rm executable
+popd
+
 # Compilation
 cp stanlib.h tests/classics/$1/
 cp stanlib.c tests/classics/$1/

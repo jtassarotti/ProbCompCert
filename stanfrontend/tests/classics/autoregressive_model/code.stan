@@ -1,6 +1,5 @@
 data {
-  int<lower=0> N;
-  vector[N] y;
+  real y[100];
 }
 parameters {
   real alpha;
@@ -8,7 +7,7 @@ parameters {
   real<lower=0> sigma;
 }
 model {
-  for (n in 2:N) {
+  for (n in 2:100) {
     y[n] ~ normal(alpha + beta * y[n-1], sigma);
   }
 }
