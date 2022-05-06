@@ -192,15 +192,10 @@ Record program : Type := {
   prog_model: ident;
   prog_target: ident;
   prog_constraints: list (ident * constraint);
-  prog_parameters: ident;
   prog_parameters_vars: list (ident * type);
   prog_parameters_struct: reserved_params;
-  prog_transformed_parameters: ident;
-  prog_data: ident;
   prog_data_vars: list (ident * type);
   prog_data_struct: reserved_data;
-  prog_transformed_data: ident;
-  prog_generated_quantities: ident;
   prog_types: list composite_definition;
   prog_comp_env: composite_env;
   prog_comp_env_eq: build_composite_env prog_types = OK prog_comp_env;

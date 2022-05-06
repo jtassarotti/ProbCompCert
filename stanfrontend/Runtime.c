@@ -3,24 +3,10 @@
 #include <stdio.h>
 #include "stanlib.h"
 
-/* struct Data* observations; */
-/* struct Params* state; */
+// Note that we do not respect the Stan spec because we inline
+// the transformed data and transformed parameters blocks
 
-/* void* candidate; */
-
-void* get_state();
-void set_state(void*);
-
-/* void load_from_cli(void* opaque, char *files[]); */
-/* void data(); */
-/* void transformed_data(); */
-/* void parameters(); */
-/* void init_parameters(); */
-/* void transformed_parameters(void* p); */
 double model(void* p);
-void generated_quantities();
-
-void* propose(void * state);
 
 int main(int argc, char* argv[]) {
   if (argc == 1) {
@@ -30,14 +16,12 @@ int main(int argc, char* argv[]) {
   }
   int n = atoi(argv[1]);
 
-  //data();
   load_from_cli(&observations, argv+2);
-  transformed_data(&observations);
+  //transformed_data(&observations);
   print_data(&observations);
 
-  // parameters();
   init_parameters();
-
+  
   void* pi = get_state();
   printf("initial state    : ");
   print_params(pi);
@@ -71,7 +55,7 @@ int main(int argc, char* argv[]) {
       printf("\n-> Rejected\n");
     }
 
-    generated_quantities();
+    generated_quantities(pi);
   } 
 
   printf("\n...completed execution!");

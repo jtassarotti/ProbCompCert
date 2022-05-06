@@ -376,19 +376,14 @@ Definition transf_program(p: CStan.program): res CStan.program :=
       prog_public := AST.prog_public p1;
 
       (* FIXME: should we filter the global list to remove these variables? *)
-      prog_data:=p.(prog_data);
       prog_data_vars:=p.(prog_data_vars);
       prog_data_struct:= p.(prog_data_struct);
-      prog_transformed_data:=p.(prog_transformed_data);
 
       prog_constraints :=p.(prog_constraints);
       (* FIXME: also here: should we filter the global list to remove these variables? *)
-      prog_parameters:= p.(prog_parameters);
       prog_parameters_vars:= p.(prog_parameters_vars);
       prog_parameters_struct:= p.(prog_parameters_struct);
-      prog_transformed_parameters:=p.(prog_transformed_parameters);
 
-      prog_generated_quantities:=p.(prog_generated_quantities);
       prog_model:=p.(prog_model);
       prog_target:=p.(prog_target);
       prog_main:=p.(prog_main);

@@ -579,33 +579,22 @@ let renderParameters struct_type struct_vars =
   ])
 
 let renderTransformedParameters struct_type struct_vars =
-  (* let ret = "o" in *)
-  (* let renderFieldTransform (var, p, t) = *)
-  (*   let v = Camlcoq.extern_atom p in *)
-  (*   match (t, var.Stan.vd_dims, var.Stan.vd_constraint) with *)
-  (*   | (t, [], _)              -> ("  "^ret^"->" ^ v ^" = exp("^ret^"->" ^ v ^");") *)
-  (*   | _ -> raise (NIY_elab "renderParameters.renderField: incomplete for this type") *)
-  (* in *)
   String.concat "\n" ([
     ("void transformed_parameters (void* opaque) {");
-    (* ("  struct " ^ struct_type ^ "* "^ret^" = (struct " ^ struct_type ^ "*\) opaque;"); *)
-  (* ] @ (List.map renderFieldTransform struct_vars) @ [ *)
     "}";
     "";
   ])
 
 let renderTransformedData struct_type struct_vars =
-  (* let ret = "o" in *)
-  (* let renderFieldTransform (var, p, t) = *)
-  (*   let v = Camlcoq.extern_atom p in *)
-  (*   match (t, var.Stan.vd_dims, var.Stan.vd_constraint) with *)
-  (*   | (t, [], _)              -> ("  "^ret^"->" ^ v ^" = exp("^ret^"->" ^ v ^");") *)
-  (*   | _ -> raise (NIY_elab ("render"^struct_type^".renderField: incomplete for this type")) *)
-  (* in *)
   String.concat "\n" ([
     ("void transformed_data (void* opaque) {");
-    (* ("  struct " ^ struct_type ^ "* "^ret^" = (struct " ^ struct_type ^ "*\) opaque;"); *)
-  (* ] @ (List.map renderFieldTransform struct_vars) @ [ *)
+    "}";
+    "";
+    ])
+
+let renderGeneratedQuantities () =
+  String.concat "\n" ([
+    ("void generated_quantities (void* opaque) {");
     "}";
     "";
   ])
@@ -738,9 +727,10 @@ let printPreludeHeader sourcefile data_basics param_basics =
     "void set_state(void*);";
     "void load_from_cli(void* opaque, char *files[]);";
     "void init_parameters();";
-    "void transformed_parameters(void*);";
-    "void transformed_data(void *);";
+    (*"void transformed_parameters(void*);";*)
+    (*"void transformed_data(void *);";*)
     "void* propose(void *);";
+    "void generated_quantities (void* opaque);";
     "";
     "#endif";
   ]);
@@ -777,8 +767,9 @@ let printPreludeFile sourcefile data_basics param_basics =
     renderGetAndSet "state" "Params";
     renderPropose "state" "Params" param_basics;
     renderParameters "Params" param_basics;
-    renderTransformedParameters "Params" param_basics;
-    renderTransformedData "Data" data_basics;
+    (*renderTransformedParameters "Params" param_basics;*)
+    (*renderTransformedData "Data" data_basics;*)
+    renderGeneratedQuantities ();
     renderDataLoaderFunctions data_basics;
     renderCLILoader data_basics;
   ]);
@@ -839,67 +830,23 @@ let elaborate (sourcefile : string) (p: Stan.program) =
 
     let functions = [] in
 
-    (* FIXME: remove? *)
-    IdxHashtbl.clear index_set;
-    let (id_data,f_data) = declareFundef "data" (maybe [] (List.map initOneVariable) d) None [] in
-    let functions = (id_data,f_data) :: functions in
-
-    (* FIXME: remove? *)
-    IdxHashtbl.clear index_set;
-    let (id_tr_data,f_tr_data) = declareFundef "transformed_data" (get_code td) None [] in
-    (* let functions = (id_tr_data,f_tr_data) :: functions in *)
-
-    (* FIXME: remove? *)
-    IdxHashtbl.clear index_set;
-    let (id_params,f_params) = declareFundef "parameters" (maybe [] (List.map initOneVariable) p) None [] in
-    let functions = (id_params,f_params) :: functions in
-
-    (* FIXME: remove? *)
-    IdxHashtbl.clear index_set;
-    let (id_tr_params,f_tr_params) = declareFundef "transformed_parameters" (get_code tp) None [] in
-    (* let functions = (id_tr_params,f_tr_params) :: functions in *)
-
     IdxHashtbl.clear index_set;
     (* let target_arg = ((Stypes.Aauto_diffable, StanE.Breal), "target") in
      * let (id_model,f_model) = mkFunction "model" (get_code m) (Some StanE.Breal) [target_arg] [] in *)
     let (id_target, ty_target) = (Camlcoq.intern_string "target", StanE.Breal) in
     let target_var = (id_target, ty_target) in
-    let (id_model,f_model) = mkFunction "model" (get_code m) (Some StanE.Breal) [] [] [target_var] in
+    let (id_model,f_model) = mkFunction "model" ((get_code td) @ (get_code tp) @ (get_code m)) (Some StanE.Breal) [] [] [target_var] in
 
     let functions = (id_model,f_model) :: functions in
-
-    IdxHashtbl.clear index_set;
-    let (id_gen_quant,f_gen_quant) = declareFundef "generated_quantities" (get_code g) None [] in
-    let functions = (id_gen_quant,f_gen_quant) :: functions in
-
-    (* IdxHashtbl.clear index_set; *)
-    (* let (id_propose,f_propose) = declareFundef "propose" [Stan.Sskip] None [] in *)
-    (* let functions = (id_propose,f_propose) :: functions in *)
-
-    (* IdxHashtbl.clear index_set; *)
-    (* let (id_get,f_get) = declareFundef "get_state" [Stan.Sskip] None [] in *)
-    (* let functions = (id_get,f_get) :: functions in *)
-
-    (* IdxHashtbl.clear index_set; *)
-    (* let (id_set,f_set) = declareFundef "set_state" [Stan.Sskip] None [] in *)
-    (* let functions = (id_set,f_set) :: functions in *)
-
-    (* IdxHashtbl.clear index_set; *)
-    (* let (id_print,f_print) = declareFundef "print_state" [Stan.Sskip] None [] in *)
-    (* let functions = (id_print, f_print) :: functions in *)
-
-    (* IdxHashtbl.clear index_set; *)
-    (* let (id_print_data,f_print_data) = declareFundef "print_data" [Stan.Sskip] None [] in *)
-    (* let functions = (id_print_data, f_print_data) :: functions in *)
-
-    IdxHashtbl.clear index_set;
-    let (id_set_data,f_set_data) = declareFundef "set_data" [Stan.Sskip] None [] in
-    let functions = (id_set_data, f_set_data) :: functions in
+ 
+    (*IdxHashtbl.clear index_set;
+    let (id_set_data,f_set_data) = declareFundef "set_data" [Stan.Sskip] None [] in*)
+    (*let functions = (id_set_data, f_set_data) :: functions in*)
 
     IdxHashtbl.clear index_set;
     let (id_main,f_main) = declareFundef "model_pdf" [Stan.Sskip] None [] in
-    let functions = (id_main,f_main) :: functions in
-
+    (*let functions = (id_main,f_main) :: functions in*)
+ 
     let functions =
       List.fold_left
         (fun acc -> fun ff -> (declareFundef ff.Stan.fn_name [ff.Stan.fn_body]
@@ -942,17 +889,12 @@ let elaborate (sourcefile : string) (p: Stan.program) =
       StanE.pr_public=
         List.map fst functions
         @ List.map fst stanlib_functions @ List.map fst all_math_fns;
-      StanE.pr_data=id_data;
       StanE.pr_data_vars=data_fields;
       StanE.pr_data_struct=data_reserved;
-      StanE.pr_transformed_data=id_tr_data;
-      StanE.pr_parameters=id_params;
       StanE.pr_parameters_vars=param_fields;
       StanE.pr_parameters_struct=params_reserved;
-      StanE.pr_transformed_parameters=id_tr_params;
       StanE.pr_model=id_model;
       StanE.pr_target=id_target;
-      StanE.pr_generated=id_gen_quant;
       StanE.pr_main=id_main;
       StanE.pr_math_functions=pr_math_functions;
       StanE.pr_dist_functions=pr_dist_functions;

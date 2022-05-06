@@ -9,4 +9,4 @@
 ../ccomp -lm stanlib.o coin_flip_prelude.o coin_flip.o coin_flip_runtime.o -o coin_flip
 
 # Execution
-./coin_flip 100 tests/classics/data.csv
+./coin_flip 1 tests/classics/data.csv
