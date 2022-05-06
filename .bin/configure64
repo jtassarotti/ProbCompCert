@@ -1,7 +1,0 @@
-#!/usr/bin/env bash
-
-root_dir=$(git rev-parse --show-toplevel)
-cd $root_dir
-
-
-./configure -prefix ./out -clightgen x86_64-linux
