@@ -140,12 +140,7 @@ jobs:
 
           # this is important for looking up ./Runtime.c file (see FIXME in printRuntimeFile)
           cd stanfrontend
-          ccomp -c stanlib.c
-          ccomp -c tests/classics/coin_flip.stan
-          ccomp -c coin_flip.s
-          ccomp -I. -c tests/classics/coin_flip_prelude.c
-          ccomp -I. -c tests/classics/coin_flip_runtime.c
-          ccomp stanlib.o coin_flip_prelude.o coin_flip.o coin_flip_runtime.o -lm -o runit
+	  bash test.sh coin_flip 10
 
       - name: test that ccompstan script works on stanfrontend/tests/simple/simple.stan
         run: |
