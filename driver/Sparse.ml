@@ -775,7 +775,7 @@ let printPreludeFile sourcefile data_basics param_basics =
   ]);
   close_out oc
 
-let printRuntimeFile sourcefile data_basics param_basics =
+let printRuntimeFile sourcefile =
   let sourceDir = Filename.dirname sourcefile in
   let sourceName = Filename.basename sourcefile in
   let preludeName = Filename.chop_extension sourceName in
@@ -826,7 +826,7 @@ let elaborate (sourcefile : string) (p: Stan.program) =
 
     printPreludeHeader sourcefile data_basics param_basics;
     printPreludeFile sourcefile data_basics param_basics;
-    printRuntimeFile sourcefile data_basics param_basics;
+    printRuntimeFile sourcefile;
 
     let functions = [] in
 
