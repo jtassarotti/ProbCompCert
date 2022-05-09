@@ -237,7 +237,7 @@ Fixpoint transf_statement (s: StanE.statement) {struct s}: res CStan.statement :
   | Sreturn (Some e) =>
     do e <- transf_expression e;
     OK (CStan.Sreturn (Some e))
-  | Svar v =>
+  | Svar _ _ _ =>
     (*OK (CStan.Sset i (CStan.Evar i ...))*)
     Error (msg "Denumpyification.transf_statement (NYI): Svar")
   | Scall i el =>
@@ -289,11 +289,10 @@ Definition transf_constraint (c : StanE.constraint) : res CStan.constraint :=
     OK (CStan.Clower_upper e0 e1)
   end.
  
-Definition transf_variable (_: AST.ident) (v: StanE.variable): res (type * CStan.constraint * option CStan.expr * bool) :=
+Definition transf_variable (_: AST.ident) (v: StanE.variable): res (type * CStan.constraint) :=
   do ty <- transf_type (StanE.vd_type v);
-  do oe <- option_mmap transf_expression (StanE.vd_init v);
   do c <- transf_constraint (StanE.vd_constraint v);
-  OK (ty, c, oe, StanE.vd_global v).
+  OK (ty, c).
 
 Fixpoint mapM {X Y:Type} (f: X -> res Y) (xs: list X) : res (list Y) :=
   match xs with
@@ -385,15 +384,15 @@ Definition filter_globvars (all_defs : list (AST.ident*AST.globdef CStan.fundef 
   let plain_members := List.map (fun tpl => Member_plain (fst tpl) (snd tpl)) stan_members in
   plain_members.
 
-Definition eglobdef_to_constr : AST.globdef CStan.fundef (type * CStan.constraint * option CStan.expr * bool) -> option CStan.constraint :=
-  map_globdef (fun x => match x with | (_, c, _, _) => c end).
+Definition eglobdef_to_constr : AST.globdef CStan.fundef (type * CStan.constraint) -> option CStan.constraint :=
+  map_globdef (fun x => match x with | (_, c) => c end).
 
-Definition tranf_elaborated_globdef (gd : AST.globdef CStan.fundef (type * CStan.constraint * option CStan.expr * bool)) : AST.globdef CStan.fundef type :=
+Definition transf_elaborated_globdef (gd : AST.globdef CStan.fundef (type * CStan.constraint)) : AST.globdef CStan.fundef type :=
   match gd with
   | AST.Gfun f => AST.Gfun f
   | AST.Gvar t =>
     AST.Gvar {|
-      AST.gvar_info := fst (fst (fst t.(AST.gvar_info)));
+      AST.gvar_info := (fst t.(AST.gvar_info));
       AST.gvar_init := t.(AST.gvar_init);
       AST.gvar_readonly := t.(AST.gvar_readonly);
       AST.gvar_volatile := t.(AST.gvar_volatile);
@@ -420,7 +419,7 @@ Definition transf_program(p: StanE.program): res CStan.program :=
   do p1 <- AST.transform_partial_program2 transf_fundef transf_variable p;
 
   let all_elaborated_defs := AST.prog_defs p1 in
-  let all_defs := map_values tranf_elaborated_globdef all_elaborated_defs in
+  let all_defs := map_values transf_elaborated_globdef all_elaborated_defs in
   let all_contraints := cat_values (map_values eglobdef_to_constr all_elaborated_defs) in
 
   let params_struct_id := CStan.res_params_type (StanE.pr_parameters_struct p) in

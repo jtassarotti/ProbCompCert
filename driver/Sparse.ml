@@ -128,9 +128,6 @@ let el_b b dims =
   | (Stan.Bmatrix _, _) -> raise (Unsupported "matrix type")
   | (Stan.Brow _, _) -> raise (Unsupported "matrix type")                         
 
-  
-
-
 let elab elab_fun ol =
   match ol with
   | None -> None
@@ -205,9 +202,6 @@ let mkVariableFromLocal (v, id, basic) =
   let vd = {
     StanE.vd_type = basic;
     StanE.vd_constraint = el_c(v.Stan.vd_constraint);
-    StanE.vd_dims = List.map el_e v.Stan.vd_dims;
-    StanE.vd_init = mapo v.Stan.vd_init el_e;
-    StanE.vd_global = true;
   } in
   (id,  AST.Gvar { AST.gvar_info = vd; gvar_init = transf_v_init v.Stan.vd_type v.Stan.vd_dims;
                    gvar_readonly = false; gvar_volatile = false})
@@ -324,8 +318,7 @@ let elaborate (sourcefile : string) (p: Stan.program) =
     let functions = (id_model,f_model) :: functions in
 
     IdxHashtbl.clear index_set;
-    let (id_main,f_main) = declareFundef "model_pdf" [Stan.Sskip] None [] in
-    (*let functions = (id_main,f_main) :: functions in*)
+    let (id_main,f_main) = declareFundef "main" [Stan.Sskip] None [] in
  
     let functions =
       List.fold_left

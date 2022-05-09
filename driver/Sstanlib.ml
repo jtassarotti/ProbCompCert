@@ -140,9 +140,6 @@ let mkGlobalStruct i members = AST.Gvar {
   AST.gvar_info = {
     StanE.vd_type = StanE.Bstruct i;
     StanE.vd_constraint = StanE.Cidentity;
-    StanE.vd_dims = [];
-    StanE.vd_init = None;
-    StanE.vd_global = true;
   };
 }
 
@@ -186,9 +183,6 @@ let mk_global_array ty len = AST.Gvar {
   AST.gvar_info = {
     StanE.vd_type = StanE.Barray (Camlcoq.coqint_of_camlint len);
     StanE.vd_constraint = StanE.Cidentity;
-    StanE.vd_dims = [];
-    StanE.vd_init = None;
-    StanE.vd_global = true;
   };
 }
 

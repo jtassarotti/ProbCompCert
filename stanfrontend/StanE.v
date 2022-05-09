@@ -54,14 +54,6 @@ Inductive constraint :=
   | Cupper: expr -> constraint
   | Clower_upper: expr -> expr -> constraint.
 
-Record variable := mkvariable {
-  vd_type: basic;
-  vd_constraint: constraint;
-  vd_dims: list(expr);
-  vd_init: option expr;
-  vd_global: bool;
-}.
-
 Inductive statement :=
   (* Classical statements that exist in C *)
   | Sskip : statement
@@ -73,7 +65,7 @@ Inductive statement :=
   | Sbreak: statement
   | Scontinue: statement
   | Sreturn: option expr -> statement
-  | Svar: variable -> statement
+  | Svar: ident -> basic -> option expr -> statement
   | Scall: ident -> list expr -> statement
   (* Classical statements that differ C *)
   | Sforeach: ident -> expr -> statement -> statement
@@ -81,6 +73,10 @@ Inductive statement :=
   | Starget: expr -> statement
   | Stilde: expr -> expr -> list expr -> (option expr * option expr) -> statement.
 
+Record variable := mkvariable {
+  vd_type: basic;
+  vd_constraint: constraint;
+}.
 
 Record function := mkfunction {
   fn_return: option(basic);
