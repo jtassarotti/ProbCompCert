@@ -142,8 +142,6 @@ Fixpoint transf_expression (e: StanE.expr) {struct e}: res CStan.expr :=
     do e2 <- transf_expression e2;
     OK (CStan.Ebinop o e1 e2 t)
   | Ecall i el => Error (msg "Denumpyification.transf_expression: call expression should have been removed already")
-  | Econdition e1 e2 e3 => Error (msg "Denumpyification.transf_expression (NYI): Econdition")
-  | Earray el => Error (msg "Denumpyification.transf_expression (NYI): Earray")
   | Eindexed e nil =>
     Error (msg "Denumpyification.transf_expression: Eindexed cannot be passed an empty list")
   | Eindexed e (cons i nil) =>
@@ -213,10 +211,6 @@ Fixpoint transf_statement (s: StanE.statement) {struct s}: res CStan.statement :
   | Svar _ _ _ =>
     (*OK (CStan.Sset i (CStan.Evar i ...))*)
     Error (msg "Denumpyification.transf_statement (NYI): Svar")
-  | Scall i el =>
-    do el <- list_mmap transf_expression el;
-    (*OK (CStan.Scall (Some i) Tvoid el)*)
-    Error (msg "Denumpyification.transf_statement (NYI): Scall")
   | Starget e =>
     do e <- transf_expression e;
     OK (CStan.Starget e)

@@ -28,8 +28,6 @@ Inductive expr :=
   | Eunop: operator -> expr -> expr
   | Ebinop: expr -> operator -> expr -> expr
   | Ecall: ident -> list expr -> expr
-  | Econdition: expr -> expr -> expr -> expr
-  | Earray: list expr -> expr
   | Eindexed: expr -> list expr -> expr
   (* Probabilistic expressions *)
   | Edist: ident -> list expr -> expr
@@ -49,7 +47,6 @@ Inductive statement :=
   | Sifthenelse: expr -> statement -> statement -> statement
   | Sfor: ident -> expr -> expr -> statement -> statement
   | Svar: ident -> basic -> option expr -> statement
-  | Scall: ident -> list expr -> statement
   (* Probabilistic statements *)
   | Starget: expr -> statement
   | Stilde: expr -> expr -> list expr -> (option expr * option expr) -> statement.
