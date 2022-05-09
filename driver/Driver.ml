@@ -113,7 +113,7 @@ let compile_stan_file sourcename ifile ofile =
   (* Parse the ast *)
   let (data,params,stan) = Sparse.parse_stan_file sourcename ifile in
   (* generate the proposal function *)
-  let proposal = Spropose.generate_proposal "state" "Params" params in
+  let proposal = Spropose.generate_proposal stan in
   (* Generate the prelude *)
   Sprelude.generate_prelude sourcename stan data params proposal;
   (* Convert to Asm *)

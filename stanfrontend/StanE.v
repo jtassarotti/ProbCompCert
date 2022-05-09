@@ -1,14 +1,8 @@
-(*Require Import Globalenvs.*)
-(*Require Import Events.*)
 Require Import Integers.
 Require Import Coqlib.
 Require Import Floats.
 Require Import AST.
-(*Require Stan.*)
 Require CStan.
-(*Require Import Sops.
-Require Import Cop.
-Require Import Stypes.*)
 
 Inductive operator :=
   | Plus

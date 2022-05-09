@@ -27,7 +27,6 @@ module IdxTable =
 
 module IdxHashtbl = Hashtbl.Make(IdxTable)
 let index_set = IdxHashtbl.create 123456;;
-
                  
 let read_file sourcefile =
   let ic = open_in_bin sourcefile in
