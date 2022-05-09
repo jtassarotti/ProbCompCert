@@ -1,9 +1,7 @@
 data {
   real<lower=0> r_e;
   real<lower=0> r_l;
-
-  int<lower=1> 100;
-  array[100] int<lower=0> D;
+  real D[100];
 }
 transformed data {
   real log_unif;
@@ -14,7 +12,7 @@ parameters {
   real<lower=0> l;
 }
 transformed parameters {
-  vector[100] lp;
+  real lp[100];
   lp = rep_vector(log_unif, 100);
   for (s in 1:100) {
     for (t in 1:100) {
