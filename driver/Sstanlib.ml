@@ -138,7 +138,7 @@ let mkGlobalStruct i members = AST.Gvar {
   AST.gvar_volatile = false;
   AST.gvar_init = [init_struct members];
   AST.gvar_info = {
-    StanE.vd_type = StanE.Bstruct i;
+    StanE.vd_type = StanE.Bint; (* This is a placeholder, we just need to declare the structure's existence  *)
     StanE.vd_constraint = StanE.Cidentity;
   };
 }

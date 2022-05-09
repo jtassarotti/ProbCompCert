@@ -29,7 +29,6 @@ Fixpoint transf_type (t: StanE.basic) : res type :=
   | StanE.Bint => OK tint
   | StanE.Breal => OK tdouble
   | StanE.Barray i => OK (tarray tint i)
-  | StanE.Bstruct i => OK (Tstruct i noattr)
   | StanE.Bfunction tl ret =>
     do tl <- transf_typelist tl;
     do oret <- option_mmap transf_type ret;

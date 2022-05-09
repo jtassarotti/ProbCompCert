@@ -6,18 +6,14 @@ Require Import Floats.
 Require Import AST.
 Require Stan.
 Require CStan.
-
 Require Import Sops.
 Require Import Cop.
 Require Import Stypes.
 
-
-(* NOTE basic is a StanE type, see variable.vd_type *)
 Inductive basic :=
   | Bint
   | Breal
   | Barray: Z -> basic
-  | Bstruct: ident -> basic
   | Bfunction: basiclist -> option basic -> basic
 with basiclist : Type :=
   | Bnil: basiclist
