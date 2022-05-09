@@ -10,7 +10,7 @@ let basicToCString v btype dims =
   | (StanE.Breal, [Stan.Econst_int r;Stan.Econst_int c]) -> "double " ^ v ^ "[" ^ r ^ "][" ^ c ^ "]"
   | (StanE.Breal, []) -> "double " ^ v
   (* default type for vectors, rows, and arrays are all double *)
-  | (StanE.Barray sz, _) -> "double " ^ v ^ "[" ^ (Camlcoq.Z.to_string sz) ^ "]"
+  | (StanE.Barray (ty,sz), _) -> "double " ^ v ^ "[" ^ (Camlcoq.Z.to_string sz) ^ "]"
   | _ -> raise (NIY_gen "basicToCString: type translation not valid when declaring a struct")
 
 let renderStruct name vs =
@@ -93,27 +93,6 @@ let renderParameters struct_type struct_vars =
     "";
   ])
 
-let renderTransformedParameters struct_type struct_vars =
-  String.concat "\n" ([
-    ("void transformed_parameters (void* opaque) {");
-    "}";
-    "";
-  ])
-
-let renderTransformedData struct_type struct_vars =
-  String.concat "\n" ([
-    ("void transformed_data (void* opaque) {");
-    "}";
-    "";
-    ])
-
-let renderGeneratedQuantities () =
-  String.concat "\n" ([
-    ("void generated_quantities (void* opaque) {");
-    "}";
-    "";
-  ])
-
 let renderDataLoaderFunctions vs =
   let parseType t =
      match t with
@@ -192,7 +171,6 @@ let printPreludeHeader sourcefile data_basics param_basics =
     "void load_from_cli(void* opaque, char *files[]);";
     "void init_parameters();";
     "void* propose(void *);";
-    "void generated_quantities (void* opaque);";
     "";
     "#endif";
   ]);
@@ -229,9 +207,6 @@ let printPreludeFile sourcefile data_basics param_basics proposal =
     renderGetAndSet "state" "Params";
     proposal;
     renderParameters "Params" param_basics;
-    (*renderTransformedParameters "Params" param_basics;*)
-    (*renderTransformedData "Data" data_basics;*)
-    renderGeneratedQuantities ();
     renderDataLoaderFunctions data_basics;
     renderCLILoader data_basics;
   ]);

@@ -8,7 +8,7 @@ let sizeof_basic t =
   begin match t with
   | StanE.Bint -> 4l
   | StanE.Breal -> 8l
-  | StanE.Barray n -> Int32.mul 8l  (Camlcoq.camlint_of_coqint n)
+  | StanE.Barray (ty, n) -> Int32.mul 8l  (Camlcoq.camlint_of_coqint n)
   | _ -> raise (Invalid_argument "Sparse does not calculate the size of this type")
   end
 
@@ -181,7 +181,7 @@ let mk_global_array ty len = AST.Gvar {
   AST.gvar_volatile = false;
   AST.gvar_init = replicate (to_int len) ty;
   AST.gvar_info = {
-    StanE.vd_type = StanE.Barray (Camlcoq.coqint_of_camlint len);
+    StanE.vd_type = StanE.Barray (StanE.Bint, (Camlcoq.coqint_of_camlint len));
     StanE.vd_constraint = StanE.Cidentity;
   };
 }

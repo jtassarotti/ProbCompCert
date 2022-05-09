@@ -141,8 +141,8 @@ let el_b b dims =
   match (b, dims) with
   | (Stan.Bint,  []) -> StanE.Bint
   | (Stan.Breal, []) -> StanE.Breal
-  | (Stan.Bint,  [Stan.Econst_int i]) -> StanE.Barray (coqZ_of_string i) 
-  | (Stan.Breal, [Stan.Econst_int i]) -> StanE.Barray (coqZ_of_string i)
+  | (Stan.Bint,  [Stan.Econst_int i]) -> StanE.Barray (StanE.Bint,(coqZ_of_string i)) 
+  | (Stan.Breal, [Stan.Econst_int i]) -> StanE.Barray (StanE.Breal,(coqZ_of_string i))
   | (Stan.Breal, _ ) -> raise (NIY_elab "compositive real")
   | (Stan.Bint, _ ) -> raise (NIY_elab "compositive int")        
   | (Stan.Bvector _, _) -> raise (Unsupported "vector type")

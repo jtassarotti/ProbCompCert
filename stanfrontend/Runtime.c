@@ -56,7 +56,7 @@ int main(int argc, char* argv[]) {
       printf("\n-> Rejected\n");
     }
 
-    generated_quantities(pi);
+    //generated_quantities(pi);
   } 
 
   printf("\n...completed execution!");

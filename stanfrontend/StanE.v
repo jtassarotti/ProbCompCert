@@ -22,7 +22,7 @@ Inductive operator :=
 Inductive basic :=
   | Bint
   | Breal
-  | Barray: Z -> basic
+  | Barray: basic -> Z -> basic
   | Bfunction: basiclist -> option basic -> basic
 with basiclist : Type :=
   | Bnil: basiclist
