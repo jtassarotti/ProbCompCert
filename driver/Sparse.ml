@@ -70,11 +70,11 @@ let rec el_e e =
 
 and el_i i =
   match i with
-  | Stan.Iall -> StanE.Iall
-  | Stan.Isingle e -> StanE.Isingle (el_e e)
-  | Stan.Iupfrom e -> StanE.Iupfrom (el_e e)
-  | Stan.Idownfrom e -> StanE.Idownfrom (el_e e)
-  | Stan.Ibetween (e1,e2) -> StanE.Ibetween (el_e e1, el_e e2)
+  | Stan.Iall -> raise (Unsupported "No support for advanced indexing")
+  | Stan.Isingle e -> el_e e
+  | Stan.Iupfrom e -> raise (Unsupported "No support for advanced indexing")
+  | Stan.Idownfrom e -> raise (Unsupported "No support for advanced indexing")
+  | Stan.Ibetween (e1,e2) -> raise (Unsupported "No support for advanced indexing")
 
 let el_p p =
   match p with

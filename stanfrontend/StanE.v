@@ -32,17 +32,10 @@ Inductive expr :=
   | Econdition: expr -> expr -> expr -> expr
   (* Classical expresions that differ from C *)
   | Earray: list expr -> expr
-  | Eindexed: expr -> list index -> expr
+  | Eindexed: expr -> list expr -> expr
   (* Probabilistic expressions *)
   | Edist: ident -> list expr -> expr
-  | Etarget
-
-with index :=
-  | Iall
-  | Isingle: expr -> index
-  | Iupfrom: expr -> index
-  | Idownfrom: expr -> index
-  | Ibetween: expr -> expr -> index.
+  | Etarget.
 
 Inductive constraint :=
   | Cidentity
@@ -91,8 +84,9 @@ Record program := mkprogram {
   pr_model: ident;
   pr_target: ident;
   pr_parameters_vars: list (ident * basic);
-  pr_parameters_struct: CStan.reserved_params;
   pr_data_vars: list (ident * basic);
+  (* What follows is information for the compiler specifically *)
+  pr_parameters_struct: CStan.reserved_params;
   pr_data_struct: CStan.reserved_data;
   pr_main: ident;
   pr_math_functions: list (CStan.math_func * ident * Ctypes.type);

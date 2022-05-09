@@ -148,7 +148,7 @@ Fixpoint transf_expression (e: StanE.expr) {struct e}: res CStan.expr :=
     Error (msg "Denumpyification.transf_expression: Eindexed cannot be passed an empty list")
   | Eindexed e (cons i nil) =>
     do e <- transf_expression e;
-    do i <- transf_index i;
+    do i <- transf_expression i;
     let ty := CStan.typeof e in
     match ty with
     | Tarray ty sz _ => OK (CStan.Ederef (CStan.Ebinop Oadd e i (tptr ty)) ty)
@@ -158,22 +158,6 @@ Fixpoint transf_expression (e: StanE.expr) {struct e}: res CStan.expr :=
     Error (msg "Denumpyification.transf_expression (NYI): Eindexed [i, ...]")
   | Edist i el => Error (msg "Denumpyification.transf_expression (NYI): Edist")
   | Etarget => OK (CStan.Etarget Tvoid)
-  end
-
-with transf_index (i: StanE.index) {struct i}: res CStan.expr :=
-  match i with
-  | Iall => Error (msg "Denumpyification.transf_index (NYI): Iall")
-  | Isingle e => do e <- transf_expression e; OK e
-  | Iupfrom e =>
-    do e <- transf_expression e;
-    Error (msg "Denumpyification.transf_index (NYI): Iupfrom")
-  | Idownfrom e =>
-    do e <- transf_expression e;
-    Error (msg "Denumpyification.transf_index (NYI): Idownfrom")
-  | Ibetween e1 e2 =>
-    do e1 <- transf_expression e1;
-    do e2 <- transf_expression e2;
-    Error (msg "Denumpyification.transf_index (NYI): Ibetween")
   end.
 
 
@@ -334,7 +318,7 @@ Definition transf_function (f: StanE.function): res CStan.function :=
       CStan.fn_params := params;
       CStan.fn_body := body;
       CStan.fn_blocktype := f.(StanE.fn_blocktype);
-      CStan.fn_callconv := f.(StanE.fn_callconv);
+      CStan.fn_callconv := AST.cc_default;
       CStan.fn_temps := temps;
       CStan.fn_vars := vars;
       CStan.fn_generator := SimplExpr.initial_generator tt;
