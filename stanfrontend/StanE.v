@@ -21,7 +21,6 @@ with basiclist : Type :=
 
 Inductive expr :=
   (* Classical expressions that exist in C *)
-  (* NOTE basic is a StanE type, see variable.vd_type *)
   | Econst_int: int -> basic -> expr
   | Econst_float: float -> basic -> expr
   | Evar: ident -> basic -> expr
@@ -30,7 +29,6 @@ Inductive expr :=
   | Ebinop: expr -> operator -> expr -> expr
   | Ecall: ident -> list expr -> expr
   | Econdition: expr -> expr -> expr -> expr
-  (* Classical expresions that differ from C *)
   | Earray: list expr -> expr
   | Eindexed: expr -> list expr -> expr
   (* Probabilistic expressions *)
