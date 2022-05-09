@@ -11,9 +11,7 @@ let basicToCString v btype dims =
   | (StanE.Breal, [Stan.Econst_int r;Stan.Econst_int c]) -> "double " ^ v ^ "[" ^ r ^ "][" ^ c ^ "]"
   | (StanE.Breal, []) -> "double " ^ v
   (* default type for vectors, rows, and arrays are all double *)
-  | (StanE.Bvector sz, _) -> "double " ^ v ^ "[" ^ (Camlcoq.Z.to_string sz) ^ "]"
-  | (StanE.Brow sz, _) -> "double " ^ v ^ "[" ^ (Camlcoq.Z.to_string sz) ^ "]"
-  | (StanE.Bmatrix (r, c), _) -> "double " ^ v ^ "[" ^ (Camlcoq.Z.to_string r) ^ "][" ^ (Camlcoq.Z.to_string c) ^ "]"
+  | (StanE.Barray sz, _) -> "double " ^ v ^ "[" ^ (Camlcoq.Z.to_string sz) ^ "]"
   | _ -> raise (NIY_gen "basicToCString: type translation not valid when declaring a struct")
 
 let renderStruct name vs =
@@ -34,9 +32,7 @@ let renderPrintStruct name vs =
      match t with
     | StanE.Bint -> "%z"
     | StanE.Breal -> "%f"
-    | StanE.Bvector _ -> "%f"
-    | StanE.Brow _ -> "%f"
-    | StanE.Bmatrix _ -> "%f"
+    | StanE.Barray _ -> "%f"
     | _ -> raise (NIY_gen "renderPrintStruct.typeTmpl: invalid type")
   in
   let range n = List.map (fun x -> x - 1) (List.init n Int.succ) in
@@ -124,9 +120,7 @@ let renderDataLoaderFunctions vs =
      match t with
     | StanE.Bint -> "atof"
     | StanE.Breal -> "atoll"
-    | StanE.Bvector _ -> "atoll"
-    | StanE.Brow _ -> "atoll"
-    | StanE.Bmatrix _ -> "atoll"
+    | StanE.Barray _ -> "atoll"
     | _ -> raise (NIY_gen "invalid type")
   in
 
@@ -198,8 +192,6 @@ let printPreludeHeader sourcefile data_basics param_basics =
     "void set_state(void*);";
     "void load_from_cli(void* opaque, char *files[]);";
     "void init_parameters();";
-    (*"void transformed_parameters(void*);";*)
-    (*"void transformed_data(void *);";*)
     "void* propose(void *);";
     "void generated_quantities (void* opaque);";
     "";
@@ -274,3 +266,4 @@ let printRuntimeFile sourcefile =
         close_out_noerr oc;          (* emergency closing *)
         raise e                     (* exit with error: files are closed but
                                      channels are not flushed *)
+

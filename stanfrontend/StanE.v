@@ -16,9 +16,7 @@ Require Import Stypes.
 Inductive basic :=
   | Bint
   | Breal
-  | Bvector: Z -> basic
-  | Brow: Z -> basic
-  | Bmatrix: Z -> Z -> basic
+  | Barray: Z -> basic
   | Bstruct: ident -> basic
   | Bfunction: basiclist -> option basic -> basic
 with basiclist : Type :=
@@ -38,7 +36,6 @@ Inductive expr :=
   | Econdition: expr -> expr -> expr -> expr
   (* Classical expresions that differ from C *)
   | Earray: list expr -> expr
-  | Erow: list expr -> expr
   | Eindexed: expr -> list index -> expr
   (* Probabilistic expressions *)
   | Edist: ident -> list expr -> expr
@@ -51,26 +48,11 @@ with index :=
   | Idownfrom: expr -> index
   | Ibetween: expr -> expr -> index.
 
-Inductive printable :=
-  | Pstring: ident -> printable 
-  | Pexpr: expr -> printable.
-
 Inductive constraint :=
   | Cidentity
   | Clower: expr -> constraint
   | Cupper: expr -> constraint
-  | Clower_upper: expr -> expr -> constraint
-  | Coffset: expr -> constraint
-  | Cmultiplier: expr -> constraint
-  | Coffset_multiplier: expr -> expr -> constraint
-  | Cordered
-  | Cpositive_ordered
-  | Csimplex
-  | Cunit_vector
-  | Ccholesky_corr
-  | Ccholesky_cov
-  | Ccorrelation
-  | Ccovariance.
+  | Clower_upper: expr -> expr -> constraint.
 
 Record variable := mkvariable {
   vd_type: basic;
@@ -93,7 +75,6 @@ Inductive statement :=
   | Sreturn: option expr -> statement
   | Svar: variable -> statement
   | Scall: ident -> list expr -> statement
-  | Sruntime: ident -> list printable -> statement
   (* Classical statements that differ C *)
   | Sforeach: ident -> expr -> statement -> statement
   (* Probabilistic statements *)

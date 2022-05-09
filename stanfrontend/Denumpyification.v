@@ -28,10 +28,8 @@ Fixpoint transf_type (t: StanE.basic) : res type :=
   match t with
   | StanE.Bint => OK tint
   | StanE.Breal => OK tdouble
-  | StanE.Bvector i => OK (tarray tint i)
+  | StanE.Barray i => OK (tarray tint i)
   | StanE.Bstruct i => OK (Tstruct i noattr)
-  | StanE.Brow s => Error (msg "NYI transf_type: StanE.Brow")
-  | StanE.Bmatrix r c => Error (msg "NYI transf_type: StanE.Bmatrix")
   | StanE.Bfunction tl ret =>
     do tl <- transf_typelist tl;
     do oret <- option_mmap transf_type ret;
@@ -73,7 +71,6 @@ Definition transf_operator (o: Sops.operator): res Cop.binary_operation :=
 
 Definition transf_operator_return (o: Sops.operator): res Ctypes.type :=
   match o with
-  (* FIXME These should all overloaded! *)
   | Sops.Plus => OK tdouble
   | Sops.Minus => OK tdouble
   | Sops.Times => OK tdouble
@@ -148,7 +145,6 @@ Fixpoint transf_expression (e: StanE.expr) {struct e}: res CStan.expr :=
   | Ecall i el => Error (msg "Denumpyification.transf_expression: call expression should have been removed already")
   | Econdition e1 e2 e3 => Error (msg "Denumpyification.transf_expression (NYI): Econdition")
   | Earray el => Error (msg "Denumpyification.transf_expression (NYI): Earray")
-  | Erow el => Error (msg "Denumpyification.transf_expression (NYI): Erow")
   | Eindexed e nil =>
     Error (msg "Denumpyification.transf_expression: Eindexed cannot be passed an empty list")
   | Eindexed e (cons i nil) =>
@@ -248,7 +244,6 @@ Fixpoint transf_statement (s: StanE.statement) {struct s}: res CStan.statement :
     do el <- list_mmap transf_expression el;
     (*OK (CStan.Scall (Some i) Tvoid el)*)
     Error (msg "Denumpyification.transf_statement (NYI): Scall")
-  | Sruntime _ _ => Error (msg "Denumpyification.transf_statement (NYI): Sruntime")
   | Sforeach i e s =>
     do arr <- transf_expression e;
     do body <- transf_statement s;
@@ -286,27 +281,12 @@ end.
 Definition transf_constraint (c : StanE.constraint) : res CStan.constraint :=
   match c with
   | StanE.Cidentity => OK CStan.Cidentity
-  | StanE.Cordered => OK CStan.Cordered
-  | StanE.Cpositive_ordered => OK CStan.Cpositive_ordered
-  | StanE.Csimplex => OK CStan.Csimplex
-  | StanE.Cunit_vector => OK CStan.Cunit_vector
-  | StanE.Ccholesky_corr => OK CStan.Ccholesky_corr
-  | StanE.Ccholesky_cov => OK CStan.Ccholesky_cov
-  | StanE.Ccorrelation => OK CStan.Ccorrelation
-  | StanE.Ccovariance => OK CStan.Ccovariance
-
   | StanE.Clower e => do e <- transf_expression e; OK (CStan.Clower e)
   | StanE.Cupper e => do e <- transf_expression e; OK (CStan.Cupper e)
-  | StanE.Coffset e => do e <- transf_expression e; OK (CStan.Coffset e)
-  | StanE.Cmultiplier e => do e <- transf_expression e; OK (CStan.Cmultiplier e)
   | StanE.Clower_upper e0 e1 =>
     do e0 <- transf_expression e0;
     do e1 <- transf_expression e1;
     OK (CStan.Clower_upper e0 e1)
-  | StanE.Coffset_multiplier e0 e1 =>
-    do e0 <- transf_expression e0;
-    do e1 <- transf_expression e1;
-    OK (CStan.Coffset_multiplier e0 e1)
   end.
  
 Definition transf_variable (_: AST.ident) (v: StanE.variable): res (type * CStan.constraint * option CStan.expr * bool) :=

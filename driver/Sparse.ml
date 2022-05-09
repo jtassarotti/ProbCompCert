@@ -8,7 +8,9 @@ open Int32
 open Sgen
 open Sstanlib
 
+exception Internal of string
 exception NIY_elab of string
+exception Unsupported of string
 
 (* <><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><> *)
 (*                                 Type Lookup                                  *)
@@ -62,7 +64,7 @@ let rec el_e e =
   | Stan.Ecall (i,el) -> StanE.Ecall (Camlcoq.intern_string i, List.map el_e el)
   | Stan.Econdition (e1,e2,e3) -> StanE.Econdition(el_e e1, el_e e2, el_e e3)
   | Stan.Earray el -> StanE.Earray (List.map el_e el)
-  | Stan.Erow el -> StanE.Erow (List.map el_e el)
+  | Stan.Erow el -> raise (Unsupported "No support of row expressions")
   | Stan.Eindexed (e,il) -> StanE.Eindexed (el_e e, map el_i il)
   | Stan.Edist (i,el) -> StanE.Edist (Camlcoq.intern_string i, List.map el_e el)
   | Stan.Etarget -> StanE.Etarget
@@ -77,8 +79,8 @@ and el_i i =
 
 let el_p p =
   match p with
-  | Stan.Pstring s -> StanE.Pstring (Camlcoq.intern_string s)
-  | Stan.Pexpr e -> StanE.Pexpr (el_e e)
+  | Stan.Pstring s -> raise (Unsupported "Printing")
+  | Stan.Pexpr e -> raise (Unsupported "Printing")
 
 let rec el_s s =
   match s with
@@ -97,8 +99,8 @@ let rec el_s s =
   | Stan.Sreturn oe -> StanE.Sreturn (mapo oe el_e)
   | Stan.Svar v -> raise (NIY_elab "statement: var")
   | Stan.Scall (i,el) -> StanE.Scall (Camlcoq.intern_string i,List.map el_e el)
-  | Stan.Sprint lp -> raise (NIY_elab "statement: print")
-  | Stan.Sreject lp -> raise (NIY_elab "statement: reject")
+  | Stan.Sprint lp -> raise (Unsupported "statement: print")
+  | Stan.Sreject lp -> raise (Unsupported "statement: reject")
   | Stan.Sforeach (i,e,s) ->
     let isym = Camlcoq.intern_string i in
     IdxHashtbl.add index_set isym ();
@@ -119,10 +121,15 @@ let el_b b dims =
   match (b, dims) with
   | (Stan.Bint,  []) -> StanE.Bint
   | (Stan.Breal, []) -> StanE.Breal
-  | (Stan.Bint,  [Stan.Econst_int i]) -> StanE.Bvector (coqZ_of_string i) (* FIXME we don't have the ability to add int vectors? *)
-  | (Stan.Breal, [Stan.Econst_int i]) -> StanE.Bvector (coqZ_of_string i) (* FIXME we don't have the ability to add int vectors? *)
-  | (Stan.Bvector _, _) -> raise (NIY_elab "Use of unsupported type: vector")                                     
-  | _ -> raise (NIY_elab "Use of unsupported type, please do not use matlab like expressions or types")
+  | (Stan.Bint,  [Stan.Econst_int i]) -> StanE.Barray (coqZ_of_string i) 
+  | (Stan.Breal, [Stan.Econst_int i]) -> StanE.Barray (coqZ_of_string i)
+  | (Stan.Breal, _ ) -> raise (NIY_elab "compositive real")
+  | (Stan.Bint, _ ) -> raise (NIY_elab "compositive int")        
+  | (Stan.Bvector _, _) -> raise (Unsupported "vector type")
+  | (Stan.Bmatrix _, _) -> raise (Unsupported "matrix type")
+  | (Stan.Brow _, _) -> raise (Unsupported "matrix type")                         
+
+  
 
 
 let elab elab_fun ol =
@@ -169,17 +176,17 @@ let el_c c =
   | Stan.Clower e -> StanE.Clower (el_e e)
   | Stan.Cupper e -> StanE.Cupper (el_e e)
   | Stan.Clower_upper (l, u) -> StanE.Clower_upper (el_e l, el_e u)
-  | Stan.Coffset e -> StanE.Coffset (el_e e)
-  | Stan.Cmultiplier e -> StanE.Cmultiplier (el_e e)
-  | Stan.Coffset_multiplier (l, u) -> StanE.Coffset_multiplier (el_e l, el_e u)
-  | Stan.Cordered -> StanE.Cordered
-  | Stan.Cpositive_ordered -> StanE.Cpositive_ordered
-  | Stan.Csimplex -> StanE.Csimplex
-  | Stan.Cunit_vector -> StanE.Cunit_vector
-  | Stan.Ccholesky_corr -> StanE.Ccholesky_corr
-  | Stan.Ccholesky_cov -> StanE.Ccholesky_cov
-  | Stan.Ccorrelation -> StanE.Ccorrelation
-  | Stan.Ccovariance -> StanE.Ccovariance
+  | Stan.Coffset e -> raise (Unsupported "constraint:offset")
+  | Stan.Cmultiplier e -> raise (Unsupported "constraint:multiplier")
+  | Stan.Coffset_multiplier (l, u) -> raise (Unsupported "constraint:offset_multiplier")
+  | Stan.Cordered -> raise (Unsupported "constraint:ordered")
+  | Stan.Cpositive_ordered -> raise (Unsupported "constraint:positive_ordered")
+  | Stan.Csimplex -> raise (Unsupported "constraint:simplex")
+  | Stan.Cunit_vector -> raise (Unsupported "constraint:unit_vector")
+  | Stan.Ccholesky_corr -> raise (Unsupported "constraint:cholesky_corr")
+  | Stan.Ccholesky_cov -> raise (Unsupported "constraint:cholesky_cov")
+  | Stan.Ccorrelation -> raise (Unsupported "constraint:correlation")
+  | Stan.Ccovariance -> raise (Unsupported "constraint:covariance")
 
 let mkLocal v =
   let id = Camlcoq.intern_string v.Stan.vd_id in
