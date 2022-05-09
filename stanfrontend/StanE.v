@@ -56,8 +56,6 @@ Inductive statement :=
   | Sreturn: option expr -> statement
   | Svar: ident -> basic -> option expr -> statement
   | Scall: ident -> list expr -> statement
-  (* Classical statements that differ C *)
-  | Sforeach: ident -> expr -> statement -> statement
   (* Probabilistic statements *)
   | Starget: expr -> statement
   | Stilde: expr -> expr -> list expr -> (option expr * option expr) -> statement.

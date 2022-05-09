@@ -100,11 +100,7 @@ let rec el_s s =
   | Stan.Scall (i,el) -> StanE.Scall (Camlcoq.intern_string i,List.map el_e el)
   | Stan.Sprint lp -> raise (Unsupported "statement: print")
   | Stan.Sreject lp -> raise (Unsupported "statement: reject")
-  | Stan.Sforeach (i,e,s) ->
-    let isym = Camlcoq.intern_string i in
-    IdxHashtbl.add index_set isym ();
-    Hashtbl.add type_table i StanE.Bint;
-    StanE.Sforeach (isym,el_e e, el_s s)
+  | Stan.Sforeach (i,e,s) ->raise (Unsupported "statement: foreach")
   | Stan.Starget e -> StanE.Starget (el_e e)
   | Stan.Stilde (e,i,el,(tr1,tr2)) ->
     let (_i, _ty) = match Hashtbl.find_opt transf_dist_idents i with

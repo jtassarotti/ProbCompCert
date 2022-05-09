@@ -227,27 +227,6 @@ Fixpoint transf_statement (s: StanE.statement) {struct s}: res CStan.statement :
     do el <- list_mmap transf_expression el;
     (*OK (CStan.Scall (Some i) Tvoid el)*)
     Error (msg "Denumpyification.transf_statement (NYI): Scall")
-  | Sforeach i e s =>
-    do arr <- transf_expression e;
-    do body <- transf_statement s;
-
-    match CStan.typeof arr with
-    | Tarray ty sz _ =>
-      let zero := Integers.Int.repr 0 in
-      let init := CStan.Sassign (CStan.Evar i tint) (CStan.Econst_int zero tint) in
-
-      (* break condition of e1 == e2 *)
-      let size := Integers.Int.repr sz in
-      let cond := CStan.Ebinop Olt (CStan.Evar i tint) (CStan.Econst_int size tint) tint in
-
-      let one := Integers.Int.repr 1 in
-      let eincr := CStan.Ebinop Oadd (CStan.Evar i tint) (CStan.Econst_int one tint) tint in
-      let incr := CStan.Sassign (CStan.Evar i tint) eincr in
-
-      OK (CStan.Sfor init cond body incr)
-    | _ => Error (msg "Denumpyification.transf_statement: foreach applied to non-array type")
-    end
-
   | Starget e =>
     do e <- transf_expression e;
     OK (CStan.Starget e)
