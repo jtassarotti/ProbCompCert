@@ -1,6 +1,6 @@
 exception NIY_propose of string
 
-let renderPropose global_state struct_type struct_vars =
+let generate_proposal global_state struct_type struct_vars =
   let proposeField (var, p, t) =
     let v = Camlcoq.extern_atom p in
     match (t, var.Stan.vd_dims) with

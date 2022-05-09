@@ -111,7 +111,11 @@ let compile_stan_file sourcename ifile ofile =
   set_dest PrintMach.destination option_dmach ".mach";
   set_dest AsmToJSON.destination option_sdump !sdump_suffix;
   (* Parse the ast *)
-  let stan = Sparse.parse_stan_file sourcename ifile in
+  let (data,params,stan) = Sparse.parse_stan_file sourcename ifile in
+  (* generate the proposal function *)
+  let proposal = Spropose.generate_proposal "state" "Params" params in
+  (* Generate the prelude *)
+  Sprelude.generate_prelude sourcename stan data params proposal;
   (* Convert to Asm *)
   let asm =
     match Compiler.apply_partial

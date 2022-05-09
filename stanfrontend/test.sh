@@ -7,6 +7,7 @@ pushd tests/classics/$1/
 rm *.c
 rm *.o
 rm *.s
+rm *.h
 rm executable
 popd
 
@@ -18,9 +19,9 @@ pushd tests/classics/$1/
 ../../../../ccomp -c stanlib.c
 ../../../../ccomp -c -dclight code.stan
 ../../../../ccomp -c code.s
-../../../../ccomp -I. -c code_prelude.c
-../../../../ccomp -I. -c code_runtime.c
-../../../../ccomp -lm stanlib.o code_prelude.o code_runtime.o code.o -o executable
+../../../../ccomp -I. -c prelude.c
+../../../../ccomp -I. -c Runtime.c
+../../../../ccomp -lm stanlib.o prelude.o Runtime.o code.o -o executable
 
 # Run
 ./executable $2 data.csv

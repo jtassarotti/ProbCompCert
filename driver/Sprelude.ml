@@ -1,4 +1,3 @@
-open Spropose
 
 exception NIY_gen of string
 
@@ -173,9 +172,9 @@ let renderCLILoader vs =
   ])
 let printPreludeHeader sourcefile data_basics param_basics =
   let sourceDir = Filename.dirname sourcefile in
-  let sourceName = Filename.basename sourcefile in
-  let preludeName = Filename.chop_extension sourceName in
-  let file = sourceDir ^ "/" ^ preludeName ^ "_prelude.h" in
+  (* let sourceName = Filename.basename sourcefile in *)
+  (*let preludeName = Filename.chop_extension sourceName in*)
+  let file = sourceDir ^ "/" ^ "prelude.h" in
   Printf.fprintf stdout "Generating: %s\n" file;
   let ohc = open_out file in
   Printf.fprintf ohc "%s\n" (String.concat "\n" [
@@ -199,11 +198,11 @@ let printPreludeHeader sourcefile data_basics param_basics =
   ]);
   close_out ohc
 
-let printPreludeFile sourcefile data_basics param_basics =
+let printPreludeFile sourcefile data_basics param_basics proposal =
   let sourceDir = Filename.dirname sourcefile in
-  let sourceName = Filename.basename sourcefile in
-  let preludeName = Filename.chop_extension sourceName in
-  let file = sourceDir ^ "/" ^ preludeName ^ "_prelude.c" in
+  (*let sourceName = Filename.basename sourcefile in
+  let preludeName = Filename.chop_extension sourceName in*)
+  let file = sourceDir ^ "/" ^ "prelude.c" in
   let oc = open_out file in
   Printf.fprintf stdout "Generating: %s\n" file;
 
@@ -214,7 +213,7 @@ let printPreludeFile sourcefile data_basics param_basics =
     "#include <string.h>";
     "#include <math.h>";
     "#include \"stanlib.h\"";
-    "#include \""^preludeName^"_prelude.h\"";
+    "#include \""^"prelude.h\"";
     "";
     (* strdup is not standard *)
     (* but ccomp doesn't permit for "#define _POSIX_C_SOURCE >= 200809L"; *)
@@ -228,7 +227,7 @@ let printPreludeFile sourcefile data_basics param_basics =
     renderPrintStruct "Params" param_basics;
     renderGetAndSet "observations" "Data";
     renderGetAndSet "state" "Params";
-    renderPropose "state" "Params" param_basics;
+    proposal;
     renderParameters "Params" param_basics;
     (*renderTransformedParameters "Params" param_basics;*)
     (*renderTransformedData "Data" data_basics;*)
@@ -237,33 +236,7 @@ let printPreludeFile sourcefile data_basics param_basics =
     renderCLILoader data_basics;
   ]);
   close_out oc
-
-
-let printRuntimeFile sourcefile =
-  let sourceDir = Filename.dirname sourcefile in
-  let sourceName = Filename.basename sourcefile in
-  let preludeName = Filename.chop_extension sourceName in
-
-  (* now append the header to imports and add the template for runtime.c *)
-  let file = sourceDir ^ "/" ^ preludeName ^ "_runtime.c" in
-  Printf.fprintf stdout "Generating: %s\n" file;
-  let oc = open_out file in
-  Printf.fprintf oc "#include \"%s_prelude.h\"\n" preludeName;
-  let template_file = "./Runtime.c" in  (* FIXME: replace with static asset *)
-  let ic = open_in template_file in
-  try
-    while true do
-      let line = input_line ic in (* read line, discard \n *)
-      Printf.fprintf oc "%s\n" line;
-    done
-  with e ->                     (* some unexpected exception occurs *)
-    match e with
-    | End_of_file ->
-        close_in ic;                 (* close the input channel *)
-        close_out oc                 (* flush and close the channel *)
-    | _ ->
-        close_in_noerr ic;          (* emergency closing *)
-        close_out_noerr oc;          (* emergency closing *)
-        raise e                     (* exit with error: files are closed but
-                                     channels are not flushed *)
-
+        
+let generate_prelude sourcefile p data params proposal =
+  printPreludeHeader sourcefile data params;
+  printPreludeFile sourcefile data params proposal

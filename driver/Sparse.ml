@@ -5,7 +5,6 @@ open Lexing
 open Sparser
 open Smessages
 open Int32
-open Sgen
 open Sstanlib
 
 exception Internal of string
@@ -313,10 +312,6 @@ let elaborate (sourcefile : string) (p: Stan.program) =
     let param_variables = List.map mkVariableFromLocal param_basics in
     let param_fields = List.map (fun tpl -> match tpl with (_, l, r) -> (l, r)) param_basics in
 
-    printPreludeHeader sourcefile data_basics param_basics;
-    printPreludeFile sourcefile data_basics param_basics;
-    printRuntimeFile sourcefile;
-
     let functions = [] in
 
     IdxHashtbl.clear index_set;
@@ -368,7 +363,7 @@ let elaborate (sourcefile : string) (p: Stan.program) =
 
     let structs = [(id_params_struct_global_state, gl_params_struct); (id_params_struct_global_proposal, gl_params_struct); (id_data_struct_global, gl_data_struct)] in
     (* <><><><><><><><><><><><><><><> structs <><><><><><><><><><><><><><><> *)
-
+    (data_basics,param_basics,
     {
       StanE.pr_defs= data_variables @ param_variables @ structs @ stanlib_functions @ functions @ all_math_fns;
       StanE.pr_public=
@@ -383,7 +378,7 @@ let elaborate (sourcefile : string) (p: Stan.program) =
       StanE.pr_main=id_main;
       StanE.pr_math_functions=pr_math_functions;
       StanE.pr_dist_functions=pr_dist_functions;
-    }
+    })
 
 let location t =
   match t with

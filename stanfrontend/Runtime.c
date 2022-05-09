@@ -2,6 +2,7 @@
 #include <math.h>
 #include <stdio.h>
 #include "stanlib.h"
+#include "prelude.h"
 
 // Note that we do not respect the Stan spec because we inline
 // the transformed data and transformed parameters blocks
