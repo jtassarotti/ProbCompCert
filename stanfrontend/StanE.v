@@ -79,7 +79,6 @@ Record function := mkfunction {
   fn_params: list (autodifftype * basic * ident);
   fn_body: statement;
   fn_blocktype: CStan.blocktype;
-  fn_callconv: AST.calling_convention;
   fn_temps: list (ident * basic);
   fn_vars: list (ident * basic);
 }.

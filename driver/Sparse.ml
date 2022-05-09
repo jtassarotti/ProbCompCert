@@ -239,7 +239,6 @@ let mkFunction name body rt params extraVars extraTemps =
 
   let fd = {
     StanE.fn_return = rt;
-    StanE.fn_callconv = AST.cc_default;
     StanE.fn_params = params;
     StanE.fn_blocktype = blocktypeFundef name;
     StanE.fn_vars = List.concat [extraVars; (IdxHashtbl.fold (fun k v acc -> (k,StanE.Bint)::acc) index_set [])];
