@@ -13,7 +13,7 @@ Inductive operator :=
   | Greater
   | Geq
   | PNot
-		     
+
   | PPlus
   | PMinus
   | IntDivide

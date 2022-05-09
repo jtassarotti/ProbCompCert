@@ -50,66 +50,43 @@ with transf_typelist (tl: StanE.basiclist) : res Ctypes.typelist :=
 
 
 
-Definition transf_operator (o: Sops.operator): res Cop.binary_operation :=
+Definition transf_operator (o: StanE.operator): res Cop.binary_operation :=
   match o with
-  | Sops.Plus => OK Cop.Oadd
-  | Sops.Minus => OK Cop.Osub
-  | Sops.Times => OK Cop.Omul
-  | Sops.Divide => OK Cop.Odiv
-  | Sops.Modulo => OK Cop.Omod
-  | Sops.Or => OK Cop.Oor
-  | Sops.And => OK Cop.Oand
-  | Sops.Equals => OK Cop.Oeq
-  | Sops.NEquals => OK Cop.One
-  | Sops.Less => OK Cop.Olt
-  | Sops.Leq => OK Cop.Ole
-  | Sops.Greater => OK Cop.Ogt
-  | Sops.Geq => OK Cop.Oge
-  | _ => Error (msg "Denumpyification.transf_program: operator")
+  | StanE.Plus => OK Cop.Oadd
+  | StanE.Minus => OK Cop.Osub
+  | StanE.Times => OK Cop.Omul
+  | StanE.Divide => OK Cop.Odiv
+  | StanE.Modulo => OK Cop.Omod
+  | StanE.Or => OK Cop.Oor
+  | StanE.And => OK Cop.Oand
+  | StanE.Equals => OK Cop.Oeq
+  | StanE.NEquals => OK Cop.One
+  | StanE.Less => OK Cop.Olt
+  | StanE.Leq => OK Cop.Ole
+  | StanE.Greater => OK Cop.Ogt
+  | StanE.Geq => OK Cop.Oge
   end.
 
-Definition transf_operator_return (o: Sops.operator): res Ctypes.type :=
+Definition transf_operator_return (o: StanE.operator): res Ctypes.type :=
   match o with
-  | Sops.Plus => OK tdouble
-  | Sops.Minus => OK tdouble
-  | Sops.Times => OK tdouble
-  | Sops.Divide => OK tdouble
-
-  | Sops.Modulo => OK tint
-  | Sops.Or => OK tbool
-  | Sops.And => OK tbool
-  | Sops.Equals => OK tbool
-  | Sops.NEquals => OK tbool
-  | Sops.Less => OK tbool
-  | Sops.Leq => OK tbool
-  | Sops.Greater => OK tbool
-  | Sops.Geq =>	OK tbool
-  | _ => Error (msg "Denumpyification.transf_operator_return")
+  | StanE.Plus => OK tdouble
+  | StanE.Minus => OK tdouble
+  | StanE.Times => OK tdouble
+  | StanE.Divide => OK tdouble
+  | StanE.Modulo => OK tint
+  | StanE.Or => OK tbool
+  | StanE.And => OK tbool
+  | StanE.Equals => OK tbool
+  | StanE.NEquals => OK tbool
+  | StanE.Less => OK tbool
+  | StanE.Leq => OK tbool
+  | StanE.Greater => OK tbool
+  | StanE.Geq =>	OK tbool
   end.
 
 
-Definition transf_unary_operator (o: Sops.operator): res Cop.unary_operation :=
+Definition transf_unary_operator (o: StanE.operator): res Cop.unary_operation :=
   match o with
-  | Sops.PNot => Error (msg "Sops.PNot")
-  | Sops.EltTimes => Error (msg "Sops.EltTimes")
-  | Sops.EltDivide => Error (msg "Sops.EltDivide")
-  | Sops.Pow => Error (msg "Sops.Pow")
-  | Sops.EltPow => Error (msg "Sops.EltPow")
-  | Sops.Transpose => Error (msg "Sops.Transpose.")
-
-  | Sops.Plus => Error (msg "Sops.Plus")
-  | Sops.Minus => Error (msg "Sops.Minus")
-  | Sops.Times => Error (msg "Sops.Times")
-  | Sops.Divide => Error (msg "Sops.Divide")
-  | Sops.Modulo => Error (msg "Sops.Modulo")
-  | Sops.Or => Error (msg "Sops.Or")
-  | Sops.And => Error (msg "Sops.And")
-  | Sops.Equals => Error (msg "Sops.Equals")
-  | Sops.NEquals => Error (msg "Sops.NEquals")
-  | Sops.Less => Error (msg "Sops.Less")
-  | Sops.Leq => Error (msg "Sops.Leq")
-  | Sops.Greater => Error (msg "Sops.Greater")
-  | Sops.Geq =>	Error (msg "Sops.Geq")
   | _ => Error (msg "Denumpyification.transf_program: operator")
   end.
 
@@ -208,9 +185,7 @@ Fixpoint transf_statement (s: StanE.statement) {struct s}: res CStan.statement :
 
     let incr := CStan.Sassign (CStan.Evar i tint) eincr in
     OK (CStan.Sfor init cond body incr)
-  | Svar _ _ _ =>
-    (*OK (CStan.Sset i (CStan.Evar i ...))*)
-    Error (msg "Denumpyification.transf_statement (NYI): Svar")
+  | Svar _ _ _ => Error (msg "Denumpyification.transf_statement (NYI): Svar")
   | Starget e =>
     do e <- transf_expression e;
     OK (CStan.Starget e)
@@ -258,12 +233,12 @@ Definition transf_vars (vs: list (AST.ident * StanE.basic)) : res (list (AST.ide
   mapM transf_var vs.
 
 (* FIXME: lambdas are too general? typechecker seems to want something more concrete... *)
-Definition transf_param (p: Stypes.autodifftype * StanE.basic * AST.ident) : res (AST.ident * type) :=
+Definition transf_param (p: StanE.basic * AST.ident) : res (AST.ident * type) :=
   match p with
-    | (ad, t, i) => do t <- transf_type t; OK (i, t)
+    | (t, i) => do t <- transf_type t; OK (i, t)
   end.
 
-Definition transf_params (ps: list (Stypes.autodifftype * StanE.basic * AST.ident)) : res (list (AST.ident * type)) :=
+Definition transf_params (ps: list (StanE.basic * AST.ident)) : res (list (AST.ident * type)) :=
   mapM transf_param ps.
 
 Definition transf_function (f: StanE.function): res CStan.function :=

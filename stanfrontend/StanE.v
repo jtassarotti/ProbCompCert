@@ -1,14 +1,29 @@
-Require Import Globalenvs.
-Require Import Events.
+(*Require Import Globalenvs.*)
+(*Require Import Events.*)
 Require Import Integers.
 Require Import Coqlib.
 Require Import Floats.
 Require Import AST.
-Require Stan.
+(*Require Stan.*)
 Require CStan.
-Require Import Sops.
+(*Require Import Sops.
 Require Import Cop.
-Require Import Stypes.
+Require Import Stypes.*)
+
+Inductive operator :=
+  | Plus
+  | Minus
+  | Times
+  | Divide
+  | Modulo
+  | Or
+  | And
+  | Equals
+  | NEquals
+  | Less
+  | Leq
+  | Greater
+  | Geq.
 
 Inductive basic :=
   | Bint
@@ -58,7 +73,7 @@ Record variable := mkvariable {
 
 Record function := mkfunction {
   fn_return: option(basic);
-  fn_params: list (autodifftype * basic * ident);
+  fn_params: list (basic * ident);
   fn_body: statement;
   fn_blocktype: CStan.blocktype;
   fn_temps: list (ident * basic);
