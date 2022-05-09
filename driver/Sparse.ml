@@ -87,15 +87,15 @@ let rec el_s s =
   | Stan.Sassign (e1,oo,e2) -> StanE.Sassign (el_e e1, oo, el_e e2)
   | Stan.Sblock sl -> List.fold_left (fun s1 s2 -> StanE.Ssequence (s1, (el_s s2))) StanE.Sskip sl
   | Stan.Sifthenelse (e,s1,s2) -> StanE.Sifthenelse (el_e e, el_s s1, el_s s2)
-  | Stan.Swhile (e,s) -> StanE.Swhile (el_e e, el_s s)
+  | Stan.Swhile (e,s) -> raise (Unsupported "statement: while")
   | Stan.Sfor (i,e1,e2,s) ->
     let isym = Camlcoq.intern_string i in
     IdxHashtbl.add index_set isym ();
     Hashtbl.add type_table i StanE.Bint;
     StanE.Sfor (isym, el_e e1, el_e e2, el_s s)
-  | Stan.Sbreak -> StanE.Sbreak
-  | Stan.Scontinue -> StanE.Scontinue
-  | Stan.Sreturn oe -> StanE.Sreturn (mapo oe el_e)
+  | Stan.Sbreak -> raise (Unsupported "statement: break")
+  | Stan.Scontinue -> raise (Unsupported "statement: continue")
+  | Stan.Sreturn oe -> raise (Unsupported "statement: return")
   | Stan.Svar v -> raise (NIY_elab "statement: var")
   | Stan.Scall (i,el) -> StanE.Scall (Camlcoq.intern_string i,List.map el_e el)
   | Stan.Sprint lp -> raise (Unsupported "statement: print")

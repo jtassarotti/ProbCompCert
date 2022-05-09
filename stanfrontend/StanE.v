@@ -47,11 +47,7 @@ Inductive statement :=
   | Sassign : expr -> option operator -> expr -> statement
   | Ssequence: statement -> statement -> statement
   | Sifthenelse: expr -> statement -> statement -> statement
-  | Swhile: expr -> statement -> statement
   | Sfor: ident -> expr -> expr -> statement -> statement
-  | Sbreak: statement
-  | Scontinue: statement
-  | Sreturn: option expr -> statement
   | Svar: ident -> basic -> option expr -> statement
   | Scall: ident -> list expr -> statement
   (* Probabilistic statements *)

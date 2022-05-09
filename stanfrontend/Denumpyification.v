@@ -193,10 +193,6 @@ Fixpoint transf_statement (s: StanE.statement) {struct s}: res CStan.statement :
     do s1 <- (transf_statement s1);
     do s2 <- (transf_statement s2);
     OK (CStan.Sifthenelse e s1 s2)
-  | Swhile e s =>
-    do e <- (transf_expression e);
-    do s <- (transf_statement s);
-    OK (CStan.Swhile e s)
   | Sfor i e1 e2 s =>
     do e1 <- transf_expression e1;
     do e2 <- transf_expression e2;
@@ -214,12 +210,6 @@ Fixpoint transf_statement (s: StanE.statement) {struct s}: res CStan.statement :
 
     let incr := CStan.Sassign (CStan.Evar i tint) eincr in
     OK (CStan.Sfor init cond body incr)
-  | Sbreak => OK CStan.Sbreak
-  | Scontinue => OK CStan.Scontinue
-  | Sreturn None => OK (CStan.Sreturn None)
-  | Sreturn (Some e) =>
-    do e <- transf_expression e;
-    OK (CStan.Sreturn (Some e))
   | Svar _ _ _ =>
     (*OK (CStan.Sset i (CStan.Evar i ...))*)
     Error (msg "Denumpyification.transf_statement (NYI): Svar")
