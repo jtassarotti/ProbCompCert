@@ -381,7 +381,7 @@ let elaborate (sourcefile : string) (p: Stan.program) =
 
     let structs = [(id_params_struct_global_state, gl_params_struct); (id_params_struct_global_proposal, gl_params_struct); (id_data_struct_global, gl_data_struct)] in
     (* <><><><><><><><><><><><><><><> structs <><><><><><><><><><><><><><><> *)
-    (data_basics,param_basics,
+
     {
       StanE.pr_defs= data_variables @ param_variables @ structs @ stanlib_functions @ functions @ all_math_fns;
       StanE.pr_public=
@@ -396,7 +396,7 @@ let elaborate (sourcefile : string) (p: Stan.program) =
       StanE.pr_main=id_main;
       StanE.pr_math_functions=pr_math_functions;
       StanE.pr_dist_functions=pr_dist_functions;
-    })
+    }
 
 let location t =
   match t with
