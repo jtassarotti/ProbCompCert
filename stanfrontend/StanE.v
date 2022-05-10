@@ -58,7 +58,6 @@ Inductive statement :=
   | Ssequence: statement -> statement -> statement
   | Sifthenelse: expr -> statement -> statement -> statement
   | Sfor: ident -> expr -> expr -> statement -> statement
-  | Svar: ident -> basic -> option expr -> statement
   (* Probabilistic statements *)
   | Starget: expr -> statement
   | Stilde: expr -> expr -> list expr -> (option expr * option expr) -> statement.

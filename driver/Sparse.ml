@@ -28,21 +28,6 @@ module IdxTable =
 module IdxHashtbl = Hashtbl.Make(IdxTable)
 let index_set = IdxHashtbl.create 123456;;
                  
-let read_file sourcefile =
-  let ic = open_in_bin sourcefile in
-  let n = in_channel_length ic in
-  let text = really_input_string ic n in
-  close_in ic;
-  text
-
-let tokens_stream text: buffer =
-  let lexbuf = Lexing.from_string text in
-  let rec compute_buffer () =
-    let loop t = Buf_cons (t, Lazy.from_fun compute_buffer) in
-    loop (Slexer.token lexbuf)
-  in
-  Lazy.from_fun compute_buffer
-
 let mapo o f =
   match o with
   | None -> None
@@ -111,6 +96,43 @@ let el_p p =
   | Stan.Pstring s -> raise (Unsupported "Printing")
   | Stan.Pexpr e -> raise (Unsupported "Printing")
 
+let coqZ_of_string s =
+  Integers.Int.intval (Camlcoq.coqint_of_camlint (of_int (int_of_string s)))                          
+                  
+let el_b b dims =
+  match (b, dims) with
+  | (Stan.Bint,  []) -> StanE.Bint
+  | (Stan.Breal, []) -> StanE.Breal
+  | (Stan.Bint,  [Stan.Econst_int i]) -> StanE.Barray (StanE.Bint,(coqZ_of_string i)) 
+  | (Stan.Breal, [Stan.Econst_int i]) -> StanE.Barray (StanE.Breal,(coqZ_of_string i))
+  | (Stan.Breal, _ ) -> raise (NIY_elab "compositive real")
+  | (Stan.Bint, _ ) -> raise (NIY_elab "compositive int")        
+  | (Stan.Bvector _, _) -> raise (Unsupported "vector type")
+  | (Stan.Bmatrix _, _) -> raise (Unsupported "matrix type")
+  | (Stan.Brow _, _) -> raise (Unsupported "matrix type")    
+                  
+let rec el_s_ids s =
+  match s with
+  | Stan.Sskip -> []
+  | Stan.Sassign (e1,oo,e2) -> []
+  | Stan.Sblock sl -> List.fold_left (fun s1 s2 -> s1 @ (el_s_ids s2)) [] sl
+  | Stan.Sifthenelse (e,s1,s2) -> []
+  | Stan.Swhile (e,s) -> raise (Unsupported "statement: while")
+  | Stan.Sfor (i,e1,e2,s) -> el_s_ids s
+  | Stan.Sbreak -> raise (Unsupported "statement: break")
+  | Stan.Scontinue -> raise (Unsupported "statement: continue")
+  | Stan.Sreturn oe -> raise (Unsupported "statement: return")
+  | Stan.Svar v ->
+     let id = Camlcoq.intern_string v.Stan.vd_id in
+     let t = el_b v.Stan.vd_type v.Stan.vd_dims in
+     [(id,t)]
+  | Stan.Scall (i,el) -> raise (Unsupported "statement: call")
+  | Stan.Sprint lp -> raise (Unsupported "statement: print")
+  | Stan.Sreject lp -> raise (Unsupported "statement: reject")
+  | Stan.Sforeach (i,e,s) ->raise (Unsupported "statement: foreach")
+  | Stan.Starget e -> []
+  | Stan.Stilde (e,i,el,(tr1,tr2)) -> []  
+                  
 let rec el_s s =
   match s with
   | Stan.Sskip -> StanE.Sskip
@@ -126,7 +148,7 @@ let rec el_s s =
   | Stan.Sbreak -> raise (Unsupported "statement: break")
   | Stan.Scontinue -> raise (Unsupported "statement: continue")
   | Stan.Sreturn oe -> raise (Unsupported "statement: return")
-  | Stan.Svar v -> raise (NIY_elab "statement: var")
+  | Stan.Svar v -> StanE.Sskip     
   | Stan.Scall (i,el) -> raise (Unsupported "statement: call")
   | Stan.Sprint lp -> raise (Unsupported "statement: print")
   | Stan.Sreject lp -> raise (Unsupported "statement: reject")
@@ -137,22 +159,7 @@ let rec el_s s =
       | Some (ident, ty) -> (ident, ty)
       | None -> raise (NIY_elab ("tilde called with invalid distribution: "^ i))
     in
-    StanE.Stilde (el_e e, StanE.Evar (_i, _ty), map el_e el, (mapo tr1 el_e,mapo tr2 el_e) )
-
-let coqZ_of_string s =
-  Integers.Int.intval (Camlcoq.coqint_of_camlint (of_int (int_of_string s)))
-
-let el_b b dims =
-  match (b, dims) with
-  | (Stan.Bint,  []) -> StanE.Bint
-  | (Stan.Breal, []) -> StanE.Breal
-  | (Stan.Bint,  [Stan.Econst_int i]) -> StanE.Barray (StanE.Bint,(coqZ_of_string i)) 
-  | (Stan.Breal, [Stan.Econst_int i]) -> StanE.Barray (StanE.Breal,(coqZ_of_string i))
-  | (Stan.Breal, _ ) -> raise (NIY_elab "compositive real")
-  | (Stan.Bint, _ ) -> raise (NIY_elab "compositive int")        
-  | (Stan.Bvector _, _) -> raise (Unsupported "vector type")
-  | (Stan.Bmatrix _, _) -> raise (Unsupported "matrix type")
-  | (Stan.Brow _, _) -> raise (Unsupported "matrix type")                         
+    StanE.Stilde (el_e e, StanE.Evar (_i, _ty), map el_e el, (mapo tr1 el_e,mapo tr2 el_e) )             
 
 let elab elab_fun ol =
   match ol with
@@ -245,6 +252,7 @@ let mkFunction name body rt params extraVars extraTemps =
     a_access = Sections.Access_default;
     a_inline = Noinline;
     a_loc = (name,0) };
+  let local_identifiers = List.fold_left (fun s1 s2 -> s1 @ (el_s_ids s2)) [] body in
   let body = List.fold_left (fun s1 s2 -> StanE.Ssequence (s1, (el_s s2))) StanE.Sskip body in
   let params = List.map (fun ((x,y),z) -> ((x,y), Camlcoq.intern_string z)) params in
 
@@ -267,7 +275,7 @@ let mkFunction name body rt params extraVars extraTemps =
     StanE.fn_return = rt;
     StanE.fn_params = List.map (fun param -> (snd (fst param),snd param)) params;
     StanE.fn_blocktype = blocktypeFundef name;
-    StanE.fn_vars = List.concat [extraVars; (IdxHashtbl.fold (fun k v acc -> (k,StanE.Bint)::acc) index_set [])];
+    StanE.fn_vars = List.concat [extraVars @ local_identifiers; (IdxHashtbl.fold (fun k v acc -> (k,StanE.Bint)::acc) index_set [])];
     StanE.fn_temps = extraTemps;
     StanE.fn_body = body} in
   (id,  AST.Gfun(Ctypes.Internal fd))
@@ -289,26 +297,6 @@ let maybe default fn mval =
   fromMaybe default (mapMaybe fn mval)
 
 let sparam2stanEparam ((ad, ty), v) = ((ad, stype2basic ty), v)
-
-let initOneVariable var =
-  if not var.Stan.vd_global
-  then Stan.Sskip
-  else
-    let evar = Stan.Evar var.Stan.vd_id in
-    begin match var.Stan.vd_init with
-    | Some e -> Stan.Sassign (evar, None, e)
-    | None ->
-      begin match (var.Stan.vd_type, var.Stan.vd_dims) with
-      | (Stan.Bint,  []) -> Stan.Sassign (evar, None, Stan.Econst_int "0")
-      | (Stan.Breal, []) -> Stan.Sassign (evar, None, Stan.Econst_float "0")
-      | (Stan.Bint,  [Stan.Econst_int sz]) ->
-        Stan.Sforeach ("i", evar, Stan.Sassign (Stan.Eindexed (evar, [Stan.Isingle (Stan.Evar "i")]), None, Stan.Econst_float "0"))
-      | (Stan.Breal,  [Stan.Econst_int sz]) ->
-        Stan.Sforeach ("i", evar, Stan.Sassign (Stan.Eindexed (evar, [Stan.Isingle (Stan.Evar "i")]), None, Stan.Econst_float "0"))
-      | _ -> Stan.Sskip
-      end
-    end
-
 
 let elaborate (sourcefile : string) (p: Stan.program) =
   match p with
@@ -437,8 +425,22 @@ let handle_syntax_error file state token =
   Printf.eprintf  "Syntax error in '%s', line %d, characters %d-%d:\n%s" file line col_start col_end msg;
   exit 1
 
+let read_file sourcefile =
+  let ic = open_in_bin sourcefile in
+  let n = in_channel_length ic in
+  let text = really_input_string ic n in
+  close_in ic;
+  text
+
+let tokens_stream text: buffer =
+  let lexbuf = Lexing.from_string text in
+  let rec compute_buffer () =
+    let loop t = Buf_cons (t, Lazy.from_fun compute_buffer) in
+    loop (Slexer.token lexbuf)
+  in
+  Lazy.from_fun compute_buffer
+  
 let parse_stan_file sourcefile ifile =
-  (*Frontend.init();*)
   Hashtbl.clear C2C.decl_atom;
   Hashtbl.clear C2C.stringTable;
   Hashtbl.clear C2C.wstringTable;

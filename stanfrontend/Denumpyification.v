@@ -181,7 +181,6 @@ Fixpoint transf_statement (s: StanE.statement) {struct s}: res CStan.statement :
 
     let incr := CStan.Sassign (CStan.Evar i tint) eincr in
     OK (CStan.Sfor init cond body incr)
-  | Svar _ _ _ => Error (msg "Denumpyification.transf_statement (NYI): Svar")
   | Starget e =>
     do e <- transf_expression e;
     OK (CStan.Starget e)
