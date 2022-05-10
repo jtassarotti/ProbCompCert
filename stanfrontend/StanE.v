@@ -20,8 +20,6 @@ Inductive b_op :=
   | Geq.
 
 Inductive u_op :=
-  | PPlus
-  | PMinus
   | PNot.
 
 Inductive basic :=

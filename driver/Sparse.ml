@@ -71,13 +71,6 @@ let filter_b_op o =
   | Sops.EltPow -> raise (Unsupported "binary operator: pointwise power")
   | Sops.Transpose -> raise (Unsupported "binary operator: transpose")
   | _ -> raise (Internal "unary operator in binary position")
-
-let filter_u_op o =
-  match o with
-  | Sops.PNot -> StanE.PNot (* Prefix *)
-  | Sops.PPlus -> StanE.PPlus (* Prefix *)
-  | Sops.PMinus -> StanE.PMinus (* Prefix *)
-  | _ -> raise (Internal "binary operator in unary position")
                     
 let rec el_e e =
   match e with
@@ -88,8 +81,15 @@ let rec el_e e =
     | None -> StanE.Evar (Camlcoq.intern_string i, StanE.Breal)
     | Some ty -> StanE.Evar (Camlcoq.intern_string i, ty)
     end
-  | Stan.Eunop (o,e) -> StanE.Eunop (filter_u_op o,el_e e)
-  | Stan.Ebinop (e1,o,e2) -> StanE.Ebinop (el_e e1,filter_b_op o,el_e e2) 
+  | Stan.Eunop (o,e) ->
+     begin
+       match o with
+       | Sops.PNot -> raise (Internal "confused")(* StanE.Eunop (StanE.PNot, el_e e) *)
+       | Sops.PPlus -> StanE.Ebinop (StanE.Econst_int (Camlcoq.Z.of_sint 0, StanE.Bint),StanE.Plus,el_e e) 
+       | Sops.PMinus -> StanE.Ebinop (StanE.Econst_int (Camlcoq.Z.of_sint 0, StanE.Bint),StanE.Minus,el_e e)
+       | _ -> raise (Internal "binary operator used in unary position")
+     end
+  | Stan.Ebinop (e1,o,e2) ->StanE.Ebinop (el_e e1,filter_b_op o,el_e e2) 
   | Stan.Ecall (i,el) -> StanE.Ecall (Camlcoq.intern_string i, List.map el_e el)
   | Stan.Econdition (e1,e2,e3) -> raise (Unsupported "expression: conditional")
   | Stan.Earray el -> raise (Unsupported "expression: array")

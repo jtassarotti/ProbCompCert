@@ -77,7 +77,7 @@ let renderParameters struct_type struct_vars =
     (* See: https://mc-stan.org/docs/2_29/reference-manual/initialization.html *)
     (* If there are no user-supplied initial values, the default initialization strategy is to initialize the unconstrained parameters directly with values drawn uniformly from the interval (−2,2) *)
     | (t, [], _)              -> ("  "^ret^"->" ^ v ^" = 0.0; // For debugging. uniform_sample(-2,2);")
-    | _ -> raise (NIY_gen "renderParameters.renderField: incomplete for this type")
+    | _ -> "todo" (* raise (NIY_gen "renderParameters.renderField: incomplete for this type") *)
   in
   String.concat "\n" ([
     "void init_parameters () {";

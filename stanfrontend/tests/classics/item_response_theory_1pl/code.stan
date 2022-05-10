@@ -1,7 +1,4 @@
 data {
-  int<lower=1> J;                     // number of students
-  int<lower=1> K;                     // number of questions
-  int<lower=1> N;                     // number of observations
   int<lower=1, upper=J> jj[100];  // student for observation n
   int<lower=1, upper=K> kk[100];  // question for observation n
   int<lower=0, upper=1> y[100];   // correctness for observation n

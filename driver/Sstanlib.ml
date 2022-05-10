@@ -60,6 +60,8 @@ let mk_global_func ret str ast_args_list =
 
 let mk_global_math_func = mk_global_func (AST.Tret AST.Tfloat)
 
+
+                        
 let st_uniform_lpdf = "uniform_lpdf"
 let id_uniform_lpdf = Camlcoq.intern_string st_uniform_lpdf
 let ty_uniform_lpdf = StanE.Bfunction (StanE.Bcons (bdouble, (StanE.Bcons (bdouble, (StanE.Bcons (bdouble, StanE.Bnil))))), Some bdouble)
@@ -80,9 +82,15 @@ let id_bernoulli_lpmf = Camlcoq.intern_string st_bernoulli_lpmf
 let ty_bernoulli_lpmf = StanE.Bfunction (StanE.Bcons (bint, (StanE.Bcons (bdouble, StanE.Bnil))), Some StanE.Breal)
 let gl_bernoulli_lpmf = mk_global_math_func st_bernoulli_lpmf [AST.Tint; AST.Tfloat]
 
+let st_bernoulli_logit_lpmf = "bernoulli_logit_lpmf"
+let id_bernoulli_logit_lpmf = Camlcoq.intern_string st_bernoulli_logit_lpmf
+let ty_bernoulli_logit_lpmf = StanE.Bfunction (StanE.Bcons (bint, (StanE.Bcons (bdouble, StanE.Bnil))), Some StanE.Breal)
+let gl_bernoulli_logit_lpmf = mk_global_math_func st_bernoulli_logit_lpmf [AST.Tint; AST.Tfloat]                      
+
 let transf_dist_idents = Hashtbl.create 3;;
 Hashtbl.add transf_dist_idents "uniform" (id_uniform_lpdf, ty_uniform_lpdf);
 Hashtbl.add transf_dist_idents "bernoulli" (id_bernoulli_lpmf, ty_bernoulli_lpmf);
+Hashtbl.add transf_dist_idents "bernoulli_logit" (id_bernoulli_logit_lpmf, ty_bernoulli_logit_lpmf);
 Hashtbl.add transf_dist_idents "normal" (id_normal_lpdf, ty_normal_lpdf);
 Hashtbl.add transf_dist_idents "cauchy" (id_cauchy_lpdf, ty_cauchy_lpdf)
 let stanlib_functions = [

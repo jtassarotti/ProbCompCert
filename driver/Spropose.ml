@@ -23,7 +23,8 @@ let generate_param (id, t) =
   | StanE.Breal -> String.concat "\n" [
                    "  eps = randn(0.0,1.0);";
                    "  c->" ^ name ^" = s->" ^ name ^" + eps;";
-                 ]
+                     ]
+  | StanE.Barray (StanE.Breal,sz) -> "Todo"
   | _ -> raise (NIY_propose "Not handling non-real types yet")
       
 let generate_proposal program =

@@ -89,14 +89,8 @@ Definition transf_operator_return (o: StanE.b_op): res Ctypes.type :=
 
 Definition transf_unary_operator (o: StanE.u_op): res Cop.unary_operation :=
   match o with
-  | _ => Error (msg "Denumpyification.transf_program: operator")
+  | StanE.PNot => OK Cop.Onotbool
   end.
-
-  (* | Onotbool : unary_operation          (**r boolean negation ([!] in C) *) *)
-  (* | Onotint : unary_operation           (**r integer complement ([~] in C) *) *)
-  (* | Oneg : unary_operation              (**r opposite (unary [-]) *) *)
-  (* | Oabsfloat : unary_operation.        (**r floating-point absolute value *) *)
-
 
 
 Fixpoint transf_expression (e: StanE.expr) {struct e}: res CStan.expr :=

@@ -35,6 +35,17 @@ double randn (double mu, double sigma)
   return (mu + sigma * (double) X1);
 }
 
+double logit(double p)
+{
+  return (p <= 0 || p >= 1) ? INFINITY : log(p) - log(1-p);
+}
+
+double expit(double a)
+{
+  return 1 / (1 + exp(-a));
+}
+
+
 double uniform_lpdf(double x, double a, double b)
 {
     /* printf("uniform_lpdf(%f, %f, %f)\n", x, a, b); */
@@ -64,6 +75,12 @@ double cauchy_lpdf(double x, double location, double scale)
   return 1 / (M_PI * scale * (1 + pow((x - location)/scale,2)));
 }
 
+double bernoulli_logit_lpmf(int x, double alpha)
+{
+  x = (double) x;
+  return x * log(expit(alpha)) + (1-x) * log(1 - expit(alpha));
+}
+
 double uniform_sample(double l, double r)
 {
   if (l > r) {
@@ -81,16 +98,6 @@ double normal_sample(double mu, double sigma)
 double bernoulli_sample(double p)
 {
   return (((double) rand () / RAND_MAX) > p) ? 0 : 1;
-}
-
-double logit(double p)
-{
-  return (p <= 0 || p >= 1) ? INFINITY : log(p) - log(1-p);
-}
-
-double expit(double a)
-{
-  return 1 / (1 + exp(-a));
 }
 
 double init_unconstrained()
