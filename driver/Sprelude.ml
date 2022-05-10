@@ -1,20 +1,16 @@
 
 exception NIY_gen of string
 
-let basicToCString v btype dims =
-  match (btype, dims) with
-  | (StanE.Bint, []) -> "int " ^ v
-  | (StanE.Bint, [Stan.Econst_int sz]) -> "int " ^ v ^ "["^ sz ^"]"
-  | (StanE.Bint, [Stan.Econst_int r;Stan.Econst_int c]) -> "int " ^ v ^ "[" ^ r ^ "][" ^ c ^ "]"
-  | (StanE.Breal, [Stan.Econst_int sz]) -> "double " ^ v ^ "["^ sz ^"]"
-  | (StanE.Breal, [Stan.Econst_int r;Stan.Econst_int c]) -> "double " ^ v ^ "[" ^ r ^ "][" ^ c ^ "]"
-  | (StanE.Breal, []) -> "double " ^ v
-  (* default type for vectors, rows, and arrays are all double *)
-  | (StanE.Barray (ty,sz), _) -> "double " ^ v ^ "[" ^ (Camlcoq.Z.to_string sz) ^ "]"
-  | _ -> raise (NIY_gen "basicToCString: type translation not valid when declaring a struct")
+let basicToCString v btype =
+  match btype with
+  | StanE.Bint -> "int " ^ v
+  | StanE.Breal -> "double " ^ v
+  | StanE.Barray (StanE.Bint,sz) -> "int " ^ v ^ "[" ^ (Camlcoq.Z.to_string sz) ^ "]"
+  | StanE.Barray (StanE.Breal,sz) -> "double " ^ v ^ "[" ^ (Camlcoq.Z.to_string sz) ^ "]"    
+  | _ -> raise (NIY_gen "Unexpected type")
 
 let renderStruct name vs =
-  let renderField (v, p, t) = "  " ^ basicToCString (Camlcoq.extern_atom p) t v.Stan.vd_dims ^ ";" in
+  let renderField (v, p, t) = "  " ^ basicToCString (Camlcoq.extern_atom p) t ^ ";" in
 
   String.concat "\n" ([
     "struct " ^ name ^ " {"
