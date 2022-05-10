@@ -16,7 +16,10 @@ transformed parameters {
   lp = rep_vector(log_unif, 100);
   for (s in 1:100) {
     for (t in 1:100) {
-      lp[s] = lp[s] + poisson_lpmf(D[t] | t < s ? e : l);
+      if (t < s)
+        lp[s] = lp[s] + poisson_lpmf(D[t] | e);
+      else
+        lp[s] = lp[s] + poisson_lpmf(D[t] | l);
     }
   }
 }

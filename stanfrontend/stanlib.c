@@ -81,6 +81,15 @@ double bernoulli_logit_lpmf(int x, double alpha)
   return x * log(expit(alpha)) + (1-x) * log(1 - expit(alpha));
 }
 
+double poisson_lpmf(int x, double lambda){
+  x = (double) x;
+  return 0.0;
+}
+
+double exponential_lpdf(double x, double lambda){
+  return 0.0;
+}
+
 double uniform_sample(double l, double r)
 {
   if (l > r) {
