@@ -8,6 +8,6 @@ parameters {
 }
 model {
   for (n in 2:100) {
-    y[n] ~ normal(alpha + beta * y[n-1], sigma);
+    y[n] ~ normal(alpha + beta * y[n - 1], sigma);
   }
 }

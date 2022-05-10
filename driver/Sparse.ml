@@ -48,7 +48,7 @@ let mapo o f =
   | None -> None
   | Some o -> Some (f o)
 
-let filter_op o =
+let filter_b_op o =
   match o with
   | Sops.Plus -> StanE.Plus
   | Sops.Minus -> StanE.Minus
@@ -63,17 +63,22 @@ let filter_op o =
   | Sops.Leq -> StanE.Leq
   | Sops.Greater -> StanE.Greater
   | Sops.Geq -> StanE.Geq
-  | Sops.PNot -> raise (Unsupported "operator: not")
-  | Sops.PPlus -> raise (Unsupported "operator: poitwise addition")
-  | Sops.PMinus -> raise (Unsupported "operator: pointwise substraction")
-  | Sops.IntDivide -> raise (Unsupported "operator: integer division")
-  | Sops.LDivide -> raise (Unsupported "operator: L divide?")
-  | Sops.EltTimes -> raise (Unsupported "operator: pointwise times")
-  | Sops.EltDivide -> raise (Unsupported "operator: pointwise divide")
-  | Sops.Pow -> raise (Unsupported "operator: power")
-  | Sops.EltPow -> raise (Unsupported "operator: pointwise power")
-  | Sops.Transpose -> raise (Unsupported "operator: transpose")
-            
+  | Sops.IntDivide -> raise (Unsupported "binary operator: integer division")
+  | Sops.LDivide -> raise (Unsupported "binary operator: L divide?")
+  | Sops.EltTimes -> raise (Unsupported "binary operator: pointwise times")
+  | Sops.EltDivide -> raise (Unsupported "binary operator: pointwise divide")
+  | Sops.Pow -> raise (Unsupported "binary operator: power")
+  | Sops.EltPow -> raise (Unsupported "binary operator: pointwise power")
+  | Sops.Transpose -> raise (Unsupported "binary operator: transpose")
+  | _ -> raise (Internal "unary operator in binary position")
+
+let filter_u_op o =
+  match o with
+  | Sops.PNot -> StanE.PNot (* Prefix *)
+  | Sops.PPlus -> StanE.PPlus (* Prefix *)
+  | Sops.PMinus -> StanE.PMinus (* Prefix *)
+  | _ -> raise (Internal "binary operator in unary position")
+                    
 let rec el_e e =
   match e with
   | Stan.Econst_int i -> StanE.Econst_int (Camlcoq.Z.of_sint (int_of_string i), StanE.Bint)
@@ -83,8 +88,8 @@ let rec el_e e =
     | None -> StanE.Evar (Camlcoq.intern_string i, StanE.Breal)
     | Some ty -> StanE.Evar (Camlcoq.intern_string i, ty)
     end
-  | Stan.Eunop (o,e) -> StanE.Eunop (filter_op o,el_e e)
-  | Stan.Ebinop (e1,o,e2) -> StanE.Ebinop (el_e e1,filter_op o,el_e e2) 
+  | Stan.Eunop (o,e) -> StanE.Eunop (filter_u_op o,el_e e)
+  | Stan.Ebinop (e1,o,e2) -> StanE.Ebinop (el_e e1,filter_b_op o,el_e e2) 
   | Stan.Ecall (i,el) -> StanE.Ecall (Camlcoq.intern_string i, List.map el_e el)
   | Stan.Econdition (e1,e2,e3) -> raise (Unsupported "expression: conditional")
   | Stan.Earray el -> raise (Unsupported "expression: array")
@@ -109,7 +114,7 @@ let el_p p =
 let rec el_s s =
   match s with
   | Stan.Sskip -> StanE.Sskip
-  | Stan.Sassign (e1,oo,e2) -> StanE.Sassign (el_e e1, mapo oo filter_op, el_e e2)
+  | Stan.Sassign (e1,oo,e2) -> StanE.Sassign (el_e e1, mapo oo filter_b_op, el_e e2)
   | Stan.Sblock sl -> List.fold_left (fun s1 s2 -> StanE.Ssequence (s1, (el_s s2))) StanE.Sskip sl
   | Stan.Sifthenelse (e,s1,s2) -> StanE.Sifthenelse (el_e e, el_s s1, el_s s2)
   | Stan.Swhile (e,s) -> raise (Unsupported "statement: while")

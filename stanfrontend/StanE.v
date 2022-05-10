@@ -4,7 +4,7 @@ Require Import Floats.
 Require Import AST.
 Require CStan.
 
-Inductive operator :=
+Inductive b_op :=
   | Plus
   | Minus
   | Times
@@ -18,6 +18,11 @@ Inductive operator :=
   | Leq
   | Greater
   | Geq.
+
+Inductive u_op :=
+  | PPlus
+  | PMinus
+  | PNot.
 
 Inductive basic :=
   | Bint
@@ -34,8 +39,8 @@ Inductive expr :=
   | Econst_float: float -> basic -> expr
   | Evar: ident -> basic -> expr
   (* FIXME: add types to all proceeding as well? *)
-  | Eunop: operator -> expr -> expr
-  | Ebinop: expr -> operator -> expr -> expr
+  | Eunop: u_op -> expr -> expr
+  | Ebinop: expr -> b_op -> expr -> expr
   | Ecall: ident -> list expr -> expr
   | Eindexed: expr -> list expr -> expr
   (* Probabilistic expressions *)
@@ -51,7 +56,7 @@ Inductive constraint :=
 Inductive statement :=
   (* Classical statements that exist in C *)
   | Sskip : statement
-  | Sassign : expr -> option operator -> expr -> statement
+  | Sassign : expr -> option b_op -> expr -> statement
   | Ssequence: statement -> statement -> statement
   | Sifthenelse: expr -> statement -> statement -> statement
   | Sfor: ident -> expr -> expr -> statement -> statement

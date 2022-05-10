@@ -59,6 +59,11 @@ double bernoulli_lpmf(int x, double p)
     return k * log(p) + (1-k) * log(1-p);
 }
 
+double cauchy_lpdf(double x, double location, double scale)
+{
+  return 1 / (M_PI * scale * (1 + pow((x - location)/scale,2)));
+}
+
 double uniform_sample(double l, double r)
 {
   if (l > r) {

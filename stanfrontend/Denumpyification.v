@@ -52,7 +52,7 @@ with transf_typelist (tl: StanE.basiclist) : res Ctypes.typelist :=
 
 
 
-Definition transf_operator (o: StanE.operator): res Cop.binary_operation :=
+Definition transf_operator (o: StanE.b_op): res Cop.binary_operation :=
   match o with
   | StanE.Plus => OK Cop.Oadd
   | StanE.Minus => OK Cop.Osub
@@ -69,7 +69,7 @@ Definition transf_operator (o: StanE.operator): res Cop.binary_operation :=
   | StanE.Geq => OK Cop.Oge
   end.
 
-Definition transf_operator_return (o: StanE.operator): res Ctypes.type :=
+Definition transf_operator_return (o: StanE.b_op): res Ctypes.type :=
   match o with
   | StanE.Plus => OK tdouble
   | StanE.Minus => OK tdouble
@@ -87,7 +87,7 @@ Definition transf_operator_return (o: StanE.operator): res Ctypes.type :=
   end.
 
 
-Definition transf_unary_operator (o: StanE.operator): res Cop.unary_operation :=
+Definition transf_unary_operator (o: StanE.u_op): res Cop.unary_operation :=
   match o with
   | _ => Error (msg "Denumpyification.transf_program: operator")
   end.
