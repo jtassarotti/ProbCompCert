@@ -18,7 +18,6 @@ let generate_epilogue () =
 
 let generate_param (id, t) =
   let name = Camlcoq.extern_atom id in
-  let t = Hashtbl.find Sparse.type_table name in
   match t with
   | StanE.Breal -> String.concat "\n" [
                    "  eps = randn(0.0,1.0);";

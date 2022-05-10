@@ -208,6 +208,8 @@ let printPreludeFile sourcefile data_basics param_basics proposal =
   ]);
   close_out oc
         
-let generate_prelude sourcefile p data params proposal =
+let generate_prelude sourcefile program data params proposal =
+  (*let parameters = program.StanE.pr_parameters_vars in
+  let data = program.StanE.pr_data_vars in*)
   printPreludeHeader sourcefile data params;
   printPreludeFile sourcefile data params proposal
