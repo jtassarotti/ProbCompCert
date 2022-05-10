@@ -114,7 +114,6 @@ Fixpoint transf_expression (e: StanE.expr) {struct e}: res CStan.expr :=
     do e1 <- transf_expression e1;
     do e2 <- transf_expression e2;
     OK (CStan.Ebinop o e1 e2 t)
-  | Ecall i el => Error (msg "Denumpyification.transf_expression: call expression should have been removed already")
   | Eindexed e nil =>
     Error (msg "Denumpyification.transf_expression: Eindexed cannot be passed an empty list")
   | Eindexed e (cons i nil) =>
@@ -155,6 +154,10 @@ Fixpoint transf_statement (s: StanE.statement) {struct s}: res CStan.statement :
     do o <- transf_operator o;
     Error (msg "Denumpyification.transf_statement (NYI): Sassign")
     (* OK (CStan.Sassign e1 (CStan.Ebinop o e1 e2 Tvoid)) TODO(stites): Tvoid seems wrong and I need to doublecheck. *)
+  | Scall e f el =>
+    do e <- transf_expression e;
+    do el <- list_mmap transf_expression el;
+    OK (CStan.Scall (Some f) e el)    
   | Ssequence s1 s2 =>
     do s1 <- (transf_statement s1);
     do s2 <- (transf_statement s2);
@@ -185,24 +188,20 @@ Fixpoint transf_statement (s: StanE.statement) {struct s}: res CStan.statement :
     do e <- transf_expression e;
     OK (CStan.Starget e)
 
-  | Stilde e d el (oe1, oe2) =>
+  | Stilde e d el =>
     do e <- transf_expression e;
     do d <- transf_expression d;
     do el <- list_mmap transf_expression el;
-    do oe1 <- option_mmap transf_expression oe1;
-    do oe2 <- option_mmap transf_expression oe2;
-    OK (CStan.Stilde e d el (oe1, oe2))
+    OK (CStan.Stilde e d el (None, None))
 end.
 
 Definition transf_constraint (c : StanE.constraint) : res CStan.constraint :=
   match c with
   | StanE.Cidentity => OK CStan.Cidentity
-  | StanE.Clower e => do e <- transf_expression e; OK (CStan.Clower e)
-  | StanE.Cupper e => do e <- transf_expression e; OK (CStan.Cupper e)
+  | StanE.Clower e => OK (CStan.Clower (CStan.Econst_float e tdouble))
+  | StanE.Cupper e => OK (CStan.Cupper (CStan.Econst_float e tdouble))
   | StanE.Clower_upper e0 e1 =>
-    do e0 <- transf_expression e0;
-    do e1 <- transf_expression e1;
-    OK (CStan.Clower_upper e0 e1)
+    OK (CStan.Clower_upper (CStan.Econst_float e0 tdouble) (CStan.Econst_float e1 tdouble))
   end.
  
 Definition transf_variable (_: AST.ident) (v: StanE.variable): res (type * CStan.constraint) :=

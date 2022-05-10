@@ -55,8 +55,8 @@ let filter_b_op o =
   | Sops.Pow -> raise (Unsupported "binary operator: power")
   | Sops.EltPow -> raise (Unsupported "binary operator: pointwise power")
   | Sops.Transpose -> raise (Unsupported "binary operator: transpose")
-  | _ -> raise (Internal "unary operator in binary position")
-                    
+  | _ -> raise (Internal "unary operator in binary position")                   
+       
 let rec el_e e =
   match e with
   | Stan.Econst_int i -> StanE.Econst_int (Camlcoq.Z.of_sint (int_of_string i), StanE.Bint)
@@ -75,7 +75,7 @@ let rec el_e e =
        | _ -> raise (Internal "binary operator used in unary position")
      end
   | Stan.Ebinop (e1,o,e2) ->StanE.Ebinop (el_e e1,filter_b_op o,el_e e2) 
-  | Stan.Ecall (i,el) -> StanE.Ecall (Camlcoq.intern_string i, List.map el_e el)
+  | Stan.Ecall (i,el) -> raise (Unsupported ("expression: arbitrary call in expression " ^ i))
   | Stan.Econdition (e1,e2,e3) -> raise (Unsupported "expression: conditional")
   | Stan.Earray el -> raise (Unsupported "expression: array")
   | Stan.Erow el -> raise (Unsupported "expression: row")
@@ -91,6 +91,17 @@ and el_i i =
   | Stan.Idownfrom e -> raise (Unsupported "No support for advanced indexing")
   | Stan.Ibetween (e1,e2) -> raise (Unsupported "No support for advanced indexing")
 
+let rec eval_e_aux e =
+  match e with
+  | Stan.Econst_int i -> (float_of_string i)
+  | Stan.Econst_float f -> (float_of_string f)
+  | Stan.Eunop (Sops.PMinus,e) -> -. (eval_e_aux e)
+  | Stan.Eunop _ -> raise (Unsupported "Complex constant expression: unop")
+  | Stan.Ebinop _ -> raise (Unsupported "Complex constant expression: binop")
+  | _ -> raise (Unsupported "Complex constant expression: other")
+
+let eval_e e = Camlcoq.coqfloat_of_camlfloat (eval_e_aux e)
+                           
 let el_p p =
   match p with
   | Stan.Pstring s -> raise (Unsupported "Printing")
@@ -110,7 +121,9 @@ let el_b b dims =
   | (Stan.Bvector _, _) -> raise (Unsupported "vector type")
   | (Stan.Bmatrix _, _) -> raise (Unsupported "matrix type")
   | (Stan.Brow _, _) -> raise (Unsupported "matrix type")    
-                  
+
+
+(* John: the following two functions should be combined *)
 let rec el_s_ids s =
   match s with
   | Stan.Sskip -> []
@@ -129,13 +142,16 @@ let rec el_s_ids s =
   | Stan.Scall (i,el) -> raise (Unsupported "statement: call")
   | Stan.Sprint lp -> raise (Unsupported "statement: print")
   | Stan.Sreject lp -> raise (Unsupported "statement: reject")
-  | Stan.Sforeach (i,e,s) ->raise (Unsupported "statement: foreach")
+  | Stan.Sforeach (i,e,s) -> raise (Unsupported "statement: foreach")
   | Stan.Starget e -> []
-  | Stan.Stilde (e,i,el,(tr1,tr2)) -> []  
+  | Stan.Stilde (e,i,el,(None,None)) -> []
+  | Stan.Stilde (e,i,el,(tr1,tr2)) -> raise (Unsupported "truncation")
                   
 let rec el_s s =
   match s with
   | Stan.Sskip -> StanE.Sskip
+  | Stan.Sassign (e1,oo,Stan.Ecall (i,el)) ->
+     StanE.Scall (el_e e1, Camlcoq.intern_string i, List.map el_e el)
   | Stan.Sassign (e1,oo,e2) -> StanE.Sassign (el_e e1, mapo oo filter_b_op, el_e e2)
   | Stan.Sblock sl -> List.fold_left (fun s1 s2 -> StanE.Ssequence (s1, (el_s s2))) StanE.Sskip sl
   | Stan.Sifthenelse (e,s1,s2) -> StanE.Sifthenelse (el_e e, el_s s1, el_s s2)
@@ -154,12 +170,13 @@ let rec el_s s =
   | Stan.Sreject lp -> raise (Unsupported "statement: reject")
   | Stan.Sforeach (i,e,s) ->raise (Unsupported "statement: foreach")
   | Stan.Starget e -> StanE.Starget (el_e e)
-  | Stan.Stilde (e,i,el,(tr1,tr2)) ->
+  | Stan.Stilde (e,i,el,(None,None)) ->
     let (_i, _ty) = match Hashtbl.find_opt transf_dist_idents i with
       | Some (ident, ty) -> (ident, ty)
       | None -> raise (NIY_elab ("tilde called with invalid distribution: "^ i))
     in
-    StanE.Stilde (el_e e, StanE.Evar (_i, _ty), map el_e el, (mapo tr1 el_e,mapo tr2 el_e) )             
+    StanE.Stilde (el_e e, StanE.Evar (_i, _ty), map el_e el)
+  | Stan.Stilde (e,i,el,(tr1,tr2)) -> raise (Unsupported "truncation")
 
 let elab elab_fun ol =
   match ol with
@@ -202,9 +219,16 @@ let stype2basic s =
 let el_c c =
   match c with
   | Stan.Cidentity -> StanE.Cidentity
-  | Stan.Clower e -> StanE.Clower (el_e e)
-  | Stan.Cupper e -> StanE.Cupper (el_e e)
-  | Stan.Clower_upper (l, u) -> StanE.Clower_upper (el_e l, el_e u)
+  | Stan.Clower e ->
+     let b = eval_e e in
+     StanE.Clower b
+  | Stan.Cupper e ->
+     let b = eval_e e in
+     StanE.Cupper b
+  | Stan.Clower_upper (l, u) ->
+     let b1 = eval_e l in
+     let b2 = eval_e u in
+     StanE.Clower_upper (b1,b2)
   | Stan.Coffset e -> raise (Unsupported "constraint:offset")
   | Stan.Cmultiplier e -> raise (Unsupported "constraint:multiplier")
   | Stan.Coffset_multiplier (l, u) -> raise (Unsupported "constraint:offset_multiplier")

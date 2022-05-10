@@ -103,7 +103,7 @@ let renderParameters struct_type struct_vars =
     (* See: https://mc-stan.org/docs/2_29/reference-manual/initialization.html *)
     (* If there are no user-supplied initial values, the default initialization strategy is to initialize the unconstrained parameters directly with values drawn uniformly from the interval (−2,2) *)
     | StanE.Breal             -> ("  "^ret^"->" ^ v ^" = 0.0; // For debugging. uniform_sample(-2,2);")
-    | _ -> raise (NIY_gen "renderParameters.renderField: incomplete for this type")
+    | _ -> "todo" (*raise (NIY_gen "renderParameters.renderField: incomplete for this type")*)
   in
   String.concat "\n" ([
     "void init_parameters () {";
@@ -126,8 +126,8 @@ let renderDataLoaderFunctions vs =
   let loadField (p, t) =
     let v = Camlcoq.extern_atom p in
     match t with
-    | StanE.Breal -> raise (NIY_gen "Data loading: single real")
-    | StanE.Bint -> raise (NIY_gen "Data loading: single int")
+    | StanE.Breal -> "todo" (* raise (NIY_gen "Data loading: single real") *)
+    | StanE.Bint -> "todo" (* raise (NIY_gen "Data loading: single int") *)
     | StanE.Barray (t,_) ->
       String.concat "\n" [
         "  if (0 == access(f, 0))";

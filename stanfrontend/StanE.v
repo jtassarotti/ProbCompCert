@@ -39,7 +39,6 @@ Inductive expr :=
   (* FIXME: add types to all proceeding as well? *)
   | Eunop: u_op -> expr -> expr
   | Ebinop: expr -> b_op -> expr -> expr
-  | Ecall: ident -> list expr -> expr
   | Eindexed: expr -> list expr -> expr
   (* Probabilistic expressions *)
   | Edist: ident -> list expr -> expr
@@ -47,20 +46,21 @@ Inductive expr :=
 
 Inductive constraint :=
   | Cidentity
-  | Clower: expr -> constraint
-  | Cupper: expr -> constraint
-  | Clower_upper: expr -> expr -> constraint.
+  | Clower: float -> constraint
+  | Cupper: float -> constraint
+  | Clower_upper: float -> float -> constraint.
 
 Inductive statement :=
   (* Classical statements that exist in C *)
   | Sskip : statement
   | Sassign : expr -> option b_op -> expr -> statement
+  | Scall : expr -> ident -> list expr -> statement
   | Ssequence: statement -> statement -> statement
   | Sifthenelse: expr -> statement -> statement -> statement
   | Sfor: ident -> expr -> expr -> statement -> statement
   (* Probabilistic statements *)
   | Starget: expr -> statement
-  | Stilde: expr -> expr -> list expr -> (option expr * option expr) -> statement.
+  | Stilde: expr -> expr -> list expr -> statement.
 
 Record variable := mkvariable {
   vd_type: basic;

@@ -11,11 +11,13 @@ model {
   phi ~ uniform(-1, 1);
   sigma ~ cauchy(0, 5);
   mu ~ cauchy(0, 10);
-  h[1] ~ normal(mu, sigma / sqrt(1 - phi * phi));
+  den = sqrt(1 - phi * phi);
+  h[1] ~ normal(mu, sigma / den);
   for (t in 2:100) {
     h[t] ~ normal(mu + phi * (h[t - 1] -  mu), sigma);
   }
   for (t in 1:100) {
-    y[t] ~ normal(0, exp(h[t] / 2));
+    e = exp(h[t] / 2);
+    y[t] ~ normal(0, e);
   }
 }
