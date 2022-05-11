@@ -76,6 +76,7 @@ let rec el_e e =
   | Stan.Evar i ->
     begin match Hashtbl.find_opt type_table i with
     | None -> raise (Internal "Variable of unknown type") (* StanE.Evar (Camlcoq.intern_string i, StanE.Breal) *)
+    | Some (StanE.Bfunction (_, _)) -> raise (Internal "Something to think about carefully")
     | Some ty -> StanE.Evar (Camlcoq.intern_string i, ty)
     end
   | Stan.Eunop (o,e) ->

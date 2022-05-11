@@ -99,35 +99,30 @@ Fixpoint transf_expression (e: StanE.expr) {struct e}: res CStan.expr :=
   | Econst_float f ty => do ty <- transf_type ty; OK (CStan.Econst_float f ty)
   | Evar i ty =>
     do ty <- transf_type ty;
-    match ty with
-    | Tfunction _ _ _ => OK (CStan.Evar i ty)
-    (* | _ =>  OK (CStan.Etempvar i ty) (* consistently use tempvars for non-function calls *) *)
-    | _ =>  OK (CStan.Evar i ty)
-    end
+    OK (CStan.Evar i ty)
   | Eunop o e ty =>
     do o <- transf_unary_operator o;
+    do ty <- transf_type ty;
     do e <- transf_expression e;
-    OK (CStan.Eunop o e Tvoid)
+    OK (CStan.Eunop o e ty)
   | Ebinop e1 o0 e2 ty =>
+    do ty <- transf_type ty;
     do o <- transf_operator o0;
     do t <- transf_operator_return o0;
     do e1 <- transf_expression e1;
     do e2 <- transf_expression e2;
-    OK (CStan.Ebinop o e1 e2 t)
-  | Eindexed e nil ty =>
-    Error (msg "Denumpyification.transf_expression: Eindexed cannot be passed an empty list")
+    OK (CStan.Ebinop o e1 e2 ty)
   | Eindexed e (cons i nil) ty =>
     do e <- transf_expression e;
+    do ty <- transf_type ty;
     do i <- transf_expression i;
-    let ty := CStan.typeof e in
-    match ty with
-    | Tarray ty sz _ => OK (CStan.Ederef (CStan.Ebinop Oadd e i (tptr ty)) ty)
-    | _              => Error (msg "can only index an array")
-    end
-  | Eindexed e (cons i l) ty =>
+    OK (CStan.Ederef (CStan.Ebinop Oadd e i (tptr ty)) ty)
+  | Eindexed e _ ty =>
     Error (msg "Denumpyification.transf_expression (NYI): Eindexed [i, ...]")
   | Edist i el ty => Error (msg "Denumpyification.transf_expression (NYI): Edist")
-  | Etarget ty => OK (CStan.Etarget Tvoid)
+  | Etarget ty => 
+    do ty <- transf_type ty;
+    OK (CStan.Etarget Tvoid)
   end.
 
 
