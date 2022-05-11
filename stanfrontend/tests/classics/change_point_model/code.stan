@@ -5,7 +5,8 @@ data {
 }
 transformed data {
   real log_unif;
-  log_unif = -log(100);
+  n_log_unif = log(100);
+  log_unif = -n_log_unif;
 }
 parameters {
   real<lower=0> e;
@@ -13,7 +14,9 @@ parameters {
 }
 transformed parameters {
   real lp[100];
-  lp = rep_vector(log_unif, 100);
+  for (i in 1:100) {
+    lp[i] = log_unif;
+  }
   for (s in 1:100) {
     for (t in 1:100) {
       if (t < s)
@@ -26,5 +29,6 @@ transformed parameters {
 model {
   e ~ exponential(r_e);
   l ~ exponential(r_l);
-  target += log_sum_exp(lp);
+  lsp = log_sum_exp(lp);
+  target += lsp;
 }

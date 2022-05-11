@@ -98,7 +98,14 @@ let rec eval_e_aux e =
   | Stan.Eunop (Sops.PMinus,e) -> -. (eval_e_aux e)
   | Stan.Eunop _ -> raise (Unsupported "Complex constant expression: unop")
   | Stan.Ebinop _ -> raise (Unsupported "Complex constant expression: binop")
-  | _ -> raise (Unsupported "Complex constant expression: other")
+  | Stan.Evar i -> raise (Unsupported "Complex constant expression: var")
+  | Stan.Ecall (i,el) -> raise (Unsupported "Complex constant expression: call")
+  | Stan.Econdition (e1,e2,e3) -> raise (Unsupported "Complex constant expression: condition")
+  | Stan.Earray el -> raise (Unsupported "Complex constant expression: array")
+  | Stan.Erow el -> raise (Unsupported "Complex constant expression: row")
+  | Stan.Eindexed (e,il) -> raise (Unsupported "Complex constant expression: indexing")
+  | Stan.Edist (i,el) -> raise (Unsupported "Complex constant expression: distribution")
+  | Stan.Etarget -> raise (Unsupported "Complex constant expression: target")
 
 let eval_e e = Camlcoq.coqfloat_of_camlfloat (eval_e_aux e)
                            
