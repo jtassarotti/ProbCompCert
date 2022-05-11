@@ -10,6 +10,7 @@ open Sstanlib
 exception Internal of string
 exception NIY_elab of string
 exception Unsupported of string
+exception TypeError of string
 
 (* <><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><> *)
 (*                                 Type Lookup                                  *)
@@ -56,6 +57,17 @@ let filter_b_op o =
   | Sops.EltPow -> raise (Unsupported "binary operator: pointwise power")
   | Sops.Transpose -> raise (Unsupported "binary operator: transpose")
   | _ -> raise (Internal "unary operator in binary position")                   
+
+let typeof e  =
+  match e with
+  | StanE.Econst_int (_, ty) -> ty
+  | StanE.Econst_float (_, ty) -> ty
+  | StanE.Evar (_, ty) -> ty
+  | StanE.Eunop (_, ty) -> ty
+  | StanE.Ebinop (_, _, _, ty) -> ty
+  | StanE.Eindexed (_, _, ty) -> ty
+  | StanE.Edist (_, _, ty) -> ty
+  | StanE.Etarget ty -> ty
        
 let rec el_e e =
   match e with
@@ -63,25 +75,67 @@ let rec el_e e =
   | Stan.Econst_float f -> StanE.Econst_float (Camlcoq.coqfloat_of_camlfloat (float_of_string f), StanE.Breal)
   | Stan.Evar i ->
     begin match Hashtbl.find_opt type_table i with
-    | None -> StanE.Evar (Camlcoq.intern_string i, StanE.Breal)
+    | None -> raise (Internal "Variable of unknown type") (* StanE.Evar (Camlcoq.intern_string i, StanE.Breal) *)
     | Some ty -> StanE.Evar (Camlcoq.intern_string i, ty)
     end
   | Stan.Eunop (o,e) ->
      begin
        match o with
        | Sops.PNot -> raise (Internal "confused")(* StanE.Eunop (StanE.PNot, el_e e) *)
-       | Sops.PPlus -> StanE.Ebinop (StanE.Econst_int (Camlcoq.Z.of_sint 0, StanE.Bint),StanE.Plus,el_e e) 
-       | Sops.PMinus -> StanE.Ebinop (StanE.Econst_int (Camlcoq.Z.of_sint 0, StanE.Bint),StanE.Minus,el_e e)
+       | Sops.PPlus ->
+          let e = el_e e in
+          let ty = typeof e in
+          begin
+            match ty with
+            | StanE.Bint -> StanE.Ebinop (StanE.Econst_int (Camlcoq.Z.of_sint 0, StanE.Bint),StanE.Plus,e,ty) 
+            | StanE.Breal -> raise (NIY_elab "unop real")
+            | _ -> raise (TypeError "Unop PPlus")
+          end
+       | Sops.PMinus ->
+          let e = el_e e in
+          let ty = typeof e in
+          begin
+            match ty with
+            | StanE.Bint -> StanE.Ebinop (StanE.Econst_int (Camlcoq.Z.of_sint 0, StanE.Bint),StanE.Minus,e,ty) 
+            | StanE.Breal -> raise (NIY_elab "unop real")
+            | _ -> raise (TypeError "Unop PPlus")
+          end
        | _ -> raise (Internal "binary operator used in unary position")
      end
-  | Stan.Ebinop (e1,o,e2) ->StanE.Ebinop (el_e e1,filter_b_op o,el_e e2) 
+  | Stan.Ebinop (e1,o,e2) ->
+     (* Needs to be seriously improved to account for the operator!!! *)
+     let e1 = el_e e1 in
+     let e2 = el_e e2 in
+     let t1 = typeof e1 in
+     let t2 = typeof e2 in
+     let t =
+       begin 
+         match t1, t2 with
+         | StanE.Bint, StanE.Bint -> StanE.Bint
+         | StanE.Breal, StanE.Breal -> StanE.Breal
+         | StanE.Breal, StanE.Bint -> StanE.Breal
+         | StanE.Bint, StanE.Breal -> StanE.Breal
+         | _, _ -> raise (TypeError "Type error: operator applied to array")
+       end in
+     StanE.Ebinop (e1,filter_b_op o,e2,t) 
   | Stan.Ecall (i,el) -> raise (Unsupported ("expression: arbitrary call in expression " ^ i))
   | Stan.Econdition (e1,e2,e3) -> raise (Unsupported "expression: conditional")
   | Stan.Earray el -> raise (Unsupported "expression: array")
   | Stan.Erow el -> raise (Unsupported "expression: row")
-  | Stan.Eindexed (e,il) -> StanE.Eindexed (el_e e, map el_i il)
-  | Stan.Edist (i,el) -> StanE.Edist (Camlcoq.intern_string i, List.map el_e el)
-  | Stan.Etarget -> StanE.Etarget
+  | Stan.Eindexed (e,il) ->
+     let e = el_e e in
+     let t = typeof e in
+     let il = List.map el_i il in
+     let index_are_all_ints = List.fold_left (fun b e -> b && typeof(e) == StanE.Bint) true il in
+     begin
+       match il, t, index_are_all_ints with
+       | [], _, _ -> raise (TypeError "Type error: indexing with no indices")
+       | _, _, false -> raise (TypeError "Type error: indices must be integers")
+       | v :: ilp, StanE.Barray _, _ -> StanE.Eindexed (e, il, typeof v)
+       | _, _, _ -> raise (TypeError "Type error: indexing can only be applied to arrays")
+     end
+  | Stan.Edist (i,el) -> StanE.Edist (Camlcoq.intern_string i, List.map el_e el,StanE.Breal)
+  | Stan.Etarget -> StanE.Etarget StanE.Breal
 
 and el_i i =
   match i with

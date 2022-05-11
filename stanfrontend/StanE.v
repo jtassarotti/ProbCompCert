@@ -37,12 +37,12 @@ Inductive expr :=
   | Econst_float: float -> basic -> expr
   | Evar: ident -> basic -> expr
   (* FIXME: add types to all proceeding as well? *)
-  | Eunop: u_op -> expr -> expr
-  | Ebinop: expr -> b_op -> expr -> expr
-  | Eindexed: expr -> list expr -> expr
+  | Eunop: u_op -> expr -> basic -> expr
+  | Ebinop: expr -> b_op -> expr -> basic -> expr
+  | Eindexed: expr -> list expr -> basic -> expr
   (* Probabilistic expressions *)
-  | Edist: ident -> list expr -> expr
-  | Etarget.
+  | Edist: ident -> list expr -> basic -> expr
+  | Etarget: basic -> expr.
 
 Inductive constraint :=
   | Cidentity
