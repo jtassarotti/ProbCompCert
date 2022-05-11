@@ -4,6 +4,7 @@ data {
   real D[100];
 }
 transformed data {
+  real n_log_unif;
   real log_unif;
   n_log_unif = log(100);
   log_unif = -n_log_unif;

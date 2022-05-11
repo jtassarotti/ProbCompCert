@@ -68,14 +68,30 @@ let typeof e  =
   | StanE.Eindexed (_, _, ty) -> ty
   | StanE.Edist (_, _, ty) -> ty
   | StanE.Etarget ty -> ty
-       
+
+let op_to_string o =
+  match o with
+  | StanE.Plus -> " + "
+  | StanE.Minus -> " - "
+  | StanE.Times -> " * "
+  | StanE.Divide -> " / "
+  | StanE.Modulo -> " % "
+  | StanE.Or -> " || "
+  | StanE.And -> " && "
+  | StanE.Equals -> " == "
+  | StanE.NEquals -> " != "
+  | StanE.Less -> " < "
+  | StanE.Leq -> " <= "
+  | StanE.Greater -> " > "
+  | StanE.Geq -> " >= "
+                      
 let rec el_e e =
   match e with
   | Stan.Econst_int i -> StanE.Econst_int (Camlcoq.Z.of_sint (int_of_string i), StanE.Bint)
   | Stan.Econst_float f -> StanE.Econst_float (Camlcoq.coqfloat_of_camlfloat (float_of_string f), StanE.Breal)
   | Stan.Evar i ->
     begin match Hashtbl.find_opt type_table i with
-    | None -> raise (Internal "Variable of unknown type") (* StanE.Evar (Camlcoq.intern_string i, StanE.Breal) *)
+    | None -> raise (Internal ("Variable of unknown type " ^ i)) (* StanE.Evar (Camlcoq.intern_string i, StanE.Breal) *)
     | Some (StanE.Bfunction (_, _)) -> raise (Internal "Something to think about carefully")
     | Some ty -> StanE.Evar (Camlcoq.intern_string i, ty)
     end
@@ -109,16 +125,17 @@ let rec el_e e =
      let e2 = el_e e2 in
      let t1 = typeof e1 in
      let t2 = typeof e2 in
+     let o = filter_b_op o in
      let t =
        begin 
          match t1, t2 with
          | StanE.Bint, StanE.Bint -> StanE.Bint
          | StanE.Breal, StanE.Breal -> StanE.Breal
-         | StanE.Breal, StanE.Bint -> StanE.Breal
-         | StanE.Bint, StanE.Breal -> StanE.Breal
+         | StanE.Breal, StanE.Bint -> raise (Unsupported ("Casting 1" ^ (op_to_string o)))
+         | StanE.Bint, StanE.Breal -> raise (Unsupported ("Casting 2" ^ (op_to_string o)))
          | _, _ -> raise (TypeError "Type error: operator applied to array")
        end in
-     StanE.Ebinop (e1,filter_b_op o,e2,t) 
+     StanE.Ebinop (e1,o,e2,t) 
   | Stan.Ecall (i,el) -> raise (Unsupported ("expression: arbitrary call in expression " ^ i))
   | Stan.Econdition (e1,e2,e3) -> raise (Unsupported "expression: conditional")
   | Stan.Earray el -> raise (Unsupported "expression: array")
@@ -132,7 +149,7 @@ let rec el_e e =
        match il, t, index_are_all_ints with
        | [], _, _ -> raise (TypeError "Type error: indexing with no indices")
        | _, _, false -> raise (TypeError "Type error: indices must be integers")
-       | v :: ilp, StanE.Barray _, _ -> StanE.Eindexed (e, il, typeof v)
+       | _ , StanE.Barray (it,_), _ -> StanE.Eindexed (e, il, it)
        | _, _, _ -> raise (TypeError "Type error: indexing can only be applied to arrays")
      end
   | Stan.Edist (i,el) -> StanE.Edist (Camlcoq.intern_string i, List.map el_e el,StanE.Breal)
@@ -226,7 +243,11 @@ let rec el_s s =
   | Stan.Sbreak -> raise (Unsupported "statement: break")
   | Stan.Scontinue -> raise (Unsupported "statement: continue")
   | Stan.Sreturn oe -> raise (Unsupported "statement: return")
-  | Stan.Svar v -> StanE.Sskip     
+  | Stan.Svar v ->
+     (* This needs to be done more carefully, we might eventually need a local type environment *)
+     let basic = el_b v.Stan.vd_type v.Stan.vd_dims in
+     Hashtbl.add type_table v.Stan.vd_id basic;
+     StanE.Sskip     
   | Stan.Scall (i,el) -> raise (Unsupported "statement: call")
   | Stan.Sprint lp -> raise (Unsupported "statement: print")
   | Stan.Sreject lp -> raise (Unsupported "statement: reject")
