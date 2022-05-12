@@ -266,6 +266,30 @@ Inductive assign_loc (ce: composite_env) (ty: type) (m: mem) (b: block) (ofs: pt
       store_bitfield ty sz sg pos width m (Vptr b ofs) v m' v' ->
       assign_loc ce ty m b ofs (Bits sz sg pos width) v m'.
 
+Notation "'do' X <~ A ; B" := (SimplExpr.bind A (fun X => B))
+   (at level 200, X ident, A at level 100, B at level 200)
+   : gensym_monad_scope.
+Local Open Scope gensym_monad_scope.
+
+Fixpoint map_transf_statement (m: statement -> mon statement) (p: program) (s: statement) {struct s}: mon statement :=
+  match s with
+  | Ssequence s0 s1 =>
+    do s0 <- map_transf_statement m p s0;
+    do s1 <~ map_transf_statement m p s1;
+    m (Ssequence s0 s1)
+  | Sifthenelse e s0 s1 =>
+    do s0 <- map_transf_statement m p s0;
+    do s1 <- map_transf_statement m p s1;
+    m (Sifthenelse e s0 s1)
+  | Sloop s0 s1 =>
+    do s0 <- map_transf_statement m p s0;
+    do s1 <- map_transf_statement m p s1;
+    m (Sloop s0 s1)
+  | _ => m(s)
+  end.
+
+
+
 Section Util.
 Require Import Errors.
 Notation "'do' X <- A ; B" := (bind A (fun X => B))
@@ -274,7 +298,27 @@ Notation "'do' X <- A ; B" := (bind A (fun X => B))
 
 Local Open Scope gensym_monad_scope.
 
-Variable transf_function: CStan.program -> function -> res function.
+Variable transf_statement: program -> statement -> mon statement. 
+
+Definition transf_function_basic (p:CStan.program) (f: function): res (function) :=
+  match transf_statement p f.(fn_body) f.(fn_generator) with
+  | SimplExpr.Err msg => Error msg
+  | SimplExpr.Res tbody g i =>
+    OK {|
+      fn_params := f.(fn_params);
+      fn_body := tbody;
+
+      fn_temps := g.(SimplExpr.gen_trail) ++ f.(fn_temps);
+      fn_vars := f.(fn_vars);
+      fn_generator := g;
+
+      fn_return := f.(fn_return);
+      fn_callconv := f.(fn_callconv);
+      fn_blocktype := f.(fn_blocktype);
+     |}
+  end.
+
+Variable transf_function: program -> function -> res function.
 
 Definition transf_external (ef: AST.external_function) : res AST.external_function :=
   match ef with
