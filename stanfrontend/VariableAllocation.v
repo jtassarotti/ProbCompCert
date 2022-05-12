@@ -13,13 +13,8 @@ Require Import Globalenvs.
 Require Import Integers.
 Require Import Clightdefs.
 Require AST.
-Require SimplExpr.
-Require Import Constraints.
 
-(* FIXME how do I share this notation? *)
-Notation "'do' X <- A ; B" := (bind A (fun X => B))
-   (at level 200, X ident, A at level 100, B at level 200)
-   : gensym_monad_scope.
+
 
 Notation "'do' X <~ A ; B" := (SimplExpr.bind A (fun X => B))
    (at level 200, X ident, A at level 100, B at level 200)
@@ -156,37 +151,6 @@ match s with
     error (msg "DNE at this stage of pipeline")
 end.
 
-Definition init_unconstrained (p: program) : mon (AST.ident * statement) :=
-  Constraints.callmath p MFInitUnconstrained nil.
-
-Fixpoint over_fields
-         (f : AST.ident * Ctypes.type -> statement)
-         (body:statement)
-         (fields: list (AST.ident * Ctypes.type))
-  : statement :=
-  match fields with
-  | nil => body
-  | struct_field::rest =>
-    over_fields f (Ssequence (f struct_field) body) rest
-  end.
-
-Definition init_params (params : CStan.reserved_params) (perturb: AST.ident * statement) (struct_field : AST.ident * Ctypes.type): statement :=
-  let (i, t)        := struct_field in
-  let (x, call)     := perturb in
-  let state_field   := as_field params.(res_params_type) params.(res_params_global_state) i t in
-  Sassign state_field (Evar x t).
-
-
-Definition adjust_proposal (params : CStan.reserved_params) (perturb: AST.ident * statement) (struct_field : AST.ident * Ctypes.type): statement :=
-  let (i, t)        := struct_field in
-  let (x, call)     := perturb in
-  let field_of      := as_field params.(res_params_type) in
-  let propose_field := field_of params.(res_params_global_proposal) i t in
-
-  let state_field   := field_of params.(res_params_global_state) i t in
-  let proposal      := Ebinop Oadd state_field (Etempvar x t) t in
-  Ssequence call (Sassign propose_field proposal).
-
 Definition return_var_pointer (ptr : AST.ident) (ty : Ctypes.type): statement :=
   Sreturn (Some (CStan.Eaddrof (Evar ptr ty) ty)).
 
@@ -201,35 +165,6 @@ Fixpoint over_fieldsM
     do x <~ f struct_field;
     over_fieldsM f (Ssequence x body) rest
   end.
-
-Definition call_print (p : program) (state_field:expr) (t:Ctypes.type) : mon statement :=
-  let errmsg := fun sty => msg ("cannot print type: " ++ sty) in
-  match t with
-  | Tint _ _ _ => do x <~ Constraints.callmath p MFPrintInt (state_field::nil); ret (snd x)
-  | Tlong _ _ => error (errmsg "long")
-  | Tfloat _ _ => do x <~ Constraints.callmath p MFPrintDouble (state_field::nil); ret (snd x)
-
-  | Tarray (Tint a b c) len _ => do x <~ Constraints.callmath p MFPrintArrayInt ((Econst_int (Int.repr len) (Tint a b c))::state_field::nil); ret (snd x)
-  | Tarray (Tlong _ _) _ _ => error (errmsg "array<long>")
-  | Tarray (Tfloat _ _) _ _ => error (errmsg "array<float>")
-
-  | Tpointer _ _ => error (errmsg "pointer")
-  | Tfunction _ _ _ => error (errmsg "function")
-  | Tstruct _ _ => error (errmsg "struct")
-  | Tunion _ _ => error (errmsg "union")
-  | Tvoid => error (errmsg "void")
-  | _ => error (errmsg "<unknown>")
-  end.
-
-Definition print_field (p : program) (v:AST.ident) (gt: AST.ident) (struct_field : AST.ident * Ctypes.type): mon statement :=
-  let (i, t) := struct_field in
-  call_print p (as_fieldp gt v i t) t.
-
-Definition print_struct (p : program) (v:AST.ident) (gt: AST.ident) (fields: list (AST.ident * Ctypes.type)): mon statement :=
-  do pend <~ Constraints.callmath p MFPrintEnd nil;
-  do pfields <~ over_fieldsM (print_field p v gt) (snd pend) fields;
-  do pstart <~ Constraints.callmath p MFPrintStart nil;
-  ret (Ssequence (snd pstart) pfields).
 
 Definition cons_tail {X:Type} (x : X) (xs : list X) :=
   match xs with
@@ -255,9 +190,7 @@ Definition transf_statement_toplevel (p: program) (f: function): mon (list (AST.
   let data_map := {| is_member := in_list (List.map fst p.(prog_data_vars)); transl := as_field data.(res_data_type) data.(res_data_global); |} in
   let cast := fun arg tmp ty => Sassign (Evar tmp ty) (CStan.Ecast arg ty) in
 
-  match f.(fn_blocktype) with
-  | BTModel =>
-    let params_map := {|
+  let params_map := {|
       is_member := in_list (List.map fst p.(prog_parameters_vars));
       transl := as_fieldp params.(res_params_type) ptmp;
     |} in
@@ -267,67 +200,7 @@ Definition transf_statement_toplevel (p: program) (f: function): mon (list (AST.
     do body <~ transf_statement data_map body;
 
     ret (cons_tail (params.(res_params_arg), tptr tvoid) f.(fn_params), (ptmp, TParamStructp)::f.(fn_vars), body, f.(fn_return))
-
-  (* | BTParameters => *)
-  (*   do init <~ init_unconstrained p; *)
-  (*   let body := over_fields (init_params params init) f.(fn_body) p.(prog_parameters_vars) in *)
-  (*   ret (f.(fn_params), (params.(res_params_global_state), TParamStruct)::f.(fn_vars), body, f.(fn_return)) *)
-
-  (* | BTData => *)
-  (*   do body <~ transf_statement data_map f.(fn_body); *)
-  (*   ret (f.(fn_params), f.(fn_vars), body, f.(fn_return)) *)
-
-  (* | BTGetState => *)
-  (*   let body := *)
-  (*         Ssequence *)
-  (*           f.(fn_body) *)
-  (*           (return_var_pointer params.(res_params_global_state) TParamStructp) in *)
-  (*   ret (f.(fn_params), f.(fn_vars), body, tptr tvoid) *)
-
-  (* | BTSetState => *)
-  (*   let body := *)
-  (*       Ssequence *)
-  (*         (cast parg ptmp TParamStructp) *)
-  (*         (Ssequence *)
-  (*           f.(fn_body) *)
-  (*           (Sassign (Evar params.(res_params_global_state) TParamStruct) *)
-  (*                    (Ederef (Evar ptmp TParamStructp) TParamStruct))) *)
-  (*   in *)
-  (*   ret ((params.(res_params_arg), tptr tvoid)::f.(fn_params), (ptmp, TParamStructp)::f.(fn_vars), body, f.(fn_return)) *)
-
-  (* | BTSetData => *)
-  (*   let body := *)
-  (*       Ssequence *)
-  (*         (cast darg dtmp TDataStructp) *)
-  (*         (Ssequence *)
-  (*           f.(fn_body) *)
-  (*           (Sassign (Evar data.(res_data_global) TDataStruct) *)
-  (*                    (Ederef (Evar dtmp TDataStructp) TDataStruct))) *)
-  (*   in *)
-  (*   ret ((data.(res_data_arg), tptr tvoid)::f.(fn_params), (dtmp, TDataStructp)::f.(fn_vars), body, f.(fn_return)) *)
-
-  (* | BTPropose => *)
-  (*   do init <~ init_unconstrained p; *)
-  (*   let body := over_fields (adjust_proposal params init) f.(fn_body) p.(prog_parameters_vars) in *)
-  (*   let body := Ssequence body (return_var_pointer params.(res_params_global_proposal) TParamStructp) in *)
-  (*   ret (f.(fn_params), f.(fn_vars), body, tptr tvoid) *)
-
-  (* | BTPrintState =>  *)
-  (*   do body <~ print_struct p ptmp params.(res_params_type) p.(prog_parameters_vars);  *)
-  (*   let body := Ssequence (cast parg ptmp TParamStructp) body in  *)
-  (*   ret ((params.(res_params_arg), tptr tvoid)::f.(fn_params), (ptmp, TParamStructp)::f.(fn_vars), body, f.(fn_return))  *)
-  (*| BTPrintState => ret (f.(fn_params), f.(fn_vars), f.(fn_body), f.(fn_return)) *)
-
-  (* | BTPrintData => *)
-  (*   do body <~ print_struct p dtmp data.(res_data_type) p.(prog_data_vars); *)
-
-  (*   let body := Ssequence (cast darg dtmp TDataStructp) body in *)
-  (*   ret ((data.(res_data_arg), tptr tvoid)::f.(fn_params), (dtmp, TDataStructp)::f.(fn_vars), body, f.(fn_return)) *)
-  (* | BTPrintData => ret (f.(fn_params), f.(fn_vars), f.(fn_body), f.(fn_return)) *)
-
-  | _ => ret (f.(fn_params), f.(fn_vars), f.(fn_body), f.(fn_return))
-
-  end.
+.
 
 Definition transf_function (p:CStan.program) (f: function): res function :=
   match transf_statement_toplevel p f f.(fn_generator) with
@@ -349,49 +222,5 @@ Definition transf_function (p:CStan.program) (f: function): res function :=
     |}
   end.
 
-(* ================================================================== *)
-(*                    Switch to Error Monad                           *)
-(* ================================================================== *)
+Definition transf_program := CStan.transf_program (transf_function).
 
-Definition transf_external (ef: AST.external_function) : res AST.external_function :=
-  match ef with
-  | AST.EF_external n sig => OK (AST.EF_external n sig) (*link to blas ops?*)
-  | AST.EF_runtime n sig => OK (AST.EF_runtime n sig) (*link runtime?*)
-  | _ => OK ef
-  end.
-
-Definition transf_fundef (p:CStan.program) (id: AST.ident) (fd: CStan.fundef) : res CStan.fundef :=
-  match fd with
-  | Internal f => do tf <- transf_function p f; OK (Internal tf)
-  | External ef targs tres cc => do ef <- transf_external ef; OK (External ef targs tres cc)
-  end.
-
-Definition transf_variable (id: AST.ident) (v: type): res type :=
-  OK v.
-
-Definition transf_program(p: CStan.program): res CStan.program :=
-  do p1 <- AST.transform_partial_program2 (transf_fundef p) transf_variable p;
-  OK {|
-      prog_defs := AST.prog_defs p1;
-      prog_public := AST.prog_public p1;
-
-      (* FIXME: should we filter the global list to remove these variables? *)
-      prog_data_vars:=p.(prog_data_vars);
-      prog_data_struct:= p.(prog_data_struct);
-
-      prog_constraints :=p.(prog_constraints);
-      (* FIXME: also here: should we filter the global list to remove these variables? *)
-      prog_parameters_vars:= p.(prog_parameters_vars);
-      prog_parameters_struct:= p.(prog_parameters_struct);
-
-      prog_model:=p.(prog_model);
-      prog_target:=p.(prog_target);
-      prog_main:=p.(prog_main);
-
-      prog_types:=p.(prog_types);
-      prog_comp_env:=p.(prog_comp_env);
-      prog_comp_env_eq:=p.(prog_comp_env_eq);
-
-      prog_math_functions:= p.(prog_math_functions);
-      prog_dist_functions:= p.(prog_dist_functions);
-    |}.

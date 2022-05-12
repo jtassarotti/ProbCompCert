@@ -4,6 +4,11 @@
 
 # Clean everything
 pushd tests/classics/$1/
+if [ $? -ne 0 ]; then
+    echo 'Test not found. Possible tests are: '
+    ls tests/classics
+    exit
+fi
 rm *.c
 rm *.o
 rm *.s

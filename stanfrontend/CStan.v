@@ -153,7 +153,7 @@ Definition type_of_fundef (f: fundef) : Ctypes.type :=
   | External id args res cc => Tfunction args res cc
   end.
 
-Inductive math_func := MFLog | MFExp | MFLogit | MFExpit
+Inductive math_func := MFLog | MFExp | MFLogit | MFExpit | MFSqrt
                        | MFPrintStart
                        | MFPrintDouble
                        | MFPrintInt
@@ -265,3 +265,60 @@ Inductive assign_loc (ce: composite_env) (ty: type) (m: mem) (b: block) (ofs: pt
   | assign_loc_bitfield: forall sz sg pos width v m' v',
       store_bitfield ty sz sg pos width m (Vptr b ofs) v m' v' ->
       assign_loc ce ty m b ofs (Bits sz sg pos width) v m'.
+
+Section Util.
+Require Import Errors.
+Notation "'do' X <- A ; B" := (bind A (fun X => B))
+   (at level 200, X ident, A at level 100, B at level 200)
+   : gensym_monad_scope.
+
+Local Open Scope gensym_monad_scope.
+
+Variable transf_function: CStan.program -> function -> res function.
+
+Definition transf_external (ef: AST.external_function) : res AST.external_function :=
+  match ef with
+  | AST.EF_external n sig => OK (AST.EF_external n sig) (*link to blas ops?*)
+  | AST.EF_runtime n sig => OK (AST.EF_runtime n sig) (*link runtime?*)
+  | _ => OK ef
+  end.
+
+Definition transf_fundef (p:CStan.program) (id: AST.ident) (fd: CStan.fundef) : res CStan.fundef :=
+  match fd with
+  | Internal f =>
+      do tf <- transf_function p f;
+      OK (Internal tf)
+  | External ef targs tres cc =>
+      do ef <- transf_external ef;
+      OK (External ef targs tres cc)
+  end.
+
+Definition transf_variable (id: AST.ident) (v: type): res type :=
+  OK v.
+
+Definition transf_program(p: CStan.program): res CStan.program :=
+  do p1 <- AST.transform_partial_program2 (transf_fundef p) transf_variable p;
+  OK {|
+      prog_defs := AST.prog_defs p1;
+      prog_public := AST.prog_public p1;
+
+      prog_data_vars:=p.(prog_data_vars);
+      prog_data_struct:= p.(prog_data_struct);
+
+      prog_constraints := p.(prog_constraints);
+      prog_parameters_vars:= p.(prog_parameters_vars);
+      prog_parameters_struct:= p.(prog_parameters_struct);
+
+      prog_model:=p.(prog_model);
+      prog_target:=p.(prog_target);
+      prog_main:=p.(prog_main);
+
+      prog_types:=p.(prog_types);
+      prog_comp_env:=p.(prog_comp_env);
+      prog_comp_env_eq:=p.(prog_comp_env_eq);
+
+      prog_math_functions:= p.(prog_math_functions);
+      prog_dist_functions:= p.(prog_dist_functions);
+    |}.
+
+End Util. 

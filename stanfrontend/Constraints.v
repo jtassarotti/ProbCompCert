@@ -13,12 +13,7 @@ Require Import Globalenvs.
 Require Import Integers.
 Require AST.
 Require SimplExpr.
-(* Require Denumpyification. *)
 
-(* FIXME how do I share this notation? *)
-Notation "'do' X <- A ; B" := (bind A (fun X => B))
-   (at level 200, X ident, A at level 100, B at level 200)
-   : gensym_monad_scope.
 
 Notation "'do' X <~ A ; B" := (SimplExpr.bind A (fun X => B))
    (at level 200, X ident, A at level 100, B at level 200)
@@ -207,18 +202,12 @@ Fixpoint transf_constraints_expr (pmap: AST.ident -> option AST.ident) (e: CStan
   | CStan.Econst_long i t => ret (CStan.Econst_long i t)
 
   (* TODO only works because all params are global right now. *)
-  | CStan.Evar i t =>
+  | CStan.Evar i t => 
     match pmap i with
     | None => ret (CStan.Evar i t)
     | Some i => ret (CStan.Etempvar i t)
     end
-  | CStan.Etempvar i t =>
-    match pmap i with
-    | None => ret (CStan.Etempvar i t)
-    | Some i => ret (CStan.Etempvar i t)
-    end
-  (* In the future ^^^ will need to turn into vvv *)
-
+  | CStan.Etempvar i t => ret (CStan.Etempvar i t)
   | CStan.Ecast e t => do e <~ transf_constraints_expr pmap e; ret (CStan.Ecast e t)
   | CStan.Efield e i t => do e <~ transf_constraints_expr pmap e; ret (CStan.Efield e i t)
   | CStan.Ederef e t => do e <~ transf_constraints_expr pmap e; ret (CStan.Ederef e t) (* a transformation downstream would be invalid*)
@@ -319,9 +308,8 @@ Definition transform_with_original_ident (transform : program -> AST.ident -> co
 Definition parameter_transformed_map (ts : list (AST.ident * AST.ident)) (i : AST.ident) : option AST.ident :=
   option_fmap snd (List.find (fun lr => ident_eq_dec i (fst lr)) ts).
 
-Definition transf_constraints (p:program) (f: function) (body : statement): mon statement :=
-  match f.(fn_blocktype) with
-  | BTModel =>
+Definition transf_statement (p:program) (body : statement): mon statement :=
+
     (* let params_typed := filter_globvars (p.(prog_defs)) (p.(prog_parameters_vars)) in (*: list (AST.ident*CStan.type)*) *)
     let params_typed := (p.(prog_parameters_vars)) in (*: list (AST.ident*CStan.type)*)
     do params_transformed <~ mon_fmap catMaybes (mon_mmap (transform_with_original_ident inv_constraint_transform p) p.(prog_constraints));
@@ -338,17 +326,15 @@ Definition transf_constraints (p:program) (f: function) (body : statement): mon 
         do body <~ transf_constraints_statement (parameter_transformed_map params_map) body;
         ret (Ssequence params (Ssequence stgts body))
       end
-    end
-  | _ => ret body
-  end.
-
-Definition transf_statement_pipeline (p:program) (f: function) : mon CStan.statement :=
+    end.
+(*
+Definition transf_statement_pipeline (p:program) : mon CStan.statement :=
   let body := f.(fn_body) in
-  do body <~ transf_constraints p f body;           (* apply constraint transformations *)
-  ret body.
+  do body <~ transf_constraints p  body;           (* apply constraint transformations *)
+  ret body.*)
 
 Definition transf_function (p:CStan.program) (f: function): res function :=
-  match transf_statement_pipeline p f f.(fn_generator) with
+  match transf_statement p f.(fn_body) f.(fn_generator) with
   | SimplExpr.Err msg => Error msg
   | SimplExpr.Res tbody g i =>
     OK {|
@@ -367,51 +353,5 @@ Definition transf_function (p:CStan.program) (f: function): res function :=
      |}
   end.
 
-(* ================================================================== *)
-(*                    Switch to Error Monad                           *)
-(* ================================================================== *)
+Definition transf_program := CStan.transf_program (transf_function). 
 
-Definition transf_external (ef: AST.external_function) : res AST.external_function :=
-  match ef with
-  | AST.EF_external n sig => OK (AST.EF_external n sig) (*link to blas ops?*)
-  | AST.EF_runtime n sig => OK (AST.EF_runtime n sig) (*link runtime?*)
-  | _ => OK ef
-  end.
-
-Definition transf_fundef (p:CStan.program) (id: AST.ident) (fd: CStan.fundef) : res CStan.fundef :=
-  match fd with
-  | Internal f =>
-      do tf <- transf_function p f;
-      OK (Internal tf)
-  | External ef targs tres cc =>
-      do ef <- transf_external ef;
-      OK (External ef targs tres cc)
-  end.
-
-Definition transf_variable (id: AST.ident) (v: type): res type :=
-  OK v.
-
-Definition transf_program(p: CStan.program): res CStan.program :=
-  do p1 <- AST.transform_partial_program2 (transf_fundef p) transf_variable p;
-  OK {|
-      prog_defs := AST.prog_defs p1;
-      prog_public := AST.prog_public p1;
-
-      prog_data_vars:=p.(prog_data_vars);
-      prog_data_struct:= p.(prog_data_struct);
-
-      prog_constraints := p.(prog_constraints);
-      prog_parameters_vars:= p.(prog_parameters_vars);
-      prog_parameters_struct:= p.(prog_parameters_struct);
-
-      prog_model:=p.(prog_model);
-      prog_target:=p.(prog_target);
-      prog_main:=p.(prog_main);
-
-      prog_types:=p.(prog_types);
-      prog_comp_env:=p.(prog_comp_env);
-      prog_comp_env_eq:=p.(prog_comp_env_eq);
-
-      prog_math_functions:= p.(prog_math_functions);
-      prog_dist_functions:= p.(prog_dist_functions);
-    |}.

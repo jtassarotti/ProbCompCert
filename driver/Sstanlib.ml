@@ -1,6 +1,4 @@
 open List
-open C2C
-open Int32
    
 exception NIY_stanlib of string
 
@@ -64,37 +62,37 @@ let mk_global_math_func = mk_global_func (AST.Tret AST.Tfloat)
                         
 let st_uniform_lpdf = "uniform_lpdf"
 let id_uniform_lpdf = Camlcoq.intern_string st_uniform_lpdf
-let ty_uniform_lpdf = StanE.Bfunction (StanE.Bcons (bdouble, (StanE.Bcons (bdouble, (StanE.Bcons (bdouble, StanE.Bnil))))), Some bdouble)
+let ty_uniform_lpdf = StanE.Bfunction (StanE.Bcons (bdouble, (StanE.Bcons (bdouble, (StanE.Bcons (bdouble, StanE.Bnil))))), bdouble)
 let gl_uniform_lpdf = mk_global_math_func st_uniform_lpdf [AST.Tfloat; AST.Tfloat; AST.Tfloat]
 
 let st_normal_lpdf = "normal_lpdf"
 let id_normal_lpdf = Camlcoq.intern_string st_normal_lpdf
-let ty_normal_lpdf = StanE.Bfunction (StanE.Bcons (bdouble, (StanE.Bcons (bdouble, (StanE.Bcons (bdouble, StanE.Bnil))))), Some bdouble)
+let ty_normal_lpdf = StanE.Bfunction (StanE.Bcons (bdouble, (StanE.Bcons (bdouble, (StanE.Bcons (bdouble, StanE.Bnil))))), bdouble)
 let gl_normal_lpdf = mk_global_math_func st_normal_lpdf [AST.Tfloat; AST.Tfloat; AST.Tfloat]                    
 
 let st_cauchy_lpdf = "cauchy_lpdf"
 let id_cauchy_lpdf = Camlcoq.intern_string st_cauchy_lpdf
-let ty_cauchy_lpdf = StanE.Bfunction (StanE.Bcons (bdouble, (StanE.Bcons (bdouble, (StanE.Bcons (bdouble, StanE.Bnil))))), Some bdouble)
+let ty_cauchy_lpdf = StanE.Bfunction (StanE.Bcons (bdouble, (StanE.Bcons (bdouble, (StanE.Bcons (bdouble, StanE.Bnil))))), bdouble)
 let gl_cauchy_lpdf = mk_global_math_func st_cauchy_lpdf [AST.Tfloat; AST.Tfloat; AST.Tfloat]  
 
 let st_exponential_lpdf = "exponential_lpdf"
 let id_exponential_lpdf = Camlcoq.intern_string st_exponential_lpdf
-let ty_exponential_lpdf = StanE.Bfunction (StanE.Bcons (bdouble,  (StanE.Bcons (bdouble, StanE.Bnil))), Some bdouble)
+let ty_exponential_lpdf = StanE.Bfunction (StanE.Bcons (bdouble,  (StanE.Bcons (bdouble, StanE.Bnil))), bdouble)
 let gl_exponential_lpdf = mk_global_math_func st_exponential_lpdf [AST.Tfloat; AST.Tfloat] 
                    
 let st_bernoulli_lpmf = "bernoulli_lpmf"
 let id_bernoulli_lpmf = Camlcoq.intern_string st_bernoulli_lpmf
-let ty_bernoulli_lpmf = StanE.Bfunction (StanE.Bcons (bint, (StanE.Bcons (bdouble, StanE.Bnil))), Some StanE.Breal)
+let ty_bernoulli_lpmf = StanE.Bfunction (StanE.Bcons (bint, (StanE.Bcons (bdouble, StanE.Bnil))), bdouble)
 let gl_bernoulli_lpmf = mk_global_math_func st_bernoulli_lpmf [AST.Tint; AST.Tfloat]
 
 let st_poisson_lpmf = "poisson_lpmf"
 let id_poisson_lpmf = Camlcoq.intern_string st_poisson_lpmf
-let ty_poisson_lpmf = StanE.Bfunction (StanE.Bcons (bint, (StanE.Bcons (bdouble, StanE.Bnil))), Some StanE.Breal)
+let ty_poisson_lpmf = StanE.Bfunction (StanE.Bcons (bint, (StanE.Bcons (bdouble, StanE.Bnil))), bdouble)
 let gl_poisson_lpmf = mk_global_math_func st_poisson_lpmf [AST.Tint; AST.Tfloat]                      
 
 let st_bernoulli_logit_lpmf = "bernoulli_logit_lpmf"
 let id_bernoulli_logit_lpmf = Camlcoq.intern_string st_bernoulli_logit_lpmf
-let ty_bernoulli_logit_lpmf = StanE.Bfunction (StanE.Bcons (bint, (StanE.Bcons (bdouble, StanE.Bnil))), Some StanE.Breal)
+let ty_bernoulli_logit_lpmf = StanE.Bfunction (StanE.Bcons (bint, (StanE.Bcons (bdouble, StanE.Bnil))), bdouble)
 let gl_bernoulli_logit_lpmf = mk_global_math_func st_bernoulli_logit_lpmf [AST.Tint; AST.Tfloat]                      
 
 let transf_dist_idents = Hashtbl.create 3;;
@@ -125,30 +123,19 @@ let (st_log, id_log, gl_log, clog)       = unary_math_fn "log"
 let (st_exp, id_exp, gl_exp, cexp)       = unary_math_fn "exp"
 let (st_logit, id_logit, gl_logit, clogit) = unary_math_fn "logit"
 let (st_expit, id_expit, gl_expit, cexpit) = unary_math_fn "expit"
+let (st_sqrt, id_sqrt, gl_sqrt, csqrt) = unary_math_fn "sqrt"
 
 let st_init_unconstrained = "init_unconstrained"
 let id_init_unconstrained = Camlcoq.intern_string st_init_unconstrained
-let ty_init_unconstrained = StanE.Bfunction (StanE.Bnil, Some bdouble)
+let ty_init_unconstrained = StanE.Bfunction (StanE.Bnil, bdouble)
 let gl_init_unconstrained = mk_global_math_func st_init_unconstrained []
-
-(* (\* temporary printing support *\) *)
-(* let (st_print_double, id_print_double, gl_print_double, cprint_double) = mk_fn AST.Tvoid [AST.Tfloat] "print_double" *)
-(* let (st_print_int, id_print_int, gl_print_int, cprint_int) = mk_fn AST.Tvoid [AST.Tint] "print_int" *)
-(* (\* let (st_print_array_int, id_print_array_int, gl_print_array_int, cprint_array_int) = mk_fn AST.Tvoid [AST.Tint; AST.Tany64] "print_array_int" *\) *)
-(* let (st_print_start, id_print_start, gl_print_start, cprint_start) = mk_fn AST.Tvoid [] "print_start" *)
-(* let (st_print_end, id_print_end, gl_print_end, cprint_end) = mk_fn AST.Tvoid [] "print_end" *)
 
 let __math_functions = [ (CStan.MFLog, id_log, gl_log, clog);
                          (CStan.MFLogit, id_logit, gl_logit, clogit);
                          (CStan.MFExp, id_exp, gl_exp, cexp);
                          (CStan.MFExpit, id_expit, gl_expit, cexpit);
                          (CStan.MFInitUnconstrained, id_init_unconstrained, gl_init_unconstrained, mk_cfunc []);
-
-                         (* (CStan.MFPrintStart, id_print_start, gl_print_start, cprint_start); *)
-                         (* (CStan.MFPrintDouble, id_print_double, gl_print_double, cprint_double); *)
-                         (* (CStan.MFPrintInt, id_print_int, gl_print_int, cprint_int); *)
-                         (* (\* (CStan.MFPrintArrayInt, id_print_array_int, gl_print_array_int, cprint_array_int); *\) *)
-                         (* (CStan.MFPrintEnd, id_print_end, gl_print_end, cprint_end); *)
+                         (CStan.MFSqrt, id_sqrt, gl_sqrt, csqrt);
                         ]
 
 let _as_prog_math_functions (e, i, g, c) = ((e, i), c)
@@ -157,60 +144,6 @@ let _as_global_math_functions (e, i, g, c) = (i, g)
 let pr_math_functions = List.map _as_prog_math_functions __math_functions
 let all_math_fns = List.map _as_global_math_functions __math_functions
 
-(* <><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><> *)
-(*                               Struct work                                    *)
-(* <><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><> *)
-let mkGlobalStruct i members = AST.Gvar {
-  AST.gvar_readonly = false;
-  AST.gvar_volatile = false;
-  AST.gvar_init = [init_struct members];
-  AST.gvar_info = {
-    StanE.vd_type = StanE.Bint; (* This is a placeholder, we just need to declare the structure's existence  *)
-    StanE.vd_constraint = StanE.Cidentity;
-  };
-}
 
-let declareStruct s members =
-  let id = Camlcoq.intern_string s in
-  Hashtbl.add decl_atom id
-    { a_storage = C.Storage_default;
-      a_alignment = None;
-      a_size = None;
-      a_sections = [Sections.Section_data Sections.Uninit];
-      a_access = Sections.Access_default;
-      a_inline = No_specifier;
-      a_loc = (s,0) };
-  (id, mkGlobalStruct id members)
-
-let declareGlobalStruct s =
-  let id = Camlcoq.intern_string s in
-  Hashtbl.add decl_atom id
-    { a_storage = C.Storage_default;
-      a_alignment = None;
-      a_size = None;
-      a_sections = [Sections.Section_data Sections.Uninit];
-      a_access = Sections.Access_default;
-      a_inline = No_specifier;
-      a_loc = (s,0) };
-  id
-
-(* <><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><> *)
-(*                               Global Arrays                                  *)
-(* <><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><> *)
-let replicate n ls =
-    let rec f l = function
-        | 0 -> l
-        | n -> f (List.rev_append ls l) (n-1) in
-    List.rev (f [] n)
-
-let mk_global_array ty len = AST.Gvar {
-  AST.gvar_readonly = false;
-  AST.gvar_volatile = false;
-  AST.gvar_init = replicate (to_int len) ty;
-  AST.gvar_info = {
-    StanE.vd_type = StanE.Barray (StanE.Bint, (Camlcoq.coqint_of_camlint len));
-    StanE.vd_constraint = StanE.Cidentity;
-  };
-}
 
 

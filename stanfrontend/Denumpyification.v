@@ -33,13 +33,8 @@ Fixpoint transf_type (t: StanE.basic) : res type :=
       OK (tarray ty i)
   | StanE.Bfunction tl ret =>
     do tl <- transf_typelist tl;
-    do oret <- option_mmap transf_type ret;
-    let ret :=
-        match oret with
-        | None => Ctypes.Tvoid
-        | Some ret => ret
-        end
-    in OK (Ctypes.Tfunction tl ret AST.cc_default)
+    do ty <- transf_type ret;
+    OK (Ctypes.Tfunction tl ty AST.cc_default)
   end
 with transf_typelist (tl: StanE.basiclist) : res Ctypes.typelist :=
   match tl with
@@ -119,7 +114,6 @@ Fixpoint transf_expression (e: StanE.expr) {struct e}: res CStan.expr :=
     OK (CStan.Ederef (CStan.Ebinop Oadd e i (tptr ty)) ty)
   | Eindexed e _ ty =>
     Error (msg "Denumpyification.transf_expression (NYI): Eindexed [i, ...]")
-  | Edist i el ty => Error (msg "Denumpyification.transf_expression (NYI): Edist")
   | Etarget ty => 
     do ty <- transf_type ty;
     OK (CStan.Etarget Tvoid)
@@ -149,10 +143,10 @@ Fixpoint transf_statement (s: StanE.statement) {struct s}: res CStan.statement :
     do o <- transf_operator o;
     Error (msg "Denumpyification.transf_statement (NYI): Sassign")
     (* OK (CStan.Sassign e1 (CStan.Ebinop o e1 e2 Tvoid)) TODO(stites): Tvoid seems wrong and I need to doublecheck. *)
-  | Scall e f el =>
-    do e <- transf_expression e;
+  | Scall dst f ty el =>
     do el <- list_mmap transf_expression el;
-    OK (CStan.Scall (Some f) e el)    
+    do ty <- transf_type ty;
+    OK (CStan.Scall (Some dst) (CStan.Evar f ty) el) (* Major error: the destination and function are swapped!!! *)
   | Ssequence s1 s2 =>
     do s1 <- (transf_statement s1);
     do s2 <- (transf_statement s2);

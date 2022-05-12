@@ -26,7 +26,7 @@ Inductive basic :=
   | Bint
   | Breal
   | Barray: basic -> Z -> basic
-  | Bfunction: basiclist -> option basic -> basic
+  | Bfunction: basiclist -> basic -> basic
 with basiclist : Type :=
   | Bnil: basiclist
   | Bcons: basic -> basiclist -> basiclist.
@@ -41,7 +41,6 @@ Inductive expr :=
   | Ebinop: expr -> b_op -> expr -> basic -> expr
   | Eindexed: expr -> list expr -> basic -> expr
   (* Probabilistic expressions *)
-  | Edist: ident -> list expr -> basic -> expr
   | Etarget: basic -> expr.
 
 Inductive constraint :=
@@ -54,7 +53,7 @@ Inductive statement :=
   (* Classical statements that exist in C *)
   | Sskip : statement
   | Sassign : expr -> option b_op -> expr -> statement
-  | Scall : expr -> ident -> list expr -> statement
+  | Scall : ident -> ident -> basic -> list expr -> statement
   | Ssequence: statement -> statement -> statement
   | Sifthenelse: expr -> statement -> statement -> statement
   | Sfor: ident -> expr -> expr -> statement -> statement

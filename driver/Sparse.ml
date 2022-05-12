@@ -13,6 +13,62 @@ exception Unsupported of string
 exception TypeError of string
 
 (* <><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><> *)
+(*                               Struct work                                    *)
+(* <><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><> *)
+let mkGlobalStruct i members = AST.Gvar {
+  AST.gvar_readonly = false;
+  AST.gvar_volatile = false;
+  AST.gvar_init = [init_struct members];
+  AST.gvar_info = {
+    StanE.vd_type = StanE.Bint; (* This is a placeholder, we just need to declare the structure's existence  *)
+    StanE.vd_constraint = StanE.Cidentity;
+  };
+}
+
+let declareStruct s members =
+  let id = Camlcoq.intern_string s in
+  Hashtbl.add decl_atom id
+    { a_storage = C.Storage_default;
+      a_alignment = None;
+      a_size = None;
+      a_sections = [Sections.Section_data Sections.Uninit];
+      a_access = Sections.Access_default;
+      a_inline = No_specifier;
+      a_loc = (s,0) };
+  (id, mkGlobalStruct id members)
+
+let declareGlobalStruct s =
+  let id = Camlcoq.intern_string s in
+  Hashtbl.add decl_atom id
+    { a_storage = C.Storage_default;
+      a_alignment = None;
+      a_size = None;
+      a_sections = [Sections.Section_data Sections.Uninit];
+      a_access = Sections.Access_default;
+      a_inline = No_specifier;
+      a_loc = (s,0) };
+  id
+
+(* <><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><> *)
+(*                               Global Arrays                                  *)
+(* <><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><> *)
+let replicate n ls =
+    let rec f l = function
+        | 0 -> l
+        | n -> f (List.rev_append ls l) (n-1) in
+    List.rev (f [] n)
+
+let mk_global_array ty len = AST.Gvar {
+  AST.gvar_readonly = false;
+  AST.gvar_volatile = false;
+  AST.gvar_init = replicate (to_int len) ty;
+  AST.gvar_info = {
+    StanE.vd_type = StanE.Barray (StanE.Bint, (Camlcoq.coqint_of_camlint len));
+    StanE.vd_constraint = StanE.Cidentity;
+  };
+}
+                     
+(* <><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><> *)
 (*                                 Type Lookup                                  *)
 (* <><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><> *)
 let type_table = Hashtbl.create 123456;;
@@ -66,7 +122,6 @@ let typeof e  =
   | StanE.Eunop (_, ty) -> ty
   | StanE.Ebinop (_, _, _, ty) -> ty
   | StanE.Eindexed (_, _, ty) -> ty
-  | StanE.Edist (_, _, ty) -> ty
   | StanE.Etarget ty -> ty
 
 let op_to_string o =
@@ -105,7 +160,7 @@ let rec el_e e =
           begin
             match ty with
             | StanE.Bint -> StanE.Ebinop (StanE.Econst_int (Camlcoq.Z.of_sint 0, StanE.Bint),StanE.Plus,e,ty) 
-            | StanE.Breal -> raise (NIY_elab "unop real")
+            | StanE.Breal -> StanE.Ebinop (StanE.Econst_float (Camlcoq.coqfloat_of_camlfloat 0.0, StanE.Breal),StanE.Plus,e,ty) 
             | _ -> raise (TypeError "Unop PPlus")
           end
        | Sops.PMinus ->
@@ -114,7 +169,7 @@ let rec el_e e =
           begin
             match ty with
             | StanE.Bint -> StanE.Ebinop (StanE.Econst_int (Camlcoq.Z.of_sint 0, StanE.Bint),StanE.Minus,e,ty) 
-            | StanE.Breal -> raise (NIY_elab "unop real")
+            | StanE.Breal -> StanE.Ebinop (StanE.Econst_float (Camlcoq.coqfloat_of_camlfloat 0.0, StanE.Breal),StanE.Minus,e,ty) 
             | _ -> raise (TypeError "Unop PPlus")
           end
        | _ -> raise (Internal "binary operator used in unary position")
@@ -152,7 +207,7 @@ let rec el_e e =
        | _ , StanE.Barray (it,_), _ -> StanE.Eindexed (e, il, it)
        | _, _, _ -> raise (TypeError "Type error: indexing can only be applied to arrays")
      end
-  | Stan.Edist (i,el) -> StanE.Edist (Camlcoq.intern_string i, List.map el_e el,StanE.Breal)
+  | Stan.Edist (i,el) -> raise (Unsupported "expression: distribution")
   | Stan.Etarget -> StanE.Etarget StanE.Breal
 
 and el_i i =
@@ -229,8 +284,14 @@ let rec el_s_ids s =
 let rec el_s s =
   match s with
   | Stan.Sskip -> StanE.Sskip
-  | Stan.Sassign (e1,oo,Stan.Ecall (i,el)) ->
-     StanE.Scall (el_e e1, Camlcoq.intern_string i, List.map el_e el)
+  | Stan.Sassign (e1,oo,Stan.Ecall (f,el)) ->
+     let ty = StanE.Bfunction ((StanE.Bcons (StanE.Breal, StanE.Bnil)),  StanE.Breal) in   (*snd(Hashtbl.find transf_dist_idents f) in*)
+     begin
+       match el_e e1, oo with
+       | StanE.Evar (dst, _), None -> StanE.Scall (dst, Camlcoq.intern_string f, ty,List.map el_e el)
+       | _, Some _ -> raise (Unsupported "Complex assignments for function calls")
+       | _, _ -> raise (Unsupported "function call with complex LHS")
+     end
   | Stan.Sassign (e1,oo,e2) -> StanE.Sassign (el_e e1, mapo oo filter_b_op, el_e e2)
   | Stan.Sblock sl -> List.fold_left (fun s1 s2 -> StanE.Ssequence (s1, (el_s s2))) StanE.Sskip sl
   | Stan.Sifthenelse (e,s1,s2) -> StanE.Sifthenelse (el_e e, el_s s1, el_s s2)
@@ -382,8 +443,8 @@ let mkFunction name body rt params extraVars extraTemps =
     StanE.fn_return = rt;
     StanE.fn_params = List.map (fun param -> (snd (fst param),snd param)) params;
     StanE.fn_blocktype = blocktypeFundef name;
-    StanE.fn_vars = List.concat [extraVars @ local_identifiers; (IdxHashtbl.fold (fun k v acc -> (k,StanE.Bint)::acc) index_set [])];
-    StanE.fn_temps = extraTemps;
+    StanE.fn_vars = List.concat [extraVars; (IdxHashtbl.fold (fun k v acc -> (k,StanE.Bint)::acc) index_set [])];
+    StanE.fn_temps = extraTemps @ local_identifiers;
     StanE.fn_body = body} in
   (id,  AST.Gfun(Ctypes.Internal fd))
 
@@ -433,7 +494,8 @@ let elaborate (sourcefile : string) (p: Stan.program) =
      * let (id_model,f_model) = mkFunction "model" (get_code m) (Some StanE.Breal) [target_arg] [] in *)
     let (id_target, ty_target) = (Camlcoq.intern_string "target", StanE.Breal) in
     let target_var = (id_target, ty_target) in
-    let (id_model,f_model) = mkFunction "model" ((get_code td) @ (get_code tp) @ (get_code m)) (Some StanE.Breal) [] [] [target_var] in
+    let (id_model,f_model) =
+      mkFunction "model" ((get_code td) @ (get_code tp) @ (get_code m)) (Some StanE.Breal) [] [] [target_var] in
 
     let functions = (id_model,f_model) :: functions in
 

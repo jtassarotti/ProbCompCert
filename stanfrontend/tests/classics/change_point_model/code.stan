@@ -15,19 +15,25 @@ parameters {
 }
 transformed parameters {
   real lp[100];
+  real pois;
   for (i in 1:100) {
     lp[i] = log_unif;
   }
   for (s in 1:100) {
     for (t in 1:100) {
-      if (t < s)
-        lp[s] = lp[s] + poisson_lpmf(D[t] | e);
-      else
-        lp[s] = lp[s] + poisson_lpmf(D[t] | l);
+      if (t < s) {
+        pois = poisson_lpmf(D[t],e);
+        lp[s] = lp[s] + pois;
+      }
+      else {
+        pois =  poisson_lpmf(D[t], l);
+        lp[s] = lp[s] + pois;
+      }
     }
   }
 }
 model {
+  real lsp;
   e ~ exponential(r_e);
   l ~ exponential(r_l);
   lsp = log_sum_exp(lp);
