@@ -32,6 +32,7 @@ Require Ctypes.
 Require Csyntax.
 Require Ctyping.
 Require Clight.
+Require CStan.
 Require Compiler.
 Require Parser.
 Require Initializers.
@@ -178,6 +179,7 @@ Separate Extraction
    Ctyping.eselection
    Ctypes.make_program
    Clight.type_of_function
+   CStan.type_of_function
    Conventions1.callee_save_type Conventions1.is_float_reg
    Conventions1.int_caller_save_regs Conventions1.float_caller_save_regs
    Conventions1.int_callee_save_regs Conventions1.float_callee_save_regs

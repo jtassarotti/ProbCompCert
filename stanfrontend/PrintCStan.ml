@@ -12,14 +12,11 @@
 
 
 open Format
-   (*
 open Camlcoq
-open PrintAST
-open Ctypes
-open Cop
 open PrintCsyntax
 open CStan
- *)
+open PrintAST
+open Cop
 
 (* Naming temporaries.
    Some temporaries are obtained by lifting variables in SimplLocals.
@@ -27,7 +24,7 @@ open CStan
    atoms.  Other temporaries are generated during SimplExpr, and are
    not in the table of atoms.  We print them as "$NNN" (a unique
    integer). *)
-(*
+   
 let temp_name (id: AST.ident) =
   try
     "$" ^ Hashtbl.find string_of_atom id
@@ -60,8 +57,8 @@ let precedence = function
   | Ebinop(Oand, _, _, _) -> (8, LtoR)
   | Ebinop(Oxor, _, _, _) -> (7, LtoR)
   | Ebinop(Oor, _, _, _) -> (6, LtoR)
-  | Etarget _ -> (16, NA)  (* Warning: trying things out but not sure what I am doing *)                  
-
+  | Etarget _ -> (16, NA)  
+ 
 (* Expressions *)
 
 let rec expr p (prec, e) =
@@ -75,22 +72,22 @@ let rec expr p (prec, e) =
   else fprintf p "@[<hov 2>";
   begin match e with
   | Evar(id, _) ->
-      fprintf p "%s" (extern_atom id)
+     fprintf p "%s" (extern_atom id)
   | Etempvar(id, _) ->
-      fprintf p "%s" (temp_name id)
+     fprintf p "%s" (temp_name id) 
   | Ederef(a1, _) ->
-      fprintf p "*%a" expr (prec', a1)
+     fprintf p "*%a" expr (prec', a1)
   | Efield(a1, f, _) ->
       fprintf p "%a.%s" expr (prec', a1) (extern_atom f)
-  | Econst_int(n, Tint(I32, Unsigned, _)) ->
+  | Econst_int(n, Ctypes.Tint(Ctypes.I32, Ctypes.Unsigned, _)) ->
       fprintf p "%luU" (camlint_of_coqint n)
   | Econst_int(n, _) ->
       fprintf p "%ld" (camlint_of_coqint n)
   | Econst_float(f, _) ->
       fprintf p "%.18g" (camlfloat_of_coqfloat f)
   | Econst_single(f, _) ->
-      fprintf p "%.18gf" (camlfloat_of_coqfloat32 f)
-  | Econst_long(n, Tlong(Unsigned, _)) ->
+     fprintf p "%.18gf" (camlfloat_of_coqfloat32 f)
+  | Econst_long(n, Ctypes.Tlong(Ctypes.Unsigned, _)) ->
       fprintf p "%LuLLU" (camlint64_of_coqint n)
   | Econst_long(n, _) ->
       fprintf p "%LdLL" (camlint64_of_coqint n)
@@ -113,6 +110,7 @@ let rec expr p (prec, e) =
      fprintf p "target %s" (name_type ty)
   end;
   if prec' < prec then fprintf p ")@]" else fprintf p "@]"
+   
 
 let print_expr p e = expr p (0, e)
 
@@ -186,8 +184,14 @@ let rec print_stmt p s =
       fprintf p "return;"
   | Sreturn (Some e) ->
      fprintf p "return %a;" print_expr e
-  | _ ->
-     fprintf p "test"
+  | Starget e ->
+     fprintf p "target += %a;"
+     print_expr e
+  | Stilde (e1, e2, el, trunc) ->
+     fprintf p "%a ~ %a(%a) (trunc todo);"
+       print_expr e1
+       print_expr e2
+       print_expr_list (true, el)
 
 and print_cases p cases =
   match cases with
@@ -239,21 +243,11 @@ and print_stmt_for p s =
                 print_expr_list (true, el)
   | _ ->
       fprintf p "({ %a })" print_stmt s
-
-(* There are two versions of Clight, Clight1 and Clight2, that differ
-   only in the meaning of function parameters:
- - in Clight1, function parameters are variables
- - in Clight2, function parameters are temporaries.
-*)
-
-type clight_version = Clight1 | Clight2
-
-let name_param = function Clight1 -> extern_atom | Clight2 -> temp_name
-
-let print_function ver p id f =
-  fprintf p "%s@ "
-            (name_cdecl (name_function_parameters (name_param ver)
-                                 (extern_atom id) f.fn_params f.fn_callconv)
+   
+let print_function p id f =
+  fprintf p "%s@ " 
+            (name_cdecl (name_function_parameters extern_atom
+                                 (extern_atom id) f.fn_params f.fn_callconv) 
                         f.fn_return);
   fprintf p "@[<v 2>{@ ";
   List.iter
@@ -264,59 +258,57 @@ let print_function ver p id f =
     (fun (id, ty) ->
       fprintf p "register %s;@ " (name_cdecl (temp_name id) ty))
     f.fn_temps;
-  print_stmt p f.fn_body;
+  fprintf p "statement (todo)";
+  print_stmt p f.fn_body; 
   fprintf p "@;<0 -2>}@]@ @ "
-
-let print_fundef ver p id fd =
+ 
+   
+let print_fundef p id fd =
   match fd with
   | Ctypes.External(_, _, _, _) ->
       ()
-  | Internal f ->
-      print_function ver p id f
-
+  | Ctypes.Internal f ->
+      print_function p id f
+  
 let print_fundecl p id fd =
   match fd with
   | Ctypes.External((AST.EF_external _ | AST.EF_runtime _ | AST.EF_malloc | AST.EF_free), args, res, cconv) ->
       fprintf p "extern %s;@ "
-                (name_cdecl (extern_atom id) (Tfunction(args, res, cconv)))
+                (name_cdecl (extern_atom id) (Ctypes.Tfunction(args, res, cconv)))
   | Ctypes.External(_, _, _, _) ->
       ()
-  | Internal f ->
+  | Ctypes.Internal f ->
       fprintf p "%s;@ "
-                (name_cdecl (extern_atom id) (Clight.type_of_function f))
+                (name_cdecl (extern_atom id) (CStan.type_of_function f))
+    
 
-let print_globdef var p (id, gd) =
+let print_globdef p (id, gd) =
   match gd with
-  | AST.Gfun f -> print_fundef var p id f
-  | AST.Gvar v -> print_globvar p id v  (* from PrintCsyntax *)
+  | AST.Gfun f -> print_fundef p id f
+  | AST.Gvar v -> print_globvar p id v  
 
 let print_globdecl p (id, gd) =
   match gd with
   | AST.Gfun f -> print_fundecl p id f
   | AST.Gvar v -> ()
-                  *)
+                
 let print_program p prog =
-  fprintf p "test"
-(*  
   fprintf p "@[<v 0>";
-  List.iter (declare_composite p) prog.prog_types;
-  List.iter (define_composite p) prog.prog_types;
+  (* List.iter (declare_composite p) prog.prog_types; *)
+  (* List.iter (define_composite p) prog.prog_types; *)
   List.iter (print_globdecl p) prog.prog_defs;
-  List.iter (print_globdef ver p) prog.prog_defs;
-  fprintf p "@]@."
- *)
+  List.iter (print_globdef p) prog.prog_defs;
+  fprintf p "@]@." 
 
 let destination : string option ref = ref None
 
-let print_if_gen prog =
+let print_if_gen passno prog =
   match !destination with
   | None -> ()
   | Some f ->
-      let oc = open_out f in
+      let oc = open_out (f ^ "." ^ Z.to_string passno) in
       print_program (formatter_of_out_channel oc) prog;
       close_out oc
 
-(* print_if is called from driver/Compiler.v between the SimplExpr
-   and SimplLocals passes.  It receives Clight1 syntax. *)
 let print_if prog = print_if_gen prog
 

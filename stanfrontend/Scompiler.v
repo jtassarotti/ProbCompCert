@@ -13,20 +13,25 @@ Require Import Constraints.
 Require Import VariableAllocation.
 Require Import Target.
 Require Import Sbackend.
+Require Import Coqlib.
 
 Open Scope string_scope.
 
 (** Pretty-printers (defined in Caml). *)
-Parameter print_CStan: CStan.program -> unit.
+Parameter print_CStan: Z -> CStan.program -> unit.
 
 Definition transf_stan_program(p: StanE.program): res Clight.program :=
   OK p
   @@@ time "Denumpyification" Denumpyification.transf_program
+  @@ print (print_CStan 0)
   @@@ time "Sampling" Sampling.transf_program
-  @@ print (print_CStan)
+  @@ print (print_CStan 1)
   @@@ time "Constraints" Constraints.transf_program
+  @@ print (print_CStan 2)
   @@@ time "VariableAllocation" VariableAllocation.transf_program
+  @@ print (print_CStan 3)
   @@@ time "Target" Target.transf_program
+  @@ print (print_CStan 4)
   @@@ time "Backend" backend.
   
 Theorem transf_stan_program_correct:
