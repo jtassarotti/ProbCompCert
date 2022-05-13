@@ -119,6 +119,7 @@ let typeof e  =
   | StanE.Econst_int (_, ty) -> ty
   | StanE.Econst_float (_, ty) -> ty
   | StanE.Evar (_, ty) -> ty
+  | StanE.Ecall (_,_,ty) -> ty
   | StanE.Eunop (_, ty) -> ty
   | StanE.Ebinop (_, _, _, ty) -> ty
   | StanE.Eindexed (_, _, ty) -> ty
@@ -139,7 +140,12 @@ let op_to_string o =
   | StanE.Leq -> " <= "
   | StanE.Greater -> " > "
   | StanE.Geq -> " >= "
-                      
+
+let rec make_exprlist el =
+  match el with
+  | [] -> StanE.Enil
+  | e :: l -> StanE.Econs (e, make_exprlist l)
+               
 let rec el_e e =
   match e with
   | Stan.Econst_int i -> StanE.Econst_int (Camlcoq.Z.of_sint (int_of_string i), StanE.Bint)
@@ -191,7 +197,14 @@ let rec el_e e =
          | _, _ -> raise (TypeError "Type error: operator applied to array")
        end in
      StanE.Ebinop (e1,o,e2,t) 
-  | Stan.Ecall (i,el) -> raise (Unsupported ("expression: arbitrary call in expression " ^ i))
+  | Stan.Ecall (i,el) ->
+     (* WARNING: EXPERIMENTAL!!! for now fine to assume that all calls are this type *)
+     (* TODO: type checking *)
+     let ty = StanE.Bfunction ((StanE.Bcons (StanE.Breal, StanE.Bnil)),  StanE.Breal) in
+     
+     let e = StanE.Evar (Camlcoq.intern_string i, ty) in
+     let el = List.map el_e el in
+     StanE.Ecall (e,make_exprlist el,StanE.Breal)
   | Stan.Econdition (e1,e2,e3) -> raise (Unsupported "expression: conditional")
   | Stan.Earray el -> raise (Unsupported "expression: array")
   | Stan.Erow el -> raise (Unsupported "expression: row")
@@ -204,7 +217,7 @@ let rec el_e e =
        match il, t, index_are_all_ints with
        | [], _, _ -> raise (TypeError "Type error: indexing with no indices")
        | _, _, false -> raise (TypeError "Type error: indices must be integers")
-       | _ , StanE.Barray (it,_), _ -> StanE.Eindexed (e, il, it)
+       | _ , StanE.Barray (it,_), _ -> StanE.Eindexed (e, make_exprlist il, it)
        | _, _, _ -> raise (TypeError "Type error: indexing can only be applied to arrays")
      end
   | Stan.Edist (i,el) -> raise (Unsupported "expression: distribution")
@@ -285,6 +298,7 @@ let rec el_s_ids s =
 let rec el_s s =
   match s with
   | Stan.Sskip -> StanE.Sskip
+                (*
   | Stan.Sassign (e1,oo,Stan.Ecall (f,el)) ->
      let ty = StanE.Bfunction ((StanE.Bcons (StanE.Breal, StanE.Bnil)),  StanE.Breal) in   (*snd(Hashtbl.find transf_dist_idents f) in*)
      begin
@@ -293,6 +307,7 @@ let rec el_s s =
        | _, Some _ -> raise (Unsupported "Complex assignments for function calls")
        | _, _ -> raise (Unsupported "function call with complex LHS")
      end
+                 *)
   | Stan.Sassign (e1,oo,e2) -> StanE.Sassign (el_e e1, mapo oo filter_b_op, el_e e2)
   | Stan.Sblock sl -> List.fold_left (fun s1 s2 -> StanE.Ssequence (s1, (el_s s2))) StanE.Sskip sl
   | Stan.Sifthenelse (e,s1,s2) -> StanE.Sifthenelse (el_e e, el_s s1, el_s s2)

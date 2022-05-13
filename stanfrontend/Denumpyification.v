@@ -20,6 +20,10 @@ Notation "'do' X <~ A ; B" := (bind A (fun X => B))
    (at level 200, X ident, A at level 100, B at level 200)
    : gensym_monad_scope.
 
+Notation "'do' ( X , Y ) <~ A ; B" := (bind2 A (fun X Y => B))
+   (at level 200, X ident, Y ident, A at level 100, B at level 200)
+   : gensym_monad_scope.
+
 Local Open Scope gensym_monad_scope.
 
 Fixpoint transf_type (t: StanE.basic) : mon type :=
@@ -103,78 +107,72 @@ Definition transf_unary_operator (o: StanE.u_op): mon Cop.unary_operation :=
   match o with
   | StanE.PNot => ret Cop.Onotbool
   end.
-(*
-Fixpoint transf_expression (e: StanE.expr) {struct e}: mon CStan.expr :=
+
+Fixpoint unzip {X Y: Type} (l: list (X * Y)) {struct l} : (list X) * (list Y) :=
+  match l with
+  | nil => (nil,nil)
+  | cons (e1,e2) l => 
+    match unzip l with
+    | (l1,l2) => (cons e1 l1,cons e2 l2)
+    end
+  end.
+
+Fixpoint flatten (l: list (list CStan.statement)) {struct l} : list CStan.statement :=
+  match l with
+  | nil => nil
+  | l :: ll => l ++ flatten ll
+  end. 
+
+Fixpoint transf_expression (e: StanE.expr) {struct e}: mon (list CStan.statement * CStan.expr) :=
   match e with
   | Econst_int i ty => 
-    let u := do ty <- transf_type ty; Errors.OK (CStan.Econst_int i ty) in
-    match u with
-    | Errors.OK c => ret c
-    | Errors.Error msg => error (msg)
-    end
-  | Econst_float f ty => do ty <~ transf_type ty; ret (CStan.Econst_float f ty)
-    let u := do TODO in
-    match u with
-    | Errors.OK c => ret c
-    | Errors.Error msg => error (msg)
-    end
+    do ty <~ transf_type ty; 
+    ret (nil, CStan.Econst_int i ty)
+  | Econst_float f ty => 
+    do ty <~ transf_type ty; 
+    ret (nil, CStan.Econst_float f ty)
   | Evar i ty =>
     do ty <~ transf_type ty;
-    ret (CStan.Evar i ty)
+    ret (nil, CStan.Evar i ty)
+  | Ecall e el ty =>
+    (* WARNING: true for mini-Stan (for now), but type checking should ensure this *)
+    do t <~ gensym tdouble;
+    do (le, e) <~ transf_expression e;
+    do (lel, el) <~ transf_exprlist el;
+    do ty <~ transf_type ty;
+    ret (le ++ CStan.Scall (Some t) e el :: nil, (CStan.Etempvar t ty))
   | Eunop o e ty =>
     do o <~ transf_unary_operator o;
     do ty <~ transf_type ty;
-    do e <~ transf_expression e;
-    ret (CStan.Eunop o e ty)
+    do (ls, e) <~ transf_expression e;
+    ret (ls, CStan.Eunop o e ty)
   | Ebinop e1 o0 e2 ty =>
     do ty <~ transf_type ty;
     do o <~ transf_operator o0;
     do t <~ transf_operator_return o0;
-    do e1 <~ transf_expression e1;
-    do e2 <~ transf_expression e2;
-    ret (CStan.Ebinop o e1 e2 ty)
-  | Eindexed e (cons i nil) ty =>
-    do e <~ transf_expression e;
+    do (ls1, e1) <~ transf_expression e1;
+    do (ls2, e2) <~ transf_expression e2;
+    ret (ls1 ++ ls2, CStan.Ebinop o e1 e2 ty)
+  | Eindexed e (Econs i Enil) ty =>
+    do (le, e) <~ transf_expression e;
     do ty <~ transf_type ty;
-    do i <~ transf_expression i;
-    ret (CStan.Ederef (CStan.Ebinop Oadd e i (tptr ty)) ty)
+    do (li, i) <~ transf_expression i;
+    ret (le ++ li, CStan.Ederef (CStan.Ebinop Oadd e i (tptr ty)) ty)
   | Eindexed e _ ty =>
     error (Errors.msg "Denumpyification.transf_expression (NYI): Eindexed [i, ...]")
   | Etarget ty => 
     do ty <~ transf_type ty;
-    ret (CStan.Etarget Tvoid)
-  end.
-*)
+    ret (nil, CStan.Etarget Tvoid)
+  end
 
-Fixpoint transf_expression (e: StanE.expr) {struct e}: mon CStan.expr :=
-  match e with
-  | Econst_int i ty => do ty <~ transf_type ty; ret (CStan.Econst_int i ty)
-  | Econst_float f ty => do ty <~ transf_type ty; ret (CStan.Econst_float f ty)
-  | Evar i ty =>
-    do ty <~ transf_type ty;
-    ret (CStan.Evar i ty)
-  | Eunop o e ty =>
-    do o <~ transf_unary_operator o;
-    do ty <~ transf_type ty;
-    do e <~ transf_expression e;
-    ret (CStan.Eunop o e ty)
-  | Ebinop e1 o0 e2 ty =>
-    do ty <~ transf_type ty;
-    do o <~ transf_operator o0;
-    do t <~ transf_operator_return o0;
-    do e1 <~ transf_expression e1;
-    do e2 <~ transf_expression e2;
-    ret (CStan.Ebinop o e1 e2 ty)
-  | Eindexed e (cons i nil) ty =>
-    do e <~ transf_expression e;
-    do ty <~ transf_type ty;
-    do i <~ transf_expression i;
-    ret (CStan.Ederef (CStan.Ebinop Oadd e i (tptr ty)) ty)
-  | Eindexed e _ ty =>
-    error (Errors.msg "Denumpyification.transf_expression (NYI): Eindexed [i, ...]")
-  | Etarget ty => 
-    do ty <~ transf_type ty;
-    ret (CStan.Etarget Tvoid)
+with transf_exprlist (el: exprlist) : mon (list CStan.statement * list CStan.expr) :=
+  match el with
+  | Enil =>
+      ret (nil, nil)
+  | Econs e el =>
+      do (sl1, a1) <- transf_expression e;
+      do (sl2, al2) <- transf_exprlist el;
+      ret (sl1 ++ sl2, a1 :: al2)
   end.
 
 
@@ -187,35 +185,36 @@ Fixpoint list_mmap {X Y: Type} (f: X-> mon Y)(l: list X) {struct l}: mon (list Y
     ret (cons e l)
   end.
 
+Fixpoint makeseq (l: list CStan.statement) (s: CStan.statement) : CStan.statement :=
+  match l with
+  | nil => s
+  | s' :: l' => makeseq l' (CStan.Ssequence s' s) 
+  end.
 
 Fixpoint transf_statement (s: StanE.statement) {struct s}: mon CStan.statement :=
   match s with
   | Sskip => ret CStan.Sskip
   | Sassign e1 None e2 => (* v = x *)
-    do e1 <~ transf_expression e1;
-    do e2 <~ transf_expression e2;
-    ret (CStan.Sassign e1 e2)
+    do (le1, e1) <~ transf_expression e1;
+    do (le2, e2) <~ transf_expression e2;
+    ret (makeseq (le1 ++ le2) (CStan.Sassign e1 e2))
   | Sassign e1 (Some o) e2 => (* v ?= x *)
     do e1 <~ transf_expression e1;
     do e2 <~ transf_expression e2;
     do o <~ transf_operator o;
     error (Errors.msg "Denumpyification.transf_statement (NYI): Sassign")
-  | Scall dst f ty el =>
-    do el <~ list_mmap transf_expression el;
-    do ty <~ transf_type ty;
-    ret (CStan.Scall (Some dst) (CStan.Evar f ty) el) 
   | Ssequence s1 s2 =>
     do s1 <~ (transf_statement s1);
     do s2 <~ (transf_statement s2);
     ret (CStan.Ssequence s1 s2)
   | Sifthenelse e s1 s2 =>
-    do e <~ (transf_expression e); 
+    do (l, e) <~ (transf_expression e); 
     do s1 <~ (transf_statement s1);
     do s2 <~ (transf_statement s2);
-    ret (CStan.Sifthenelse e s1 s2)
+    ret (makeseq l (CStan.Sifthenelse e s1 s2))
   | Sfor i e1 e2 s =>
-    do e1 <~ transf_expression e1;
-    do e2 <~ transf_expression e2;
+    do (le1, e1) <~ transf_expression e1;
+    do (le2, e2) <~ transf_expression e2;
     do body <~ transf_statement s;
 
     let one := Integers.Int.repr 1 in
@@ -229,16 +228,16 @@ Fixpoint transf_statement (s: StanE.statement) {struct s}: mon CStan.statement :
     let eincr := CStan.Ebinop Oadd (CStan.Evar i (CStan.typeof e1)) eone tint in
 
     let incr := CStan.Sassign (CStan.Evar i tint) eincr in
-    ret (CStan.Sfor init cond body incr)
+    ret (makeseq (le1 ++ le2) (CStan.Sfor init cond body incr))
   | Starget e =>
-    do e <~ transf_expression e;
-    ret (CStan.Starget e)
+    do (l, e) <~ transf_expression e;
+    ret (makeseq l (CStan.Starget e))
 
   | Stilde e d el =>
-    do e <~ transf_expression e;
-    do d <~ transf_expression d;
-    do el <~ list_mmap transf_expression el;
-    ret (CStan.Stilde e d el (None, None))
+    do (le, e) <~ transf_expression e;
+    do (ld ,d) <~ transf_expression d;
+    do (lel, el) <~ (CStan.mon_fmap unzip (CStan.mon_mmap transf_expression el));
+    ret (makeseq (le ++ ld ++ (flatten lel)) (CStan.Stilde e d el (None, None)))
 end.
 
 Definition transf_constraint (c : StanE.constraint) : mon CStan.constraint :=

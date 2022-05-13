@@ -27,21 +27,23 @@ Inductive basic :=
   | Breal
   | Barray: basic -> Z -> basic
   | Bfunction: basiclist -> basic -> basic
-with basiclist : Type :=
+with basiclist :=
   | Bnil: basiclist
   | Bcons: basic -> basiclist -> basiclist.
 
 Inductive expr :=
-  (* Classical expressions that exist in C *)
   | Econst_int: int -> basic -> expr
   | Econst_float: float -> basic -> expr
   | Evar: ident -> basic -> expr
-  (* FIXME: add types to all proceeding as well? *)
+  | Ecall: expr -> exprlist -> basic -> expr
   | Eunop: u_op -> expr -> basic -> expr
   | Ebinop: expr -> b_op -> expr -> basic -> expr
-  | Eindexed: expr -> list expr -> basic -> expr
-  (* Probabilistic expressions *)
-  | Etarget: basic -> expr.
+  | Eindexed: expr -> exprlist -> basic -> expr
+  | Etarget: basic -> expr
+with exprlist :=
+  | Enil: exprlist
+  | Econs: expr -> exprlist -> exprlist.
+
 
 Inductive constraint :=
   | Cidentity
@@ -50,14 +52,11 @@ Inductive constraint :=
   | Clower_upper: float -> float -> constraint.
 
 Inductive statement :=
-  (* Classical statements that exist in C *)
   | Sskip : statement
   | Sassign : expr -> option b_op -> expr -> statement
-  | Scall : ident -> ident -> basic -> list expr -> statement
   | Ssequence: statement -> statement -> statement
   | Sifthenelse: expr -> statement -> statement -> statement
   | Sfor: ident -> expr -> expr -> statement -> statement
-  (* Probabilistic statements *)
   | Starget: expr -> statement
   | Stilde: expr -> expr -> list expr -> statement.
 

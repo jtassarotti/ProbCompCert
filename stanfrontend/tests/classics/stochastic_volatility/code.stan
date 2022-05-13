@@ -8,18 +8,14 @@ parameters {
   real h[100];                 // log volatility at time t
 }
 model {
-  real den;
-  real e;
   phi ~ uniform(-1, 1);
   sigma ~ cauchy(0, 5);
   mu ~ cauchy(0, 10);
-  den = sqrt(1.0 - phi * phi);
-  h[1] ~ normal(mu, sigma / den);
+  h[1] ~ normal(mu, sigma / sqrt(1.0 - phi * phi));
   for (t in 2:100) {
     h[t] ~ normal(mu + phi * (h[t - 1] -  mu), sigma);
   }
   for (t in 1:100) {
-    e = exp(h[t] / 2.0);
-    y[t] ~ normal(0, e);
+    y[t] ~ normal(0, exp(h[t] / 2.0));
   }
 }
