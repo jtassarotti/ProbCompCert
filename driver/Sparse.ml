@@ -257,7 +257,7 @@ let el_b b dims =
   | (Stan.Brow _, _) -> raise (Unsupported "matrix type")    
 
 
-(* John: the following two functions should be combined *)
+(* John: the following code can be removed if we set the index_table *)
 let rec el_s_ids s =
   match s with
   | Stan.Sskip -> []
@@ -272,6 +272,7 @@ let rec el_s_ids s =
   | Stan.Svar v ->
      let id = Camlcoq.intern_string v.Stan.vd_id in
      let t = el_b v.Stan.vd_type v.Stan.vd_dims in
+     Hashtbl.add type_table v.Stan.vd_id t;
      [(id,t)]
   | Stan.Scall (i,el) -> raise (Unsupported "statement: call")
   | Stan.Sprint lp -> raise (Unsupported "statement: print")
@@ -297,18 +298,14 @@ let rec el_s s =
   | Stan.Sifthenelse (e,s1,s2) -> StanE.Sifthenelse (el_e e, el_s s1, el_s s2)
   | Stan.Swhile (e,s) -> raise (Unsupported "statement: while")
   | Stan.Sfor (i,e1,e2,s) ->
-    let isym = Camlcoq.intern_string i in
-    IdxHashtbl.add index_set isym ();
-    Hashtbl.add type_table i StanE.Bint;
-    StanE.Sfor (isym, el_e e1, el_e e2, el_s s)
+     let isym = Camlcoq.intern_string i in
+     IdxHashtbl.add index_set isym ();
+     Hashtbl.add type_table i StanE.Bint;
+     StanE.Sfor (isym, el_e e1, el_e e2, el_s s)
   | Stan.Sbreak -> raise (Unsupported "statement: break")
   | Stan.Scontinue -> raise (Unsupported "statement: continue")
   | Stan.Sreturn oe -> raise (Unsupported "statement: return")
-  | Stan.Svar v ->
-     (* This needs to be done more carefully, we might eventually need a local type environment *)
-     let basic = el_b v.Stan.vd_type v.Stan.vd_dims in
-     Hashtbl.add type_table v.Stan.vd_id basic;
-     StanE.Sskip     
+  | Stan.Svar v -> StanE.Sskip     
   | Stan.Scall (i,el) -> raise (Unsupported "statement: call")
   | Stan.Sprint lp -> raise (Unsupported "statement: print")
   | Stan.Sreject lp -> raise (Unsupported "statement: reject")

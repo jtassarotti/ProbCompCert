@@ -14,6 +14,8 @@ rm *.o
 rm *.s
 rm *.h
 rm executable
+rm code.stan.c.*
+rm code.stan.c.all
 popd
 
 # Compilation
@@ -33,6 +35,7 @@ if [ $? -ne 0 ]; then
 else
     echo 'Compilation of stan program' $1 'succeeded'
 fi
+cat code.stan.c.* > code.stan.c.all
 ../../../../ccomp -c code.s
 ../../../../ccomp -I. -c prelude.c
 if [ $? -ne 0 ]; then

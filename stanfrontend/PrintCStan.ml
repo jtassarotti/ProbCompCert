@@ -188,7 +188,7 @@ let rec print_stmt p s =
      fprintf p "target += %a;"
      print_expr e
   | Stilde (e1, e2, el, trunc) ->
-     fprintf p "%a ~ %a(%a) (trunc todo);"
+     fprintf p "@[<hv 2>%a ~@ %a@,(@[<hov 0>%a@]);@]"
        print_expr e1
        print_expr e2
        print_expr_list (true, el)
@@ -258,7 +258,6 @@ let print_function p id f =
     (fun (id, ty) ->
       fprintf p "register %s;@ " (name_cdecl (temp_name id) ty))
     f.fn_temps;
-  fprintf p "statement (todo)";
   print_stmt p f.fn_body; 
   fprintf p "@;<0 -2>}@]@ @ "
  
