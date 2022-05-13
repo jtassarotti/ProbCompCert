@@ -271,21 +271,21 @@ Notation "'do' X <~ A ; B" := (SimplExpr.bind A (fun X => B))
    : gensym_monad_scope.
 Local Open Scope gensym_monad_scope.
 
-Fixpoint map_transf_statement (m: statement -> mon statement) (p: program) (s: statement) {struct s}: mon statement :=
+Fixpoint map_transf_statement (m: program -> statement -> mon statement) (p: program) (s: statement) {struct s}: mon statement :=
   match s with
   | Ssequence s0 s1 =>
     do s0 <- map_transf_statement m p s0;
     do s1 <~ map_transf_statement m p s1;
-    m (Ssequence s0 s1)
+    m p (Ssequence s0 s1)
   | Sifthenelse e s0 s1 =>
     do s0 <- map_transf_statement m p s0;
     do s1 <- map_transf_statement m p s1;
-    m (Sifthenelse e s0 s1)
+    m p (Sifthenelse e s0 s1)
   | Sloop s0 s1 =>
     do s0 <- map_transf_statement m p s0;
     do s1 <- map_transf_statement m p s1;
-    m (Sloop s0 s1)
-  | _ => m(s)
+    m p (Sloop s0 s1)
+  | _ => m p s
   end.
 
 
@@ -366,3 +366,29 @@ Definition transf_program(p: CStan.program): res CStan.program :=
     |}.
 
 End Util. 
+
+Definition mon_fmap {A B : Type} (f: A -> B) (m: mon A)  : mon B := do a <~ m; ret (f a).
+
+Definition option_fmap {X Y:Type} (f: X -> Y) (o: option X) : option Y :=
+  match o with
+  | None => None
+  | Some x => Some (f x)
+  end.
+
+
+Fixpoint mon_mmap {A B : Type} (f: A -> mon B) (l: list A) {struct l} : mon (list B) :=
+  match l with
+  | nil => ret nil
+  | hd :: tl =>
+    do hd' <~ f hd;
+    do tl' <~ mon_mmap f tl;
+    ret (hd' :: tl')
+  end.
+
+Definition option_mon_mmap {X Y:Type} (f: X -> mon Y) (ox: option X) : mon (option Y) :=
+  match ox with
+  | None => ret None
+  | Some x => do x <~ f x; ret (Some x)
+  end.
+
+

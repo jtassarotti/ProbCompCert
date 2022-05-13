@@ -143,6 +143,7 @@ Extract Constant Cabs.char_code => "int64".
 (* Stan *)
 Extract Inlined Constant Stan.string => "String.t".
 Extract Constant Stan.loc => "Lexing.position * Lexing.position".
+Extract Constant Scompiler.print_CStan => "PrintCStan.print_if".
  
 (* Processor-specific extraction directives *)
 

@@ -1,25 +1,11 @@
-Require Import List.
-Require Import Cop.
+Require Import Coqlib.
+Require Import Integers.
+Require Import Floats.
 Require Import Ctypes.
 Require Import CStan.
-Require Import Errors.
-Require Import String.
-Require Import Floats.
-Open Scope string_scope.
-Require Import Coqlib.
-Require Import Sops.
-Require Import Cop.
-Require Import Globalenvs.
-Require Import Integers.
-Require AST.
-Require SimplExpr.
+Require Import Errors. 
 
-(* FIXME how do I share this notation? *)
 Notation "'do' X <- A ; B" := (bind A (fun X => B))
-   (at level 200, X ident, A at level 100, B at level 200)
-   : gensym_monad_scope.
-
-Notation "'do' X <~ A ; B" := (SimplExpr.bind A (fun X => B))
    (at level 200, X ident, A at level 100, B at level 200)
    : gensym_monad_scope.
 
@@ -28,57 +14,6 @@ Local Open Scope gensym_monad_scope.
 Definition tdouble := Tfloat F64 noattr.
 Definition float_one := Floats.Float.of_int Int.one.
 Definition float_zero := Floats.Float.of_int Int.zero.
-
-Notation mon := SimplExpr.mon.
-Notation ret := SimplExpr.ret.
-Notation error := SimplExpr.error.
-Notation gensym := SimplExpr.gensym.
-Notation error_mmap := Errors.mmap.
-
-Definition mon_fmap {A B : Type} (f: A -> B) (m: mon A)  : mon B := do a <~ m; ret (f a).
-
-Definition option_fmap {X Y:Type} (f: X -> Y) (o: option X) : option Y :=
-  match o with
-  | None => None
-  | Some x => Some (f x)
-  end.
-
-Fixpoint mon_mmap {A B : Type} (f: A -> mon B) (l: list A) {struct l} : mon (list B) :=
-  match l with
-  | nil => ret nil
-  | hd :: tl =>
-    do hd' <~ f hd;
-    do tl' <~ mon_mmap f tl;
-    ret (hd' :: tl')
-  end.
-
-Fixpoint res_mmap {A B : Type} (f: A -> res B) (l: list A) {struct l} : res (list B) :=
-  match l with
-  | nil => OK nil
-  | hd :: tl =>
-    do hd' <- f hd;
-    do tl' <- res_mmap f tl;
-    OK (hd' :: tl')
-  end.
-
-Definition option_mon_mmap {X Y:Type} (f: X -> mon Y) (ox: option X) : mon (option Y) :=
-  match ox with
-  | None => ret None
-  | Some x => do x <~ f x; ret (Some x)
-  end.
-
-Definition option_res_mmap {X Y:Type} (f: X -> res Y) (ox: option X) : res (option Y) :=
-  match ox with
-  | None => OK None
-  | Some x => do x <- f x; OK (Some x)
-  end.
-
-Definition maybe_ident (e: expr): option AST.ident :=
-match e with
-  | CStan.Evar i t => Some i
-  | CStan.Etempvar i t => Some i
-  | _ => None
-end.
 
 Fixpoint transf_expr (ot : AST.ident) (e: CStan.expr) {struct e}: res CStan.expr :=
   match e with
@@ -115,6 +50,12 @@ Fixpoint transf_expr (ot : AST.ident) (e: CStan.expr) {struct e}: res CStan.expr
   | CStan.Etarget ty => OK (CStan.Etempvar ot ty)
 end.
 
+Definition option_res_mmap {X Y:Type} (f: X -> res Y) (ox: option X) : res (option Y) :=
+  match ox with
+  | None => OK None
+  | Some x => do x <- f x; OK (Some x)
+  end.
+
 Fixpoint transf_statement (p: program) (s: CStan.statement) {struct s}: res CStan.statement :=
 let t := p.(prog_target) in
 match s with
@@ -129,7 +70,7 @@ match s with
     else OK (Sset i e)
   | Scall oi e le =>
     do e <- transf_expr t e;
-    do le <- res_mmap (transf_expr t) le;
+    do le <- Errors.mmap (transf_expr t) le;
     match oi with
     | None => OK (Scall oi e le)
     | Some i =>
@@ -138,7 +79,7 @@ match s with
       else OK (Scall oi e le)
     end
   | Sbuiltin oi ef lt le =>
-    do le <- res_mmap (transf_expr t) le;
+    do le <- Errors.mmap (transf_expr t) le;
     match oi with
     | None => OK (Sbuiltin oi ef lt le)
     | Some i =>
@@ -166,9 +107,6 @@ match s with
     OK (Sset t
          (Ebinop Cop.Oadd
            (Etempvar t tdouble) e tdouble))
- (* | Starget e =>
-    do e <- transf_etarget_expr t e;
-    OK (Starget e)*)
   | Stilde e i le (oe0, oe1) =>
     Error (msg "Stilde DNE in this stage of pipeline")
   | Sbreak => OK Sbreak
@@ -188,7 +126,6 @@ Definition transf_function (p: program) (f: function): res function :=
       fn_params := f.(fn_params);
       fn_body := add_prelude_epilogue tgt body;
 
-      (* fn_temps := g.(SimplExpr.gen_trail) ++ f.(fn_temps); *)
       fn_temps := f.(fn_temps);
       fn_vars := f.(fn_vars);
       fn_generator := f.(fn_generator);

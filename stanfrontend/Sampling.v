@@ -11,7 +11,7 @@ Local Open Scope gensym_monad_scope.
 
 Definition tdouble := Tfloat F64 noattr.
 
-Definition tr_statement (s: statement): mon statement :=
+Definition tr_statement (p: program) (s: statement): mon statement :=
   match s with 
   | Stilde e d le (oe0, oe1) =>
     do tmp <~ gensym tdouble;

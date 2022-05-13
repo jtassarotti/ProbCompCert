@@ -13,38 +13,13 @@ Require Import Globalenvs.
 Require Import Integers.
 Require Import Clightdefs.
 Require AST.
-
-
+Require Import SimplExpr. 
 
 Notation "'do' X <~ A ; B" := (SimplExpr.bind A (fun X => B))
    (at level 200, X ident, A at level 100, B at level 200)
    : gensym_monad_scope.
 
 Local Open Scope gensym_monad_scope.
-
-Definition tdouble := Tfloat F64 noattr.
-Definition float_one := Floats.Float.of_int Int.one.
-Definition float_zero := Floats.Float.of_int Int.zero.
-
-Notation mon := SimplExpr.mon.
-Notation ret := SimplExpr.ret.
-Notation error := SimplExpr.error.
-Notation gensym := SimplExpr.gensym.
-
-Fixpoint mon_mmap {A B : Type} (f: A -> mon B) (l: list A) {struct l} : mon (list B) :=
-  match l with
-  | nil => ret nil
-  | hd :: tl =>
-    do hd' <~ f hd;
-    do tl' <~ mon_mmap f tl;
-    ret (hd' :: tl')
-  end.
-
-Definition option_mon_mmap {X Y:Type} (f: X -> mon Y) (ox: option X) : mon (option Y) :=
-  match ox with
-  | None => ret None
-  | Some x => do x <~ f x; ret (Some x)
-  end.
 
 Definition as_fieldp (_Struct:AST.ident) (ref:AST.ident) (var:AST.ident) (fieldTy:Ctypes.type) : CStan.expr :=
   (Efield
@@ -112,41 +87,31 @@ match s with
   | Sset i e =>
     do e <~ transf_expr res e;
     ret (Sset i e)
-
   | Scall oi e le =>
     do e <~ transf_expr res e;
     do le <~ mon_mmap (transf_expr res) le;
     ret (Scall oi e le)
-
   | Sbuiltin oi ef lt le => error (msg "ret (Sbuiltin oi ef lt le)")
-
   | Ssequence s0 s1 =>
     do s0 <~ transf_statement res s0;
     do s1 <~ transf_statement res s1;
     ret (Ssequence s0 s1)
-
   | Sifthenelse e s0 s1 =>
     do s0 <~ transf_statement res s0;
     do s1 <~ transf_statement res s1;
     ret (Sifthenelse e s0 s1)
-
   | Sloop s0 s1 =>
     do s0 <~ transf_statement res s0;
     do s1 <~ transf_statement res s1;
     ret (Sloop s0 s1)
-
   | Sbreak => ret Sbreak
-
   | Scontinue => ret Scontinue
-
   | Sreturn oe =>
     do oe <~ option_mon_mmap (transf_expr res) oe;
     ret (Sreturn oe)
-
   | Starget e =>
     do e <~ transf_expr res e;
     ret (Starget e)
-
   | Stilde e d le (oe0, oe1) =>
     error (msg "DNE at this stage of pipeline")
 end.

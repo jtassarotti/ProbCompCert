@@ -16,10 +16,14 @@ Require Import Sbackend.
 
 Open Scope string_scope.
 
+(** Pretty-printers (defined in Caml). *)
+Parameter print_CStan: CStan.program -> unit.
+
 Definition transf_stan_program(p: StanE.program): res Clight.program :=
   OK p
   @@@ time "Denumpyification" Denumpyification.transf_program
   @@@ time "Sampling" Sampling.transf_program
+  @@ print (print_CStan)
   @@@ time "Constraints" Constraints.transf_program
   @@@ time "VariableAllocation" VariableAllocation.transf_program
   @@@ time "Target" Target.transf_program

@@ -26,7 +26,7 @@ if [ $? -ne 0 ]; then
     echo 'Compilation of stan library failed'
     exit
 fi
-../../../../ccomp -c -dclight code.stan
+../../../../ccomp -c -dcstan -dclight code.stan
 if [ $? -ne 0 ]; then
     echo 'Compilation of stan program' $1 'failed'
     exit

@@ -146,7 +146,7 @@ Fixpoint transf_statement (s: StanE.statement) {struct s}: res CStan.statement :
   | Scall dst f ty el =>
     do el <- list_mmap transf_expression el;
     do ty <- transf_type ty;
-    OK (CStan.Scall (Some dst) (CStan.Evar f ty) el) (* Major error: the destination and function are swapped!!! *)
+    OK (CStan.Scall (Some dst) (CStan.Evar f ty) el) 
   | Ssequence s1 s2 =>
     do s1 <- (transf_statement s1);
     do s2 <- (transf_statement s2);
