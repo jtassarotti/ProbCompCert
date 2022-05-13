@@ -138,17 +138,11 @@ Fixpoint transf_expr (pmap: AST.ident -> option AST.ident) (e: CStan.expr) {stru
   | CStan.Econst_float f t => ret (CStan.Econst_float f t)
   | CStan.Econst_single f t => ret (CStan.Econst_single f t)
   | CStan.Econst_long i t => ret (CStan.Econst_long i t)
-
-  (* TODO only works because all params are global right now. *)
-  | CStan.Evar i t => 
-    match pmap i with
-    | None => ret (CStan.Evar i t)
-    | Some i => ret (CStan.Etempvar i t)
-    end
+  | CStan.Evar i t => ret (CStan.Evar i t)
   | CStan.Etempvar i t => ret (CStan.Etempvar i t)
   | CStan.Ecast e t => do e <~ transf_expr pmap e; ret (CStan.Ecast e t)
   | CStan.Efield e i t => do e <~ transf_expr pmap e; ret (CStan.Efield e i t)
-  | CStan.Ederef e t => do e <~ transf_expr pmap e; ret (CStan.Ederef e t) (* a transformation downstream would be invalid*)
+  | CStan.Ederef e t => do e <~ transf_expr pmap e; ret (CStan.Ederef e t) 
   | CStan.Eaddrof e t => do e <~ transf_expr pmap e; ret (Eaddrof e t)
   | CStan.Eunop uop e t => do e <~ transf_expr pmap e; ret (CStan.Eunop uop e t)
   | CStan.Ebinop bop e0 e1 t =>

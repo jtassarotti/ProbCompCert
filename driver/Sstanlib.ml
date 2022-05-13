@@ -107,7 +107,9 @@ let stanlib_functions = [
     (id_uniform_lpdf,   gl_uniform_lpdf);
     (id_bernoulli_lpmf, gl_bernoulli_lpmf);
     (id_normal_lpdf, gl_normal_lpdf);
-    (id_cauchy_lpdf, gl_cauchy_lpdf)
+    (id_cauchy_lpdf, gl_cauchy_lpdf);
+    (id_poisson_lpmf, gl_poisson_lpmf);
+    (id_bernoulli_logit_lpmf, gl_bernoulli_logit_lpmf)
   ]
 let pr_dist_functions = [(CStan.DBernPMF, id_bernoulli_lpmf);(CStan.DUnifPDF, id_uniform_lpdf)]
 

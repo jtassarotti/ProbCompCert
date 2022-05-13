@@ -9,8 +9,12 @@ parameters {
   real beta[20];    // difficulty of question k
 }
 model {
-  alpha ~ normal(0,1);         // informative true prior
-  beta ~ normal(0,1);          // informative true prior
+  for (i in 1:10) {
+    alpha[i] ~ normal(0,1);   // informative true prior
+  }
+  for (i in 1:20) {
+    beta[i] ~ normal(0,1);          // informative true prior 
+  }
   delta ~ normal(0.75, 1);      // informative true prior
   for (n in 1:100) {
     y[n] ~ bernoulli_logit(alpha[jj[n]] - beta[kk[n]] + delta);
