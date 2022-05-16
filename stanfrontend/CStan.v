@@ -153,17 +153,7 @@ Definition type_of_fundef (f: fundef) : Ctypes.type :=
   | External id args res cc => Tfunction args res cc
   end.
 
-Inductive math_func := MFLog | MFExp | MFLogit | MFExpit | MFSqrt
-                       | MFPrintStart
-                       | MFPrintDouble
-                       | MFPrintInt
-                       | MFPrintArrayInt
-                       | MFPrintEnd
-                       | MFInitUnconstrained.
-Definition math_func_eq_dec : forall (x y : math_func), { x = y } + { x <> y }.
-Proof.
-decide equality.
-Defined.
+
 
 Inductive dist_func := DBernPMF | DUnifPDF.
 Definition dist_func_eq_dec : forall (x y : dist_func), { x = y } + { x <> y }.
@@ -199,7 +189,7 @@ Record program : Type := {
   prog_types: list composite_definition;
   prog_comp_env: composite_env;
   prog_comp_env_eq: build_composite_env prog_types = OK prog_comp_env;
-  prog_math_functions: list (math_func * ident * Ctypes.type);
+  prog_math_functions: list (ident * Ctypes.type);
   prog_dist_functions: list (dist_func * ident);
 }.
 

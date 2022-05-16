@@ -13,6 +13,7 @@ Require Import Globalenvs.
 Require Import Integers.
 Require AST.
 Require Import SimplExpr.
+Require Import Numbers.BinNums.
 
 
 Notation "'do' X <~ A ; B" := (SimplExpr.bind A (fun X => B))
@@ -25,22 +26,28 @@ Definition tdouble := Tfloat F64 noattr.
 Definition float_one := Float.of_int Int.one.
 Definition float_zero := Float.of_int Int.zero.
 
-Fixpoint getmathfunc (t:math_func) (fs: list (math_func * AST.ident * Ctypes.type)) : mon (AST.ident * Ctypes.type) :=
+Fixpoint getmathfunc (t:positive) (fs: list (AST.ident * Ctypes.type)) : mon Ctypes.type :=
   match fs with
   | nil => error (Errors.msg "impossible")
-  | h::tl => if math_func_eq_dec (fst (fst h)) t then ret (snd (fst h), snd h) else getmathfunc t tl
+  | h::tl => if positive_eq_dec (fst h) t then ret (snd h) else getmathfunc t tl
   end.
 
-Definition callmath (p: program) (t: math_func) (args : list expr) : mon (AST.ident * statement) :=
+Definition callmath (p: program) (t: positive) (args : list expr) : mon (AST.ident * statement) :=
   do rt <~ gensym tdouble;
   do fty <~ getmathfunc t p.(prog_math_functions);
-  ret (rt, Scall (Some rt) (Evar (fst fty) (snd fty)) args).
+  ret (rt, Scall (Some rt) (Evar t fty) args).
 
-Definition stan_log (p: program) (e: expr) : mon (AST.ident * statement) := callmath p MFLog (e::nil).
-Definition stan_exp (p: program) (e: expr) : mon (AST.ident * statement) := callmath p MFExp (e::nil).
+(* Explanation:
+    We need to be able to insert calls to functions such as log, exp, ...
+    In the compiler, these functions are not identified by a string, but by a positive number.
+    These positive are created in a deterministic way because we set Camlcoq.use_canonical_atoms to true
+*)
 
-Definition stan_logit (p: program) (e: expr) : mon (AST.ident * statement) := callmath p MFLogit (e::nil).
-Definition stan_expit (p: program) (e: expr) : mon (AST.ident * statement) := callmath p MFExpit (e::nil).
+Definition stan_log (p: program) (e: expr) : mon (AST.ident * statement) := callmath p 329237%positive (e::nil).
+Definition stan_exp (p: program) (e: expr) : mon (AST.ident * statement) := callmath p 366670%positive (e::nil).
+
+Definition stan_logit (p: program) (e: expr) : mon (AST.ident * statement) := callmath p 1565066773%positive (e::nil).
+Definition stan_expit (p: program) (e: expr) : mon (AST.ident * statement) := callmath p 1565104206%positive (e::nil).
 
 Definition int2float (e:expr) : mon expr :=
   match e with

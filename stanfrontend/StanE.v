@@ -87,7 +87,7 @@ Record program := mkprogram {
   pr_parameters_struct: CStan.reserved_params;
   pr_data_struct: CStan.reserved_data;
   pr_main: ident;
-  pr_math_functions: list (CStan.math_func * ident * Ctypes.type);
+  pr_math_functions: list (ident * Ctypes.type);
   pr_dist_functions: list (CStan.dist_func * ident);
 }.
 

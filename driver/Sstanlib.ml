@@ -117,7 +117,19 @@ let pr_dist_functions = [(CStan.DBernPMF, id_bernoulli_lpmf);(CStan.DUnifPDF, id
 (* <><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><> *)
 (*                              math functions                                  *)
 (* <><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><> *)
-let mk_fn ret args s = (s, Camlcoq.intern_string s, mk_global_func ret s args, mk_cfunc args)
+
+let _ = Camlcoq.use_canonical_atoms := true
+                      
+let mk_fn ret args s =
+  (*
+  let p = Camlcoq.intern_string s in
+  print_string s;
+  print_string ": ";
+  print_string (Int64.to_string (Camlcoq.P.to_int64 p));
+  print_string "\n";
+  flush(stdout);
+   *)
+  (s, Camlcoq.intern_string s, mk_global_func ret s args, mk_cfunc args)
 let mk_math_fn = mk_fn (AST.Tret AST.Tfloat)
 let mk_unary_math_fn t = mk_math_fn [t]
 let unary_math_fn = mk_unary_math_fn AST.Tfloat
@@ -128,21 +140,15 @@ let (st_logit, id_logit, gl_logit, clogit) = unary_math_fn "logit"
 let (st_expit, id_expit, gl_expit, cexpit) = unary_math_fn "expit"
 let (st_sqrt, id_sqrt, gl_sqrt, csqrt) = unary_math_fn "sqrt"
 
-let st_init_unconstrained = "init_unconstrained"
-let id_init_unconstrained = Camlcoq.intern_string st_init_unconstrained
-let ty_init_unconstrained = StanE.Bfunction (StanE.Bnil, bdouble)
-let gl_init_unconstrained = mk_global_math_func st_init_unconstrained []
-
-let __math_functions = [ (CStan.MFLog, id_log, gl_log, clog);
-                         (CStan.MFLogit, id_logit, gl_logit, clogit);
-                         (CStan.MFExp, id_exp, gl_exp, cexp);
-                         (CStan.MFExpit, id_expit, gl_expit, cexpit);
-                         (CStan.MFInitUnconstrained, id_init_unconstrained, gl_init_unconstrained, mk_cfunc []);
-                         (CStan.MFSqrt, id_sqrt, gl_sqrt, csqrt);
+let __math_functions = [ (id_log, gl_log, clog);
+                         (id_logit, gl_logit, clogit);
+                         (id_exp, gl_exp, cexp);
+                         (id_expit, gl_expit, cexpit);
+                         (id_sqrt, gl_sqrt, csqrt);
                         ]
 
-let _as_prog_math_functions (e, i, g, c) = ((e, i), c)
-let _as_global_math_functions (e, i, g, c) = (i, g)
+let _as_prog_math_functions (i, g, c) = (i, c)
+let _as_global_math_functions (i, g, c) = (i, g)
 
 let pr_math_functions = List.map _as_prog_math_functions __math_functions
 let all_math_fns = List.map _as_global_math_functions __math_functions
