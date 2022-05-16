@@ -119,17 +119,8 @@ let pr_dist_functions = [(CStan.DBernPMF, id_bernoulli_lpmf);(CStan.DUnifPDF, id
 (* <><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><> *)
 
 let _ = Camlcoq.use_canonical_atoms := true
-                      
-let mk_fn ret args s =
-  (*
-  let p = Camlcoq.intern_string s in
-  print_string s;
-  print_string ": ";
-  print_string (Int64.to_string (Camlcoq.P.to_int64 p));
-  print_string "\n";
-  flush(stdout);
-   *)
-  (s, Camlcoq.intern_string s, mk_global_func ret s args, mk_cfunc args)
+      
+let mk_fn ret args s = (s, Camlcoq.intern_string s, mk_global_func ret s args, mk_cfunc args)
 let mk_math_fn = mk_fn (AST.Tret AST.Tfloat)
 let mk_unary_math_fn t = mk_math_fn [t]
 let unary_math_fn = mk_unary_math_fn AST.Tfloat

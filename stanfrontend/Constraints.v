@@ -19,7 +19,6 @@ Notation "'do' X <~ A ; B" := (SimplExpr.bind A (fun X => B))
 
 Local Open Scope gensym_monad_scope.
 
-Definition tdouble := Tfloat F64 noattr.
 Definition float_one := Float.of_int Int.one.
 Definition float_zero := Float.of_int Int.zero.
 

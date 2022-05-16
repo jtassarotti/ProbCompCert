@@ -564,7 +564,7 @@ let elaborate (sourcefile : string) (p: Stan.program) =
       StanE.pr_model=id_model;
       StanE.pr_target=id_target;
       StanE.pr_main=id_main;
-      StanE.pr_math_functions=pr_math_functions;
+      StanE.pr_math_functions=[]; (* pr_math_functions *)
       StanE.pr_dist_functions=pr_dist_functions;
     }
 

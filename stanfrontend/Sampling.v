@@ -2,14 +2,8 @@ Require Import List.
 Require Import Ctypes.
 Require Import CStan.
 Require Import SimplExpr.
-
-Notation "'do' X <~ A ; B" := (bind A (fun X => B))
-   (at level 200, X ident, A at level 100, B at level 200)
-   : gensym_monad_scope.
-
+Require Import Clightdefs.
 Local Open Scope gensym_monad_scope.
-
-Definition tdouble := Tfloat F64 noattr.
 
 Definition tr_statement (p: program) (s: statement): mon statement :=
   match s with 
