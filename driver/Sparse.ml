@@ -549,10 +549,11 @@ let elaborate (sourcefile : string) (p: Stan.program) =
     } in
 
     let structs = [(id_params_struct_global_state, gl_params_struct); (id_params_struct_global_proposal, gl_params_struct); (id_data_struct_global, gl_data_struct)] in
-    (* <><><><><><><><><><><><><><><> structs <><><><><><><><><><><><><><><> *)
-
+    
+    let helpers = add_helper_functions [] in
+    
     {
-      StanE.pr_defs= data_variables @ param_variables @ structs @ stanlib_functions @ functions @ all_math_fns;
+      StanE.pr_defs=  helpers @ data_variables @ param_variables @ structs @ stanlib_functions @ functions @ all_math_fns;
       StanE.pr_public=
         List.map fst functions
         @ List.map fst stanlib_functions @ List.map fst all_math_fns;

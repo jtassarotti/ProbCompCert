@@ -1,7 +1,7 @@
 data {
   real<lower=0> r_e;
   real<lower=0> r_l;
-  real D[100];
+  int D[100];
 }
 transformed data {
   real log_unif;
@@ -30,5 +30,5 @@ transformed parameters {
 model {
   e ~ exponential(r_e);
   l ~ exponential(r_l);
-  target += log_sum_exp(lp);
+  target += log_sum_exp(lp); // Type error 
 }
