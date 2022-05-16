@@ -1,20 +1,17 @@
-Require Import List.
-Require Import Cop.
-Require Import Ctypes.
+From Coq Require Import String List ZArith List.
+From compcert Require Import Coqlib Integers Floats AST Ctypes Cop Clight Clightdefs.
+Import Clightdefs.ClightNotations.
+Local Open Scope Z_scope.
+Local Open Scope string_scope.
+Local Open Scope clight_scope.
 Require Import CStan.
 Require Errors.
-Require Import String.
 Require Import Floats.
-Open Scope string_scope.
-Require Import Coqlib.
 Require Import Sops.
-Require Import Cop.
 Require Import Globalenvs.
 Require Import Integers.
-Require AST.
 Require Import SimplExpr.
 Require Import Numbers.BinNums.
-
 
 Notation "'do' X <~ A ; B" := (SimplExpr.bind A (fun X => B))
    (at level 200, X ident, A at level 100, B at level 200)
@@ -37,17 +34,17 @@ Definition callmath (p: program) (t: positive) (args : list expr) : mon (AST.ide
   do fty <~ getmathfunc t p.(prog_math_functions);
   ret (rt, Scall (Some rt) (Evar t fty) args).
 
-(* Explanation:
+(* Explanation: 329237%positive
     We need to be able to insert calls to functions such as log, exp, ...
     In the compiler, these functions are not identified by a string, but by a positive number.
     These positive are created in a deterministic way because we set Camlcoq.use_canonical_atoms to true
 *)
 
-Definition stan_log (p: program) (e: expr) : mon (AST.ident * statement) := callmath p 329237%positive (e::nil).
-Definition stan_exp (p: program) (e: expr) : mon (AST.ident * statement) := callmath p 366670%positive (e::nil).
+Definition stan_log (p: program) (e: expr) : mon (AST.ident * statement) := callmath p $"log" (e::nil).
+Definition stan_exp (p: program) (e: expr) : mon (AST.ident * statement) := callmath p $"exp" (e::nil).
 
-Definition stan_logit (p: program) (e: expr) : mon (AST.ident * statement) := callmath p 1565066773%positive (e::nil).
-Definition stan_expit (p: program) (e: expr) : mon (AST.ident * statement) := callmath p 1565104206%positive (e::nil).
+Definition stan_logit (p: program) (e: expr) : mon (AST.ident * statement) := callmath p $"logit" (e::nil).
+Definition stan_expit (p: program) (e: expr) : mon (AST.ident * statement) := callmath p $"expit" (e::nil).
 
 Definition int2float (e:expr) : mon expr :=
   match e with
