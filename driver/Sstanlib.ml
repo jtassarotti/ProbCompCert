@@ -119,24 +119,26 @@ let pr_dist_functions = [(CStan.DBernPMF, id_bernoulli_lpmf);(CStan.DUnifPDF, id
 (* <><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><> *)
 
 let _ = Camlcoq.use_canonical_atoms := true
-      
-let mk_fn ret args s = (s, Camlcoq.intern_string s, mk_global_func ret s args, mk_cfunc args)
-let mk_math_fn = mk_fn (AST.Tret AST.Tfloat)
-let mk_unary_math_fn t = mk_math_fn [t]
-let unary_math_fn = mk_unary_math_fn AST.Tfloat
 
-let (st_log, id_log, gl_log, clog)       = unary_math_fn "log"
-let (st_exp, id_exp, gl_exp, cexp)       = unary_math_fn "exp"
-let (st_logit, id_logit, gl_logit, clogit) = unary_math_fn "logit"
-let (st_expit, id_expit, gl_expit, cexpit) = unary_math_fn "expit"
-let (st_sqrt, id_sqrt, gl_sqrt, csqrt) = unary_math_fn "sqrt"
+let library_math_functions = [
+    "log",
+    AST.Tret AST.Tfloat,
+    [AST.Tfloat];
+    "exp",
+    AST.Tret AST.Tfloat,
+    [AST.Tfloat];
+    "logit",
+    AST.Tret AST.Tfloat,
+    [AST.Tfloat];
+    "expit",
+    AST.Tret AST.Tfloat,
+    [AST.Tfloat];
+  ]
 
-let all_math_fns = [ (id_log, gl_log);
-                     (id_logit, gl_logit);
-                     (id_exp, gl_exp);
-                     (id_expit, gl_expit);
-                     (id_sqrt, gl_sqrt);
-                   ]
+let library_function_declaration (name, tyres, tyargs) =
+  (Camlcoq.intern_string name, mk_global_func tyres name tyargs)
+                   
+let all_math_fns = List.map library_function_declaration library_math_functions
 
 
 
