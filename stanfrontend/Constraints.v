@@ -4,6 +4,7 @@ Import Clightdefs.ClightNotations.
 Local Open Scope Z_scope.
 Local Open Scope string_scope.
 Local Open Scope clight_scope.
+Require Csyntax. 
 Require Import CStan.
 Require Errors.
 Require Import Floats.
@@ -22,18 +23,25 @@ Local Open Scope gensym_monad_scope.
 Definition float_one := Float.of_int Int.one.
 Definition float_zero := Float.of_int Int.zero.
 
-Fixpoint getmathfunc (t:positive) (fs: list (AST.ident * Ctypes.type)) : mon Ctypes.type :=
+Fixpoint getmathfunc (t:positive) (fs: list (AST.ident * globdef fundef type)) : mon Ctypes.type :=
   match fs with
-  | nil => error (Errors.msg "impossible")
-  | h::tl => if positive_eq_dec (fst h) t then ret (snd h) else getmathfunc t tl
+  | nil => error (Errors.msg "Constraints: looking for function that doesn't exists")
+  | h::tl => 
+    if positive_eq_dec (fst h) t 
+    then 
+      match snd h with
+      | AST.Gfun f => ret (type_of_fundef f)
+      | AST.Gvar v => error (Errors.msg "Constraints: function meant to be used to find functions only")
+      end 
+    else getmathfunc t tl
   end.
 
 Definition callmath (p: program) (t: positive) (args : list expr) : mon (AST.ident * statement) :=
   do rt <~ gensym tdouble;
-  do fty <~ getmathfunc t p.(prog_math_functions);
+  do fty <~ getmathfunc t p.(prog_defs);
   ret (rt, Scall (Some rt) (Evar t fty) args).
 
-(* Explanation: 329237%positive
+(* Explanation: 
     We need to be able to insert calls to functions such as log, exp, ...
     In the compiler, these functions are not identified by a string, but by a positive number.
     These positive are created in a deterministic way because we set Camlcoq.use_canonical_atoms to true

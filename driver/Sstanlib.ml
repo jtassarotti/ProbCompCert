@@ -131,18 +131,15 @@ let (st_logit, id_logit, gl_logit, clogit) = unary_math_fn "logit"
 let (st_expit, id_expit, gl_expit, cexpit) = unary_math_fn "expit"
 let (st_sqrt, id_sqrt, gl_sqrt, csqrt) = unary_math_fn "sqrt"
 
-let __math_functions = [ (id_log, gl_log, clog);
-                         (id_logit, gl_logit, clogit);
-                         (id_exp, gl_exp, cexp);
-                         (id_expit, gl_expit, cexpit);
-                         (id_sqrt, gl_sqrt, csqrt);
-                        ]
+let all_math_fns = [ (id_log, gl_log);
+                     (id_logit, gl_logit);
+                     (id_exp, gl_exp);
+                     (id_expit, gl_expit);
+                     (id_sqrt, gl_sqrt);
+                   ]
 
-let _as_prog_math_functions (i, g, c) = (i, c)
-let _as_global_math_functions (i, g, c) = (i, g)
 
-let pr_math_functions = List.map _as_prog_math_functions __math_functions
-let all_math_fns = List.map _as_global_math_functions __math_functions
+
 
 
 

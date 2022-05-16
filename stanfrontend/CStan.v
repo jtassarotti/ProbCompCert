@@ -189,7 +189,6 @@ Record program : Type := {
   prog_types: list composite_definition;
   prog_comp_env: composite_env;
   prog_comp_env_eq: build_composite_env prog_types = OK prog_comp_env;
-  prog_math_functions: list (ident * Ctypes.type);
   prog_dist_functions: list (dist_func * ident);
 }.
 
@@ -351,7 +350,6 @@ Definition transf_program(p: CStan.program): res CStan.program :=
       prog_comp_env:=p.(prog_comp_env);
       prog_comp_env_eq:=p.(prog_comp_env_eq);
 
-      prog_math_functions:= p.(prog_math_functions);
       prog_dist_functions:= p.(prog_dist_functions);
     |}.
 
