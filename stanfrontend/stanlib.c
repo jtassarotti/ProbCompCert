@@ -35,16 +35,21 @@ double randn (double mu, double sigma)
   return (mu + sigma * (double) X1);
 }
 
-double logit(double p)
-{
+double logit(double p) {
   return (p <= 0 || p >= 1) ? INFINITY : log(p) - log(1-p);
 }
 
-double expit(double a)
-{
+double expit(double a) {
   return 1 / (1 + exp(-a));
 }
 
+double log_sum_exp(double a[], int size) {
+  double acc = 0;
+  for (int i = 0; i < size; ++i) {
+    acc += exp(a[i]);
+  }
+  return log(acc);
+}
 
 double uniform_lpdf(double x, double a, double b)
 {
@@ -109,39 +114,4 @@ double bernoulli_sample(double p)
   return (((double) rand () / RAND_MAX) > p) ? 0 : 1;
 }
 
-double init_unconstrained()
-{
-  return uniform_sample(-2, 2);
-}
-
-void print_start()
-{
-  printf("state { ");
-}
-void print_double(double x)
-{
-  printf("%f ", x);
-}
-void print_int(int x)
-{
-  printf("%i ", x);
-}
-void print_long(long x)
-{
-  printf("%ld ", x);
-}
-
-void print_array_int(int* arrp, int len)
-{
-  int *max;
-  max = arrp + len;
-  printf("array<%i>[", len);
-  while (arrp < max) {
-    printf("%i, ", *arrp++);
-  }
-  printf("\b\b]\n");
-}
-void print_end()
-{
-  printf("}\n");
-}
+ 

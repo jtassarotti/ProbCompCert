@@ -30,5 +30,5 @@ transformed parameters {
 model {
   e ~ exponential(r_e);
   l ~ exponential(r_l);
-  target += log_sum_exp(lp); // Type error 
+  target += log_sum_exp(lp,100); 
 }

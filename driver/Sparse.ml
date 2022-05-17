@@ -15,6 +15,20 @@ exception TypeError of string
 (* <><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><> *)
 (*                               Struct work                                    *)
 (* <><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><> *)
+
+let sizeof_basic t =
+  begin match t with
+  | StanE.Bint -> 4l
+  | StanE.Breal -> 8l
+  | StanE.Barray (ty, n) -> Int32.mul 8l  (Camlcoq.camlint_of_coqint n)
+  | _ -> raise (Invalid_argument "Sparse does not calculate the size of this type")
+  end
+  
+let sizeof_struct vars =
+  List.fold_left (fun total var -> Int32.add total (sizeof_basic (snd var))) 0l vars
+  
+let init_struct members = AST.Init_space (Camlcoq.coqint_of_camlint (sizeof_struct members))
+                     
 let mkGlobalStruct i members = AST.Gvar {
   AST.gvar_readonly = false;
   AST.gvar_volatile = false;
@@ -352,8 +366,8 @@ let str_to_coqint s =
 
 let transf_v_type v dims =
   match (v, dims) with
-  | (Stan.Bint,  [Stan.Econst_int l]) -> ctarray (ctint, str_to_coqint l)
-  | (Stan.Breal, [Stan.Econst_int l]) -> ctarray (ctdouble, str_to_coqint l)
+  | (Stan.Bint,  [Stan.Econst_int l]) -> ctarray (tint, str_to_coqint l)
+  | (Stan.Breal, [Stan.Econst_int l]) -> ctarray (tdouble, str_to_coqint l)
   (* | (ty,  []) -> ty *)
   | _ -> raise (NIY_elab "transf_v_type: type conversion not yet implemented")
 
