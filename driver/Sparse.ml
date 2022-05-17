@@ -298,16 +298,6 @@ let rec el_s_ids s =
 let rec el_s s =
   match s with
   | Stan.Sskip -> StanE.Sskip
-                (*
-  | Stan.Sassign (e1,oo,Stan.Ecall (f,el)) ->
-     let ty = StanE.Bfunction ((StanE.Bcons (StanE.Breal, StanE.Bnil)),  StanE.Breal) in   (*snd(Hashtbl.find transf_dist_idents f) in*)
-     begin
-       match el_e e1, oo with
-       | StanE.Evar (dst, _), None -> StanE.Scall (dst, Camlcoq.intern_string f, ty,List.map el_e el)
-       | _, Some _ -> raise (Unsupported "Complex assignments for function calls")
-       | _, _ -> raise (Unsupported "function call with complex LHS")
-     end
-                 *)
   | Stan.Sassign (e1,oo,e2) -> StanE.Sassign (el_e e1, mapo oo filter_b_op, el_e e2)
   | Stan.Sblock sl -> List.fold_left (fun s1 s2 -> StanE.Ssequence (s1, (el_s s2))) StanE.Sskip sl
   | Stan.Sifthenelse (e,s1,s2) -> StanE.Sifthenelse (el_e e, el_s s1, el_s s2)
@@ -510,9 +500,6 @@ let elaborate (sourcefile : string) (p: Stan.program) =
       mkFunction "model" ((get_code td) @ (get_code tp) @ (get_code m)) (Some StanE.Breal) [] [] [target_var] in
 
     let functions = (id_model,f_model) :: functions in
-
-    IdxHashtbl.clear index_set;
-    let (id_main,f_main) = declareFundef "main" [Stan.Sskip] None [] in
  
     let functions =
       List.fold_left
@@ -563,8 +550,6 @@ let elaborate (sourcefile : string) (p: Stan.program) =
       StanE.pr_parameters_struct=params_reserved;
       StanE.pr_model=id_model;
       StanE.pr_target=id_target;
-      StanE.pr_main=id_main;
-      StanE.pr_dist_functions=pr_dist_functions;
     }
 
 let location t =

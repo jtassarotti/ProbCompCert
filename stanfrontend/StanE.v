@@ -86,8 +86,6 @@ Record program := mkprogram {
   (* What follows is information for the compiler specifically *)
   pr_parameters_struct: CStan.reserved_params;
   pr_data_struct: CStan.reserved_data;
-  pr_main: ident;
-  pr_dist_functions: list (CStan.dist_func * ident);
 }.
 
 Definition program_of_program (p: program) : AST.program fundef variable :=

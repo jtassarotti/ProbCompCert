@@ -15,6 +15,12 @@ Require Import Cop.
 Require Import CStan.
 Require CStanSemanticsBackend.
 
+Require Import String. 
+Require Import Clightdefs. 
+Import Clightdefs.ClightNotations.
+Local Open Scope string_scope.
+Local Open Scope clight_scope.
+
 Section SEMANTICS.
 
 (**********************************************************************************************************)
@@ -302,7 +308,7 @@ Inductive initial_state (p: program): state -> Prop :=
   | initial_state_data_intro: forall b f m0 ,
       let ge := Genv.globalenv p in
       Genv.init_mem p = Some m0 ->
-      Genv.find_symbol ge p.(prog_main) = Some b ->
+      Genv.find_symbol ge $"main" = Some b ->
       Genv.find_funct_ptr ge b = Some f ->
       type_of_fundef f = Tfunction Tnil type_int32s cc_default ->
       initial_state p (Callstate f nil Kstop m0).

@@ -440,6 +440,4 @@ Definition transf_program(p: StanE.program): Errors.res CStan.program :=
       CStan.prog_types:=composite_types;
       CStan.prog_comp_env:=comp_env;
       CStan.prog_comp_env_eq:= comp_env_eq composite_types comp_env;
-      CStan.prog_main:=p.(StanE.pr_main);
-      CStan.prog_dist_functions:= p.(StanE.pr_dist_functions);
     |}.

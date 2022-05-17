@@ -1,30 +1,18 @@
-Require Import CStan.
-Require Import Clightdefs.
-Require Import Clight.
-Require Import Errors.
-Require Import Smallstep.
-Require Import Asm. 
-Require Import Compiler.
-Require Import Denumpyification.
-Require Import String.
-Require Import Ctypes.
-Require Import Coqlib.
-Require Import ZArith Integers.
-Open Scope string_scope.
-Local Open Scope Z_scope.
-
-
+Require Import CStan. 
 Require Import String List ZArith.
 Require Import Coqlib Integers Floats AST Ctypes Cop Clight Clightdefs.
+Require Import Errors.
+Import Clightdefs.ClightNotations.
 Local Open Scope Z_scope.
-Local Open Scope string_scope.  
+Local Open Scope string_scope.
+Local Open Scope clight_scope.
 
 Notation "'do' X <- A ; B" := (bind A (fun X => B))
    (at level 200, X ident, A at level 100, B at level 200)
    : gensym_monad_scope.
 
 Local Open Scope gensym_monad_scope.
-Local Open Scope clight_scope.
+
 
 Fixpoint transf_expression (e: CStan.expr) {struct e}: res Clight.expr :=
   match e with
@@ -48,7 +36,7 @@ Fixpoint transf_expression (e: CStan.expr) {struct e}: res Clight.expr :=
     OK (Ebinop b e1 e2 t)
   | CStan.Esizeof t1 t2 => OK (Esizeof t1 t2)
   | CStan.Ealignof t1 t2 => OK (Ealignof t1 t2)
-  | Etarget t => Error (msg "Backend expression: target")
+  | CStan.Etarget t => Error (msg "Backend expression: target")
   end.
 
 Fixpoint transf_expression_list (l: list (CStan.expr)) {struct l}: res (list Clight.expr) :=
@@ -94,8 +82,8 @@ Fixpoint transf_statement (s: CStan.statement) {struct s}: res Clight.statement 
   | CStan.Scontinue => OK Scontinue
   | CStan.Sreturn None => OK (Sreturn None)
   | CStan.Sreturn (Some e) => do e <- (transf_expression e); OK (Sreturn (Some e))
-  | Starget e => Error (msg "Backend: target")
-  | Stilde o e le tr => Error (msg "Backend: tilde")
+  | CStan.Starget e => Error (msg "Backend: target")
+  | CStan.Stilde o e le tr => Error (msg "Backend: tilde")
   end.
 
 Definition transf_variable (v: type): res Ctypes.type :=
@@ -125,7 +113,7 @@ Definition backend (p: CStan.program): res Clight.program :=
   OK {| 
       Ctypes.prog_defs := AST.prog_defs p1;
       Ctypes.prog_public:= p.(CStan.prog_public);
-      Ctypes.prog_main:=p.(CStan.prog_main);
+      Ctypes.prog_main:= $"main"; 
       Ctypes.prog_types:=p.(CStan.prog_types);
       Ctypes.prog_comp_env:=p.(CStan.prog_comp_env);
       Ctypes.prog_comp_env_eq:= p.(CStan.prog_comp_env_eq);

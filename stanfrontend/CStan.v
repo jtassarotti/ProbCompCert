@@ -30,6 +30,12 @@ Require Import Cop.
 Require Import Stan.
 Require Import SimplExpr.
 
+Require Import String. 
+Require Import Clightdefs. 
+Import Clightdefs.ClightNotations.
+Local Open Scope string_scope.
+Local Open Scope clight_scope.
+
 Inductive expr : Type :=
   | Econst_int: int -> type -> expr       (**r integer literal *)       (*FIXME: I think we can remove this *)
   | Econst_float: float -> type -> expr   (**r double float literal *)
@@ -178,7 +184,6 @@ Record reserved_data := mkreserved_data {
 Record program : Type := {
   prog_defs: list (ident * globdef fundef type);
   prog_public: list ident;
-  prog_main: ident;
   prog_model: ident;
   prog_target: ident;
   prog_constraints: list (ident * constraint);
@@ -189,13 +194,12 @@ Record program : Type := {
   prog_types: list composite_definition;
   prog_comp_env: composite_env;
   prog_comp_env_eq: build_composite_env prog_types = OK prog_comp_env;
-  prog_dist_functions: list (dist_func * ident);
 }.
 
 Definition program_of_program (p: program) : AST.program fundef type :=
   {| AST.prog_defs := p.(prog_defs);
      AST.prog_public := p.(prog_public);
-     AST.prog_main := p.(prog_main) |}.
+     AST.prog_main := $"main" |}.
 
 Coercion program_of_program: program >-> AST.program.
 
@@ -344,13 +348,11 @@ Definition transf_program(p: CStan.program): res CStan.program :=
 
       prog_model:=p.(prog_model);
       prog_target:=p.(prog_target);
-      prog_main:=p.(prog_main);
 
       prog_types:=p.(prog_types);
       prog_comp_env:=p.(prog_comp_env);
       prog_comp_env_eq:=p.(prog_comp_env_eq);
 
-      prog_dist_functions:= p.(prog_dist_functions);
     |}.
 
 End Util. 

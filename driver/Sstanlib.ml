@@ -64,7 +64,7 @@ let st_uniform_lpdf = "uniform_lpdf"
 let id_uniform_lpdf = Camlcoq.intern_string st_uniform_lpdf
 let ty_uniform_lpdf = StanE.Bfunction (StanE.Bcons (bdouble, (StanE.Bcons (bdouble, (StanE.Bcons (bdouble, StanE.Bnil))))), bdouble)
 let gl_uniform_lpdf = mk_global_math_func st_uniform_lpdf [AST.Tfloat; AST.Tfloat; AST.Tfloat]
-
+        
 let st_normal_lpdf = "normal_lpdf"
 let id_normal_lpdf = Camlcoq.intern_string st_normal_lpdf
 let ty_normal_lpdf = StanE.Bfunction (StanE.Bcons (bdouble, (StanE.Bcons (bdouble, (StanE.Bcons (bdouble, StanE.Bnil))))), bdouble)
@@ -104,7 +104,7 @@ Hashtbl.add transf_dist_idents "normal" (id_normal_lpdf, ty_normal_lpdf);
 Hashtbl.add transf_dist_idents "cauchy" (id_cauchy_lpdf, ty_cauchy_lpdf);
 Hashtbl.add transf_dist_idents "exponential" (id_exponential_lpdf, ty_exponential_lpdf)
 let stanlib_functions = [
-    (id_uniform_lpdf,   gl_uniform_lpdf);
+    (* (id_uniform_lpdf,   gl_uniform_lpdf);*)
     (id_bernoulli_lpmf, gl_bernoulli_lpmf);
     (id_normal_lpdf, gl_normal_lpdf);
     (id_cauchy_lpdf, gl_cauchy_lpdf);
@@ -112,7 +112,7 @@ let stanlib_functions = [
     (id_bernoulli_logit_lpmf, gl_bernoulli_logit_lpmf);
     (id_exponential_lpdf, gl_exponential_lpdf)
   ]
-let pr_dist_functions = [(CStan.DBernPMF, id_bernoulli_lpmf);(CStan.DUnifPDF, id_uniform_lpdf)]
+
 
 (* <><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><> *)
 (*                              math functions                                  *)
@@ -133,6 +133,12 @@ let library_math_functions = [
     "expit",
     AST.Tret AST.Tfloat,
     [AST.Tfloat];
+    "sqrt",
+    AST.Tret AST.Tfloat,
+    [AST.Tfloat];
+    "uniform_lpdf",
+    AST.Tret AST.Tfloat,
+    [AST.Tfloat; AST.Tfloat; AST.Tfloat]
   ]
 
 let library_function_declaration (name, tyres, tyargs) =
