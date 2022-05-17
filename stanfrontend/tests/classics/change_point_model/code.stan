@@ -30,5 +30,10 @@ transformed parameters {
 model {
   e ~ exponential(r_e);
   l ~ exponential(r_l);
-  target += log_sum_exp(lp,100); 
+  real acc;
+  acc = 0;
+  for (i in 1:100) {
+    acc = acc + exp(lp[i]);
+  }
+  target += log(acc); 
 }

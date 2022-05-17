@@ -192,10 +192,7 @@ let rec el_e e =
        end in
      StanE.Ebinop (e1,o,e2,t) 
   | Stan.Ecall (i,el) ->
-     (* WARNING: EXPERIMENTAL!!! for now fine to assume that all calls are this type *)
-     (* TODO: type checking *)
-     let ty = StanE.Bfunction ((StanE.Bcons (StanE.Breal, StanE.Bnil)),  StanE.Breal) in
-     
+     let (_,ty) = type_of_library_function i in
      let e = StanE.Evar (Camlcoq.intern_string i, ty) in
      let el = List.map el_e el in
      StanE.Ecall (e,make_exprlist el,StanE.Breal)
