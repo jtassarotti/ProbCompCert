@@ -10,65 +10,55 @@ let ctarray (t, sz) = Ctypes.Tarray (t, sz, Ctypes.noattr)
       
 let library_math_functions = [
     "log",
-    AST.Tfloat,
-    [AST.Tfloat];
+    tdouble,
+    [tdouble];
     "exp",
-    AST.Tfloat,
-    [AST.Tfloat];
+    tdouble,
+    [tdouble];
     "logit",
-    AST.Tfloat,
-    [AST.Tfloat];
+    tdouble,
+    [tdouble];
     "expit",
-    AST.Tfloat,
-    [AST.Tfloat];
+    tdouble,
+    [tdouble];
     "sqrt",
-    AST.Tfloat,
-    [AST.Tfloat];
+    tdouble,
+    [tdouble];
     "uniform_lpdf",
-    AST.Tfloat,
-    [AST.Tfloat; AST.Tfloat; AST.Tfloat];
+    tdouble,
+    [tdouble; tdouble; tdouble];
     "normal_lpdf",
-    AST.Tfloat,
-    [AST.Tfloat; AST.Tfloat; AST.Tfloat];
+    tdouble,
+    [tdouble; tdouble; tdouble];
     "cauchy_lpdf",
-    AST.Tfloat,
-    [AST.Tfloat; AST.Tfloat; AST.Tfloat];
+    tdouble,
+    [tdouble; tdouble; tdouble];
     "exponential_lpdf",
-    AST.Tfloat,
-    [AST.Tfloat; AST.Tfloat];
+    tdouble,
+    [tdouble; tdouble];
     "bernoulli_lpmf",
-    AST.Tfloat,
-    [AST.Tint; AST.Tfloat];
+    tdouble,
+    [tint; tdouble];
     "poisson_lpmf",
-    AST.Tfloat,
-    [AST.Tint; AST.Tfloat];
+    tdouble,
+    [tint; tdouble];
     "bernoulli_logit_lpmf",
-    AST.Tfloat,
-    [AST.Tint; AST.Tfloat];
+    tdouble,
+    [tint; tdouble];
   ]
-         
-let convert_AST_to_C x =
-  match x with
-  | AST.Tfloat -> tdouble 
-  | AST.Tint -> tint
-  | _ -> raise (NIY_stanlib "AST_to_C: incomplete for this type")
-
-let mk_ctypelist xs =
-  List.fold_left (fun tail h -> Ctypes.Tcons (h, tail)) Ctypes.Tnil xs
-
-let mk_ctypelist_from_astlist xs =
-    mk_ctypelist (List.rev (List.map convert_AST_to_C xs))
-  
-let mk_global_func ret str ast_args_list =
+ 
+let mk_global_func ret str args =
+  let tyargs =
+    List.fold_right (fun t tl -> Ctypes.Tcons(t, tl)) args Ctypes.Tnil in
     AST.Gfun (Ctypes.External
        (AST.EF_external
           (List.init (String.length str) (String.get str), {
-            AST.sig_args=ast_args_list;
-            AST.sig_res=AST.Tret ret;
+            AST.sig_args=Ctypes.typlist_of_typelist tyargs;
+            AST.sig_res=Ctypes.rettype_of_type ret;
             AST.sig_cc=AST.cc_default;
           }),
-       mk_ctypelist_from_astlist ast_args_list,
-       convert_AST_to_C ret,
+       tyargs,
+       ret,
        AST.cc_default
     ))
                            
@@ -77,10 +67,10 @@ let library_function_declaration (name, tyres, tyargs) =
                    
 let all_math_fns = List.map library_function_declaration library_math_functions
 
-let convert_AST_to_Stan ty =
+let convert_Ctypes_to_Stan ty =
   match ty with
-  | AST.Tfloat -> StanE.Breal
-  | AST.Tint -> StanE.Bint
+  | Ctypes.Tfloat _ -> StanE.Breal
+  | Ctypes.Tint _  -> StanE.Bint
   | _ -> raise (NIY_stanlib "Missing type conversion")
        
 let rec search library name =
@@ -99,11 +89,11 @@ let rec search library name =
 let rec type_of_parameters tyargs =
   match tyargs with
   | [] -> StanE.Bnil
-  | arg :: args -> StanE.Bcons (convert_AST_to_Stan arg, type_of_parameters args)
+  | arg :: args -> StanE.Bcons (convert_Ctypes_to_Stan arg, type_of_parameters args)
     
 let type_of_library_function name =
   let (f,tyret,tyargs) = search library_math_functions name in
-  (f,StanE.Bfunction (type_of_parameters tyargs, convert_AST_to_Stan tyret))
+  (f,StanE.Bfunction (type_of_parameters tyargs, convert_Ctypes_to_Stan tyret))
 
 
 
