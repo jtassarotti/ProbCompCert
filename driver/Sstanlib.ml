@@ -2,8 +2,6 @@ open List
 open Ctypesdefs
    
 exception NIY_stanlib of string
-
-let _ = Camlcoq.use_canonical_atoms := true
   
 let library_math_functions = [
     "log",
@@ -64,9 +62,10 @@ let declare_external_function name ret args =
                            
 let library_function_declaration (name, tyres, tyargs) =
   (Camlcoq.intern_string name, declare_external_function name tyres tyargs)
-                   
-let all_math_fns = List.map library_function_declaration library_math_functions
 
+let declare_library () =
+  List.map library_function_declaration library_math_functions
+  
 let convert_Ctypes_to_Stan ty =
   match ty with
   | Ctypes.Tfloat _ -> StanE.Breal

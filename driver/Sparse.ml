@@ -526,6 +526,7 @@ let elaborate (sourcefile : string) (p: Stan.program) =
     let structs = [(id_params_struct_global_state, gl_params_struct); (id_params_struct_global_proposal, gl_params_struct); (id_data_struct_global, gl_data_struct)] in
     
     let helpers = add_helper_functions [] in
+    let all_math_fns = declare_library () in
     
     {
       StanE.pr_defs=  helpers @ data_variables @ param_variables @ structs @ functions @ all_math_fns;
