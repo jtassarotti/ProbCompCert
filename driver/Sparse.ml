@@ -317,11 +317,12 @@ let rec el_s s =
   | Stan.Sforeach (i,e,s) ->raise (Unsupported "statement: foreach")
   | Stan.Starget e -> StanE.Starget (el_e e)
   | Stan.Stilde (e,i,el,(None,None)) ->
+     let (_id,_ty) = type_of_library_function i in
+     (*
     let (_i, _ty) = match Hashtbl.find_opt transf_dist_idents i with
       | Some (ident, ty) -> (ident, ty)
-      | None -> raise (NIY_elab ("tilde called with invalid distribution: "^ i))
-    in
-    StanE.Stilde (el_e e, StanE.Evar (_i, _ty), map el_e el)
+      | None -> raise (NIY_elab ("tilde called with invalid distribution: "^ i))*)
+    StanE.Stilde (el_e e, StanE.Evar (Camlcoq.intern_string _id, _ty), map el_e el)
   | Stan.Stilde (e,i,el,(tr1,tr2)) -> raise (Unsupported "truncation")
 
 let elab elab_fun ol =
@@ -540,10 +541,8 @@ let elaborate (sourcefile : string) (p: Stan.program) =
     let helpers = add_helper_functions [] in
     
     {
-      StanE.pr_defs=  helpers @ data_variables @ param_variables @ structs @ stanlib_functions @ functions @ all_math_fns;
-      StanE.pr_public=
-        List.map fst functions
-        @ List.map fst stanlib_functions @ List.map fst all_math_fns;
+      StanE.pr_defs=  helpers @ data_variables @ param_variables @ structs @ functions @ all_math_fns;
+      StanE.pr_public= List.map fst functions @ List.map fst all_math_fns;
       StanE.pr_data_vars=data_fields;
       StanE.pr_data_struct=data_reserved;
       StanE.pr_parameters_vars=param_fields;

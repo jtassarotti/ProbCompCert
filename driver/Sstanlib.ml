@@ -48,7 +48,7 @@ let mk_global_func ret str ast_args_list =
        (AST.EF_external
           (to_charlist str, {
             AST.sig_args=ast_args_list;
-            AST.sig_res=ret;
+            AST.sig_res=AST.Tret ret;
             AST.sig_cc=AST.cc_default;
           }),
        mk_ctypelist_from_astlist ast_args_list,
@@ -56,9 +56,9 @@ let mk_global_func ret str ast_args_list =
        AST.cc_default
     ))
 
-let mk_global_math_func = mk_global_func (AST.Tret AST.Tfloat)
+      (* let mk_global_math_func = mk_global_func (AST.Tret AST.Tfloat) *)
 
-
+(*
                         
 let st_uniform_lpdf = "uniform_lpdf"
 let id_uniform_lpdf = Camlcoq.intern_string st_uniform_lpdf
@@ -95,6 +95,11 @@ let id_bernoulli_logit_lpmf = Camlcoq.intern_string st_bernoulli_logit_lpmf
 let ty_bernoulli_logit_lpmf = StanE.Bfunction (StanE.Bcons (bint, (StanE.Bcons (bdouble, StanE.Bnil))), bdouble)
 let gl_bernoulli_logit_lpmf = mk_global_math_func st_bernoulli_logit_lpmf [AST.Tint; AST.Tfloat]                      
 
+ *)
+
+
+
+(*
 let transf_dist_idents = Hashtbl.create 3;;
 Hashtbl.add transf_dist_idents "uniform" (id_uniform_lpdf, ty_uniform_lpdf);
 Hashtbl.add transf_dist_idents "bernoulli" (id_bernoulli_lpmf, ty_bernoulli_lpmf);
@@ -103,6 +108,9 @@ Hashtbl.add transf_dist_idents "bernoulli_logit" (id_bernoulli_logit_lpmf, ty_be
 Hashtbl.add transf_dist_idents "normal" (id_normal_lpdf, ty_normal_lpdf);
 Hashtbl.add transf_dist_idents "cauchy" (id_cauchy_lpdf, ty_cauchy_lpdf);
 Hashtbl.add transf_dist_idents "exponential" (id_exponential_lpdf, ty_exponential_lpdf)
+ *)
+
+(*
 let stanlib_functions = [
     (* (id_uniform_lpdf,   gl_uniform_lpdf);*)
     (id_bernoulli_lpmf, gl_bernoulli_lpmf);
@@ -112,7 +120,7 @@ let stanlib_functions = [
     (id_bernoulli_logit_lpmf, gl_bernoulli_logit_lpmf);
     (id_exponential_lpdf, gl_exponential_lpdf)
   ]
-
+ *)
 
 (* <><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><> *)
 (*                              math functions                                  *)
@@ -122,23 +130,41 @@ let _ = Camlcoq.use_canonical_atoms := true
 
 let library_math_functions = [
     "log",
-    AST.Tret AST.Tfloat,
+    AST.Tfloat,
     [AST.Tfloat];
     "exp",
-    AST.Tret AST.Tfloat,
+    AST.Tfloat,
     [AST.Tfloat];
     "logit",
-    AST.Tret AST.Tfloat,
+    AST.Tfloat,
     [AST.Tfloat];
     "expit",
-    AST.Tret AST.Tfloat,
+    AST.Tfloat,
     [AST.Tfloat];
     "sqrt",
-    AST.Tret AST.Tfloat,
+    AST.Tfloat,
     [AST.Tfloat];
     "uniform_lpdf",
-    AST.Tret AST.Tfloat,
-    [AST.Tfloat; AST.Tfloat; AST.Tfloat]
+    AST.Tfloat,
+    [AST.Tfloat; AST.Tfloat; AST.Tfloat];
+    "normal_lpdf",
+    AST.Tfloat,
+    [AST.Tfloat; AST.Tfloat; AST.Tfloat];
+    "cauchy_lpdf",
+    AST.Tfloat,
+    [AST.Tfloat; AST.Tfloat; AST.Tfloat];
+    "exponential_lpdf",
+    AST.Tfloat,
+    [AST.Tfloat; AST.Tfloat];
+    "bernoulli_lpmf",
+    AST.Tfloat,
+    [AST.Tint; AST.Tfloat];
+    "poisson_lpmf",
+    AST.Tfloat,
+    [AST.Tint; AST.Tfloat];
+    "bernoulli_logit_lpmf",
+    AST.Tfloat,
+    [AST.Tint; AST.Tfloat];    
   ]
 
 let library_function_declaration (name, tyres, tyargs) =
@@ -146,9 +172,33 @@ let library_function_declaration (name, tyres, tyargs) =
                    
 let all_math_fns = List.map library_function_declaration library_math_functions
 
+let convert_AST_to_Stan ty =
+  match ty with
+  | AST.Tfloat -> StanE.Breal
+  | AST.Tint -> StanE.Bint
+  | _ -> raise (NIY_stanlib "Missing type conversion")
+       
+let rec search library name =
+  match library with
+  | [] -> raise (NIY_stanlib ("Missing function: " ^ name))
+  | f :: l ->
+     begin
+     match f with
+     | f_name, tyret, tyargs ->
+        print_string ("Comparing: " ^ f_name ^ "\n");
+        flush(stdout);
+        if ((f_name = name) || (f_name = (name^"_lpdf")) || (f_name = (name^"_lpmf")))
+                                then f else search l name
+     end
 
-
-
+let rec type_of_parameters tyargs =
+  match tyargs with
+  | [] -> StanE.Bnil
+  | arg :: args -> StanE.Bcons (convert_AST_to_Stan arg, type_of_parameters args)
+    
+let type_of_library_function name =
+  let (f,tyret,tyargs) = search library_math_functions name in
+  (f,StanE.Bfunction (type_of_parameters tyargs, convert_AST_to_Stan tyret))
 
 
 
