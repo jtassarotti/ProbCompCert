@@ -62,26 +62,7 @@ let declareGlobalStruct s =
       a_inline = No_specifier;
       a_loc = (s,0) };
   id
-
-(* <><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><> *)
-(*                               Global Arrays                                  *)
-(* <><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><> *)
-let replicate n ls =
-    let rec f l = function
-        | 0 -> l
-        | n -> f (List.rev_append ls l) (n-1) in
-    List.rev (f [] n)
-
-let mk_global_array ty len = AST.Gvar {
-  AST.gvar_readonly = false;
-  AST.gvar_volatile = false;
-  AST.gvar_init = replicate (to_int len) ty;
-  AST.gvar_info = {
-    StanE.vd_type = StanE.Barray (StanE.Bint, (Camlcoq.coqint_of_camlint len));
-    StanE.vd_constraint = StanE.Cidentity;
-  };
-}
-                     
+                   
 (* <><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><> *)
 (*                                 Type Lookup                                  *)
 (* <><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><> *)
@@ -94,7 +75,6 @@ module IdxTable =
     let equal i j = i=j
     let hash = Hashtbl.hash
   end
-    (* let hash p = Camlcoq.P.to_int p *)
 
 module IdxHashtbl = Hashtbl.Make(IdxTable)
 let index_set = IdxHashtbl.create 123456;;
@@ -363,13 +343,6 @@ let transf_v_init v dims =
   | _ -> []
 let str_to_coqint s =
   (Camlcoq.coqint_of_camlint (of_int (int_of_string s)))
-
-let transf_v_type v dims =
-  match (v, dims) with
-  | (Stan.Bint,  [Stan.Econst_int l]) -> ctarray (tint, str_to_coqint l)
-  | (Stan.Breal, [Stan.Econst_int l]) -> ctarray (tdouble, str_to_coqint l)
-  (* | (ty,  []) -> ty *)
-  | _ -> raise (NIY_elab "transf_v_type: type conversion not yet implemented")
 
 let stype2basic s =
   match s with

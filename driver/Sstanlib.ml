@@ -1,13 +1,10 @@
 open List
+open Ctypesdefs
    
 exception NIY_stanlib of string
 
 let _ = Camlcoq.use_canonical_atoms := true
-
-let tdouble = Ctypes.Tfloat (Ctypes.F64, Ctypes.noattr)
-let tint = Ctypes.Tint (Ctypes.I32, Ctypes.Signed, Ctypes.noattr)
-let ctarray (t, sz) = Ctypes.Tarray (t, sz, Ctypes.noattr)
-      
+  
 let library_math_functions = [
     "log",
     tdouble,
@@ -45,14 +42,17 @@ let library_math_functions = [
     "bernoulli_logit_lpmf",
     tdouble,
     [tint; tdouble];
+    "log_sum_exp",
+    tdouble,
+    [tptr tdouble; tint]
   ]
  
-let mk_global_func ret str args =
+let declare_external_function name ret args =
   let tyargs =
     List.fold_right (fun t tl -> Ctypes.Tcons(t, tl)) args Ctypes.Tnil in
     AST.Gfun (Ctypes.External
        (AST.EF_external
-          (List.init (String.length str) (String.get str), {
+          (List.init (String.length name) (String.get name), {
             AST.sig_args=Ctypes.typlist_of_typelist tyargs;
             AST.sig_res=Ctypes.rettype_of_type ret;
             AST.sig_cc=AST.cc_default;
@@ -63,7 +63,7 @@ let mk_global_func ret str args =
     ))
                            
 let library_function_declaration (name, tyres, tyargs) =
-  (Camlcoq.intern_string name, mk_global_func tyres name tyargs)
+  (Camlcoq.intern_string name, declare_external_function name tyres tyargs)
                    
 let all_math_fns = List.map library_function_declaration library_math_functions
 
