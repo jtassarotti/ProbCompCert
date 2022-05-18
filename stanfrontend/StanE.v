@@ -80,7 +80,6 @@ Record program := mkprogram {
   pr_defs: list (ident * globdef fundef variable);
   pr_public: list ident;
   pr_model: ident;
-  pr_target: ident;
   pr_parameters_vars: list (ident * basic);
   pr_data_vars: list (ident * basic);
 }.

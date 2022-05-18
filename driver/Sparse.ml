@@ -477,12 +477,10 @@ let elaborate (sourcefile : string) (p: Stan.program) =
     let functions = [] in
 
     IdxHashtbl.clear index_set;
-    (* let target_arg = ((Stypes.Aauto_diffable, StanE.Breal), "target") in
-     * let (id_model,f_model) = mkFunction "model" (get_code m) (Some StanE.Breal) [target_arg] [] in *)
-    let (id_target, ty_target) = (Camlcoq.intern_string "target", StanE.Breal) in
-    let target_var = (id_target, ty_target) in
+
+    let _ = Camlcoq.intern_string "target" in
     let (id_model,f_model) =
-      mkFunction "model" ((get_code td) @ (get_code tp) @ (get_code m)) (Some StanE.Breal) [] [] [target_var] in
+      mkFunction "model" ((get_code td) @ (get_code tp) @ (get_code m)) (Some StanE.Breal) [] [] [] in 
 
     let functions = (id_model,f_model) :: functions in
  
@@ -501,7 +499,7 @@ let elaborate (sourcefile : string) (p: Stan.program) =
     let id_params_struct_global_state = declareGlobalStruct "state" in 
 
     let (id_data_struct_typ, gl_data_struct) = declareStruct "Data" data_fields in
-    let id_data_struct_global = declareGlobalStruct "observation" in
+    let id_data_struct_global = declareGlobalStruct "observations" in
 
     let structs = [
         (id_params_struct_global_state, gl_params_struct);
@@ -516,7 +514,6 @@ let elaborate (sourcefile : string) (p: Stan.program) =
       StanE.pr_data_vars=data_fields;
       StanE.pr_parameters_vars=param_fields;
       StanE.pr_model=id_model;
-      StanE.pr_target=id_target;
     }
 
 let location t =

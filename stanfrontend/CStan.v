@@ -185,7 +185,6 @@ Record program : Type := {
   prog_defs: list (ident * globdef fundef type);
   prog_public: list ident;
   prog_model: ident;
-  prog_target: ident;
   prog_constraints: list (ident * constraint);
   prog_parameters_vars: list (ident * type);
   prog_data_vars: list (ident * type);
@@ -299,7 +298,7 @@ Definition transf_function_basic (p:CStan.program) (f: function): res (function)
       fn_params := f.(fn_params);
       fn_body := tbody;
 
-      fn_temps := g.(SimplExpr.gen_trail) ++ f.(fn_temps);
+      fn_temps := g.(SimplExpr.gen_trail); (* ++ f.(fn_temps);*)
       fn_vars := f.(fn_vars);
       fn_generator := g;
 
@@ -343,7 +342,6 @@ Definition transf_program(p: CStan.program): res CStan.program :=
       prog_parameters_vars:= p.(prog_parameters_vars);
 
       prog_model:=p.(prog_model);
-      prog_target:=p.(prog_target);
 
       prog_types:=p.(prog_types);
       prog_comp_env:=p.(prog_comp_env);

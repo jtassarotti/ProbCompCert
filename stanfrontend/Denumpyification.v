@@ -436,7 +436,6 @@ Definition transf_program(p: StanE.program): Errors.res CStan.program :=
       CStan.prog_defs := all_defs;
       CStan.prog_public:=p.(StanE.pr_public);
       CStan.prog_model:=p.(StanE.pr_model);
-      CStan.prog_target:= $"target"; 
       CStan.prog_data_vars:=data_vars;
       CStan.prog_constraints := all_contraints;
       CStan.prog_parameters_vars:=parameter_vars;

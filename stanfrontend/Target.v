@@ -4,6 +4,11 @@ Require Import Floats.
 Require Import Ctypes.
 Require Import CStan.
 Require Import Errors. 
+Require Import Clightdefs. 
+Import Clightdefs.ClightNotations.
+Local Open Scope Z_scope.
+Local Open Scope string_scope.
+Local Open Scope clight_scope.
 
 Notation "'do' X <- A ; B" := (bind A (fun X => B))
    (at level 200, X ident, A at level 100, B at level 200)
@@ -57,7 +62,7 @@ Definition option_res_mmap {X Y:Type} (f: X -> res Y) (ox: option X) : res (opti
   end.
 
 Fixpoint transf_statement (p: program) (s: CStan.statement) {struct s}: res CStan.statement :=
-let t := p.(prog_target) in
+let t := $"target" in
 match s with
   | Sassign e0 e1 =>
     do e0 <- transf_expr t e0;
@@ -120,13 +125,12 @@ Definition add_prelude_epilogue (tgt: AST.ident) (body: statement) : statement :
   Ssequence prelude (Ssequence body epilogue).
 
 Definition transf_function (p: program) (f: function): res function :=
-  let tgt := p.(prog_target) in
   do body <- transf_statement p f.(fn_body);
   OK {|
       fn_params := f.(fn_params);
-      fn_body := add_prelude_epilogue tgt body;
+      fn_body := add_prelude_epilogue $"target" body;
 
-      fn_temps := f.(fn_temps);
+      fn_temps :=  ($"target",tdouble) :: f.(fn_temps); 
       fn_vars := f.(fn_vars);
       fn_generator := f.(fn_generator);
 

@@ -157,7 +157,7 @@ Definition transf_statement_toplevel (p: program) (f: function): mon (list (AST.
   let TDataStruct := Tstruct $"Data" noattr in
   let TDataStructp := tptr TDataStruct in
 
-  let data_map := {| is_member := in_list (List.map fst p.(prog_data_vars)); transl := as_field $"Data" $"observation"; |} in
+  let data_map := {| is_member := in_list (List.map fst p.(prog_data_vars)); transl := as_field $"Data" $"observations"; |} in
   let cast := fun arg tmp ty => Sassign (Evar tmp ty) (CStan.Ecast arg ty) in
 
   let params_map := {|
@@ -183,7 +183,7 @@ Definition transf_function (p:CStan.program) (f: function): res function :=
       fn_return := rtype;
 
       (* NOTE only extract gen_trail here *)
-      fn_temps := g.(SimplExpr.gen_trail) ++ f.(fn_temps);
+      fn_temps := g.(SimplExpr.gen_trail); (* ++ f.(fn_temps);*)
       (* fn_temps := g.(SimplExpr.gen_trail); *)
       fn_generator := g;
 
