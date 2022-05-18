@@ -11,6 +11,14 @@ Require Import Cop.
 Require Import Clightdefs.
 Require Import Int.
 Require Import SimplExpr.
+Require Import Maps.
+
+Import Clightdefs.ClightNotations.
+Local Open Scope Z_scope.
+
+Local Open Scope clight_scope.
+
+
 
 Notation "'do' X <- A ; B" := (Errors.bind A (fun X => B))
    (at level 200, X ident, A at level 100, B at level 200)
@@ -408,10 +416,7 @@ Definition transf_program(p: StanE.program): Errors.res CStan.program :=
   let all_defs := map_values transf_elaborated_globdef all_elaborated_defs in
   let all_contraints := cat_values (map_values eglobdef_to_constr all_elaborated_defs) in
 
-  let params_struct_id := CStan.res_params_type (StanE.pr_parameters_struct p) in
-  (* (* let params_struct := mk_composite all_defs params_struct_id p.(StanE.pr_parameters_vars) in *) *)
-  (* let params_struct := Composite params_struct_id Ctypes.Struct (filter_globvars all_defs p.(StanE.pr_parameters_vars)) Ctypes.noattr in *)
-  (* (* Error (MSG "list of params: " :: (List.map CTX p.(StanE.pr_parameters_vars))). *) *)
+  let params_struct_id := $"Params" in 
 
   do parameter_vars <- list_mmap_res (fun ib => do b <- transf_type_res (snd ib); Errors.OK (fst ib, b)) p.(StanE.pr_parameters_vars);
   let parameter_members := List.map (fun tlp => Member_plain (fst tlp) (snd tlp)) parameter_vars in
@@ -431,13 +436,12 @@ Definition transf_program(p: StanE.program): Errors.res CStan.program :=
       CStan.prog_defs := all_defs;
       CStan.prog_public:=p.(StanE.pr_public);
       CStan.prog_model:=p.(StanE.pr_model);
-      CStan.prog_target:=p.(StanE.pr_target);
+      CStan.prog_target:= $"target"; 
       CStan.prog_data_vars:=data_vars;
       CStan.prog_data_struct:= p.(StanE.pr_data_struct);
       CStan.prog_constraints := all_contraints;
       CStan.prog_parameters_vars:=parameter_vars;
-      CStan.prog_parameters_struct:= p.(StanE.pr_parameters_struct);
-      CStan.prog_types:=composite_types;
-      CStan.prog_comp_env:=comp_env;
-      CStan.prog_comp_env_eq:= comp_env_eq composite_types comp_env;
+      CStan.prog_types:= composite_types;
+      CStan.prog_comp_env:= comp_env;
+      CStan.prog_comp_env_eq:= comp_env_eq composite_types comp_env; 
     |}.

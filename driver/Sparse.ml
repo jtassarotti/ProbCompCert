@@ -496,18 +496,10 @@ let elaborate (sourcefile : string) (p: Stan.program) =
     let gl1 = C2C.convertGlobdecls Env.empty [] (Env.initial_declarations()) in
     let _ = C2C.globals_for_strings gl1 in
     (* <><><><><><><><><><><><><><><> structs <><><><><><><><><><><><><><><> *)
-    let (id_params_struct_typ, gl_params_struct) = declareStruct "Params" param_fields in
-    let id_params_struct_global_state = declareGlobalStruct "state" in
+
+    let (id_params_struct_typ, gl_params_struct) = declareStruct "Params" param_fields in 
+    let id_params_struct_global_state = declareGlobalStruct "state" in 
     let id_params_struct_global_proposal = declareGlobalStruct "candidate" in
-    let id_params_struct_arg = Camlcoq.intern_string "__p__" in
-    let id_params_struct_tmp = Camlcoq.intern_string "__pt__" in
-    let params_reserved = {
-      CStan.res_params_type = id_params_struct_typ;
-      CStan.res_params_global_state = id_params_struct_global_state;
-      CStan.res_params_global_proposal = id_params_struct_global_proposal;
-      CStan.res_params_arg = id_params_struct_arg;
-      CStan.res_params_tmp = id_params_struct_tmp;
-    } in
 
     let (id_data_struct_typ, gl_data_struct) = declareStruct "Data" data_fields in
     let id_data_struct_global = declareGlobalStruct "observation" in
@@ -531,7 +523,7 @@ let elaborate (sourcefile : string) (p: Stan.program) =
       StanE.pr_data_vars=data_fields;
       StanE.pr_data_struct=data_reserved;
       StanE.pr_parameters_vars=param_fields;
-      StanE.pr_parameters_struct=params_reserved;
+      (*StanE.pr_parameters_struct=params_reserved;*)
       StanE.pr_model=id_model;
       StanE.pr_target=id_target;
     }

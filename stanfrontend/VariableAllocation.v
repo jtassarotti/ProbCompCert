@@ -14,6 +14,12 @@ Require Import Integers.
 Require Import Clightdefs.
 Require AST.
 Require Import SimplExpr. 
+Require Import Clightdefs. 
+Import Clightdefs.ClightNotations.
+Local Open Scope Z_scope.
+Local Open Scope string_scope.
+Local Open Scope clight_scope.
+
 
 Notation "'do' X <~ A ; B" := (SimplExpr.bind A (fun X => B))
    (at level 200, X ident, A at level 100, B at level 200)
@@ -142,11 +148,10 @@ Definition transf_statement_toplevel (p: program) (f: function): mon (list (AST.
   let darg := CStan.Evar data.(res_data_arg) (tptr tvoid) in
   let dtmp := data.(res_data_tmp) in
 
-  let params := p.(prog_parameters_struct) in
-  let parg := CStan.Evar params.(res_params_arg) (tptr tvoid) in
-  let ptmp := params.(res_params_tmp) in
+  let parg := CStan.Evar $"__p__" (tptr tvoid) in
+  let ptmp := $"__pt__" in
 
-  let TParamStruct := Tstruct params.(res_params_type) noattr in
+  let TParamStruct := Tstruct $"Params" noattr in 
   let TParamStructp := tptr TParamStruct in
 
   let TDataStruct := Tstruct data.(res_data_type) noattr in
@@ -157,14 +162,14 @@ Definition transf_statement_toplevel (p: program) (f: function): mon (list (AST.
 
   let params_map := {|
       is_member := in_list (List.map fst p.(prog_parameters_vars));
-      transl := as_fieldp params.(res_params_type) ptmp;
+      transl := as_fieldp $"Params" ptmp; 
     |} in
 
     let body := Ssequence (cast parg ptmp TParamStructp) f.(fn_body) in
     do body <~ transf_statement params_map body;
     do body <~ transf_statement data_map body;
 
-    ret (cons_tail (params.(res_params_arg), tptr tvoid) f.(fn_params), (ptmp, TParamStructp)::f.(fn_vars), body, f.(fn_return))
+    ret (cons_tail ($"__p__", tptr tvoid) f.(fn_params), (ptmp, TParamStructp)::f.(fn_vars), body, f.(fn_return))
 .
 
 Definition transf_function (p:CStan.program) (f: function): res function :=

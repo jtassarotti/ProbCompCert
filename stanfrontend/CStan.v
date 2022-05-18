@@ -188,7 +188,6 @@ Record program : Type := {
   prog_target: ident;
   prog_constraints: list (ident * constraint);
   prog_parameters_vars: list (ident * type);
-  prog_parameters_struct: reserved_params;
   prog_data_vars: list (ident * type);
   prog_data_struct: reserved_data;
   prog_types: list composite_definition;
@@ -344,7 +343,6 @@ Definition transf_program(p: CStan.program): res CStan.program :=
 
       prog_constraints := p.(prog_constraints);
       prog_parameters_vars:= p.(prog_parameters_vars);
-      prog_parameters_struct:= p.(prog_parameters_struct);
 
       prog_model:=p.(prog_model);
       prog_target:=p.(prog_target);

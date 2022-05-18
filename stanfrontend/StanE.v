@@ -83,8 +83,6 @@ Record program := mkprogram {
   pr_target: ident;
   pr_parameters_vars: list (ident * basic);
   pr_data_vars: list (ident * basic);
-  (* What follows is information for the compiler specifically *)
-  pr_parameters_struct: CStan.reserved_params;
   pr_data_struct: CStan.reserved_data;
 }.
 
