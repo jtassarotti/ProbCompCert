@@ -146,7 +146,7 @@ Definition cons_tail {X:Type} (x : X) (xs : list X) :=
 Definition transf_statement_toplevel (p: program) (f: function): mon (list (AST.ident * Ctypes.type) * list (AST.ident * Ctypes.type) * statement * type) :=
 
   let darg := CStan.Evar $"__d__" (tptr tvoid) in
-  let dtmp := $"__dt__" in
+  let dtmp := $"__d__" in
 
   let parg := CStan.Evar $"__p__" (tptr tvoid) in
   let ptmp := $"__p__" in
@@ -157,7 +157,9 @@ Definition transf_statement_toplevel (p: program) (f: function): mon (list (AST.
   let TDataStruct := Tstruct $"Data" noattr in
   let TDataStructp := tptr TDataStruct in
 
-  let data_map := {| is_member := in_list (List.map fst p.(prog_data_vars)); transl := as_field $"Data" $"observations"; |} in
+  let data_map := {| 
+      is_member := in_list (List.map fst p.(prog_data_vars)); 
+      transl := as_field $"Data" dtmp; |} in
   let cast := fun arg tmp ty => Sassign (Evar tmp ty) (CStan.Ecast arg ty) in
 
   let params_map := {|
@@ -168,7 +170,7 @@ Definition transf_statement_toplevel (p: program) (f: function): mon (list (AST.
     do body <~ transf_statement params_map f.(fn_body);
     do body <~ transf_statement data_map body;
 
-    ret (cons_tail ($"__p__", TParamStructp) nil, f.(fn_vars), body, f.(fn_return))
+    ret (cons_tail ($"__p__", TParamStructp) (cons_tail ($"__d__", TDataStructp) nil), f.(fn_vars), body, f.(fn_return))
 .
 
 Definition transf_function (p:CStan.program) (f: function): res function :=

@@ -12,60 +12,6 @@ exception NIY_elab of string
 exception Unsupported of string
 exception TypeError of string
 
-(* <><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><> *)
-(*                               Struct work                                    *)
-(* <><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><> *)
-
-let sizeof_basic t =
-  begin match t with
-  | StanE.Bint -> 4l
-  | StanE.Breal -> 8l
-  | StanE.Barray (ty, n) -> Int32.mul 8l  (Camlcoq.camlint_of_coqint n)
-  | _ -> raise (Invalid_argument "Sparse does not calculate the size of this type")
-  end
-  
-let sizeof_struct vars =
-  List.fold_left (fun total var -> Int32.add total (sizeof_basic (snd var))) 0l vars
-  
-let init_struct members = AST.Init_space (Camlcoq.coqint_of_camlint (sizeof_struct members))
-                     
-let mkGlobalStruct i members = AST.Gvar {
-  AST.gvar_readonly = false;
-  AST.gvar_volatile = false;
-  AST.gvar_init = [init_struct members];
-  AST.gvar_info = {
-    StanE.vd_type = StanE.Bint; (* This is a placeholder, we just need to declare the structure's existence  *)
-    StanE.vd_constraint = StanE.Cidentity;
-  };
-}
-
-let declareStruct s members =
-  let id = Camlcoq.intern_string s in
-  Hashtbl.add decl_atom id
-    { a_storage = C.Storage_default;
-      a_alignment = None;
-      a_size = None;
-      a_sections = [Sections.Section_data Sections.Uninit];
-      a_access = Sections.Access_default;
-      a_inline = No_specifier;
-      a_loc = (s,0) };
-  (id, mkGlobalStruct id members)
-
-let declareGlobalStruct s =
-  let id = Camlcoq.intern_string s in
-  Hashtbl.add decl_atom id
-    { a_storage = C.Storage_default;
-      a_alignment = None;
-      a_size = None;
-      a_sections = [Sections.Section_data Sections.Uninit];
-      a_access = Sections.Access_default;
-      a_inline = No_specifier;
-      a_loc = (s,0) };
-  id
-                   
-(* <><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><> *)
-(*                                 Type Lookup                                  *)
-(* <><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><> *)
 let type_table = Hashtbl.create 123456;;
 Hashtbl.add type_table "target" StanE.Breal
 
@@ -476,12 +422,10 @@ let elaborate (sourcefile : string) (p: Stan.program) =
 
     let functions = [] in
 
-    IdxHashtbl.clear index_set;
-
     let _ = Camlcoq.intern_string "target" in
     let (id_model,f_model) =
       mkFunction "model" ((get_code td) @ (get_code tp) @ (get_code m)) (Some StanE.Breal) [] [] [] in 
-
+    
     let functions = (id_model,f_model) :: functions in
  
     let functions =
@@ -493,27 +437,18 @@ let elaborate (sourcefile : string) (p: Stan.program) =
 
     let gl1 = C2C.convertGlobdecls Env.empty [] (Env.initial_declarations()) in
     let _ = C2C.globals_for_strings gl1 in
-    (* <><><><><><><><><><><><><><><> structs <><><><><><><><><><><><><><><> *)
 
-    let (id_params_struct_typ, gl_params_struct) = declareStruct "Params" param_fields in 
-    let id_params_struct_global_state = declareGlobalStruct "state" in 
+
+    let _ =  Camlcoq.intern_string "Params" in
+    let _ = Camlcoq.intern_string "Data" in
     let _ = Camlcoq.intern_string "__p__" in
-    let _ = Camlcoq.intern_string "__pt__" in
-    
-    let (id_data_struct_typ, gl_data_struct) = declareStruct "Data" data_fields in
-    let id_data_struct_global = declareGlobalStruct "observations" in
     let _ = Camlcoq.intern_string "__d__" in
-    let _ = Camlcoq.intern_string "__dt__" in
 
-    let structs = [
-        (id_params_struct_global_state, gl_params_struct);
-        (id_data_struct_global, gl_data_struct)] in
-    
     let helpers = add_helper_functions [] in
     let all_math_fns = declare_library () in
     
     {
-      StanE.pr_defs=  helpers @ data_variables @ param_variables @ structs @ functions @ all_math_fns;
+      StanE.pr_defs=  helpers @ data_variables @ param_variables @ functions @ all_math_fns;
       StanE.pr_public= List.map fst functions @ List.map fst all_math_fns;
       StanE.pr_data_vars=data_fields;
       StanE.pr_parameters_vars=param_fields;

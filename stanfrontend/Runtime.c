@@ -7,7 +7,7 @@
 // Note that we do not respect the Stan spec because we inline
 // the transformed data and transformed parameters blocks
 
-double model(void* p);
+double model(struct Data* d, void* p);
 
 int main(int argc, char* argv[]) {
   if (argc == 1) {
@@ -35,14 +35,14 @@ int main(int argc, char* argv[]) {
     void* pi = get_state();
     print_params(pi);
     //transformed_parameters(pi);
-    double lp_parameters = model(pi);
+    double lp_parameters = model(&observations,pi);
     printf("P = %f\n",exp(lp_parameters));
 
     printf("\nproposal:\n");
     void* newpi = propose(pi);
     //transformed_parameters(newpi);
     print_params(newpi);
-    double lp_candidate = model(newpi);
+    double lp_candidate = model(&observations,newpi);
     printf("P = %f\n",exp(lp_candidate));
     
     double lu = log((double) rand() / RAND_MAX);
