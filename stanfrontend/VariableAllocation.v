@@ -149,7 +149,7 @@ Definition transf_statement_toplevel (p: program) (f: function): mon (list (AST.
   let dtmp := $"__dt__" in
 
   let parg := CStan.Evar $"__p__" (tptr tvoid) in
-  let ptmp := $"__pt__" in
+  let ptmp := $"__p__" in
 
   let TParamStruct := Tstruct $"Params" noattr in 
   let TParamStructp := tptr TParamStruct in
@@ -165,11 +165,10 @@ Definition transf_statement_toplevel (p: program) (f: function): mon (list (AST.
       transl := as_fieldp $"Params" ptmp; 
     |} in
 
-    let body := Ssequence (cast parg ptmp TParamStructp) f.(fn_body) in
-    do body <~ transf_statement params_map body;
+    do body <~ transf_statement params_map f.(fn_body);
     do body <~ transf_statement data_map body;
 
-    ret (cons_tail ($"__p__", tptr tvoid) f.(fn_params), (ptmp, TParamStructp)::f.(fn_vars), body, f.(fn_return))
+    ret (cons_tail ($"__p__", TParamStructp) nil, f.(fn_vars), body, f.(fn_return))
 .
 
 Definition transf_function (p:CStan.program) (f: function): res function :=
@@ -182,9 +181,8 @@ Definition transf_function (p:CStan.program) (f: function): res function :=
       fn_vars := vars;
       fn_return := rtype;
 
-      (* NOTE only extract gen_trail here *)
-      fn_temps := g.(SimplExpr.gen_trail); (* ++ f.(fn_temps);*)
-      (* fn_temps := g.(SimplExpr.gen_trail); *)
+      fn_temps := g.(SimplExpr.gen_trail); 
+
       fn_generator := g;
 
       fn_callconv := f.(fn_callconv);
