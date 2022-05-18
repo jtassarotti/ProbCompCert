@@ -497,9 +497,13 @@ let elaborate (sourcefile : string) (p: Stan.program) =
 
     let (id_params_struct_typ, gl_params_struct) = declareStruct "Params" param_fields in 
     let id_params_struct_global_state = declareGlobalStruct "state" in 
-
+    let _ = Camlcoq.intern_string "__p__" in
+    let _ = Camlcoq.intern_string "__pt__" in
+    
     let (id_data_struct_typ, gl_data_struct) = declareStruct "Data" data_fields in
     let id_data_struct_global = declareGlobalStruct "observations" in
+    let _ = Camlcoq.intern_string "__d__" in
+    let _ = Camlcoq.intern_string "__dt__" in
 
     let structs = [
         (id_params_struct_global_state, gl_params_struct);
