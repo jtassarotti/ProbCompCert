@@ -499,20 +499,13 @@ let elaborate (sourcefile : string) (p: Stan.program) =
 
     let (id_params_struct_typ, gl_params_struct) = declareStruct "Params" param_fields in 
     let id_params_struct_global_state = declareGlobalStruct "state" in 
-    let id_params_struct_global_proposal = declareGlobalStruct "candidate" in
 
     let (id_data_struct_typ, gl_data_struct) = declareStruct "Data" data_fields in
     let id_data_struct_global = declareGlobalStruct "observation" in
-    let id_data_struct_arg = Camlcoq.intern_string "__d__" in
-    let id_data_struct_tmp = Camlcoq.intern_string "__dt__" in
-    let data_reserved = {
-      CStan.res_data_type = id_data_struct_typ;
-      CStan.res_data_global = id_data_struct_global;
-      CStan.res_data_arg = id_data_struct_arg;
-      CStan.res_data_tmp = id_data_struct_tmp;
-    } in
 
-    let structs = [(id_params_struct_global_state, gl_params_struct); (id_params_struct_global_proposal, gl_params_struct); (id_data_struct_global, gl_data_struct)] in
+    let structs = [
+        (id_params_struct_global_state, gl_params_struct);
+        (id_data_struct_global, gl_data_struct)] in
     
     let helpers = add_helper_functions [] in
     let all_math_fns = declare_library () in
@@ -521,9 +514,7 @@ let elaborate (sourcefile : string) (p: Stan.program) =
       StanE.pr_defs=  helpers @ data_variables @ param_variables @ structs @ functions @ all_math_fns;
       StanE.pr_public= List.map fst functions @ List.map fst all_math_fns;
       StanE.pr_data_vars=data_fields;
-      StanE.pr_data_struct=data_reserved;
       StanE.pr_parameters_vars=param_fields;
-      (*StanE.pr_parameters_struct=params_reserved;*)
       StanE.pr_model=id_model;
       StanE.pr_target=id_target;
     }

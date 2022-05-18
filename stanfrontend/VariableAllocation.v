@@ -144,9 +144,9 @@ Definition cons_tail {X:Type} (x : X) (xs : list X) :=
   end.
 
 Definition transf_statement_toplevel (p: program) (f: function): mon (list (AST.ident * Ctypes.type) * list (AST.ident * Ctypes.type) * statement * type) :=
-  let data := p.(prog_data_struct) in
-  let darg := CStan.Evar data.(res_data_arg) (tptr tvoid) in
-  let dtmp := data.(res_data_tmp) in
+
+  let darg := CStan.Evar $"__d__" (tptr tvoid) in
+  let dtmp := $"__dt__" in
 
   let parg := CStan.Evar $"__p__" (tptr tvoid) in
   let ptmp := $"__pt__" in
@@ -154,10 +154,10 @@ Definition transf_statement_toplevel (p: program) (f: function): mon (list (AST.
   let TParamStruct := Tstruct $"Params" noattr in 
   let TParamStructp := tptr TParamStruct in
 
-  let TDataStruct := Tstruct data.(res_data_type) noattr in
+  let TDataStruct := Tstruct $"Data" noattr in
   let TDataStructp := tptr TDataStruct in
 
-  let data_map := {| is_member := in_list (List.map fst p.(prog_data_vars)); transl := as_field data.(res_data_type) data.(res_data_global); |} in
+  let data_map := {| is_member := in_list (List.map fst p.(prog_data_vars)); transl := as_field $"Data" $"observation"; |} in
   let cast := fun arg tmp ty => Sassign (Evar tmp ty) (CStan.Ecast arg ty) in
 
   let params_map := {|

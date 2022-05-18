@@ -422,7 +422,7 @@ Definition transf_program(p: StanE.program): Errors.res CStan.program :=
   let parameter_members := List.map (fun tlp => Member_plain (fst tlp) (snd tlp)) parameter_vars in
   let params_struct := Composite params_struct_id Ctypes.Struct parameter_members Ctypes.noattr in
 
-  let data_struct_id := CStan.res_data_type (StanE.pr_data_struct p) in
+  let data_struct_id := $"Data" in
   do data_vars <- list_mmap_res (fun ib => do b <- transf_type_res (snd ib); Errors.OK (fst ib, b)) p.(StanE.pr_data_vars);
   let data_members := List.map (fun tlp => Member_plain (fst tlp) (snd tlp)) data_vars in
   let data_struct := Composite data_struct_id Ctypes.Struct data_members Ctypes.noattr in
@@ -438,7 +438,6 @@ Definition transf_program(p: StanE.program): Errors.res CStan.program :=
       CStan.prog_model:=p.(StanE.pr_model);
       CStan.prog_target:= $"target"; 
       CStan.prog_data_vars:=data_vars;
-      CStan.prog_data_struct:= p.(StanE.pr_data_struct);
       CStan.prog_constraints := all_contraints;
       CStan.prog_parameters_vars:=parameter_vars;
       CStan.prog_types:= composite_types;

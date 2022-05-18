@@ -83,7 +83,6 @@ Record program := mkprogram {
   pr_target: ident;
   pr_parameters_vars: list (ident * basic);
   pr_data_vars: list (ident * basic);
-  pr_data_struct: CStan.reserved_data;
 }.
 
 Definition program_of_program (p: program) : AST.program fundef variable :=
