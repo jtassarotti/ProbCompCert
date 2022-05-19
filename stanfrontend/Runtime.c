@@ -4,10 +4,7 @@
 #include "stanlib.h"
 #include "prelude.h"
 
-// Note that we do not respect the Stan spec because we inline
-// the transformed data and transformed parameters blocks
-
-double model(struct Data* d, void* p);
+double model(struct Data* d, struct Params *__p__);
 
 int main(int argc, char* argv[]) {
   if (argc == 1) {
@@ -21,28 +18,23 @@ int main(int argc, char* argv[]) {
   read_data(observations,argv[2],"r");
   print_data(observations);
 
-  init_parameters();
+  struct Params* state = alloc_params();
+  read_params(state,argv[2],"r");
+  print_params(state);
+  struct Params* candidate = alloc_params();
   
-  void* pi = get_state();
-  printf("initial state    : ");
-  print_params(pi);
-
-
   for (int i = 0; i < n; ++i) {
 
     printf("\n\n\nIteration: %i\n\n\n", i);
     
-    void* pi = get_state();
-    print_params(pi);
-    //transformed_parameters(pi);
-    double lp_parameters = model(observations,pi);
+    print_params(state);
+    double lp_parameters = model(observations,state);
     printf("P = %f\n",exp(lp_parameters));
 
     printf("\nproposal:\n");
-    void* newpi = propose(pi);
-    //transformed_parameters(newpi);
-    print_params(newpi);
-    double lp_candidate = model(observations,newpi);
+    propose(state,candidate);
+    print_params(candidate);
+    double lp_candidate = model(observations,candidate);
     printf("P = %f\n",exp(lp_candidate));
     
     double lu = log((double) rand() / RAND_MAX);
@@ -50,18 +42,17 @@ int main(int argc, char* argv[]) {
 
     if (lu <= lp_candidate - lp_parameters) {
       printf("\n-> Accepted\n");
-      set_state(newpi);
-      print_params(pi);
+      copy_params(state,candidate);
+      print_params(state);
     } else {
       printf("\n-> Rejected\n");
     }
 
-    //generated_quantities(pi);
   } 
 
   printf("\n...completed execution!");
   printf("\n\nSummary:\n\t");
-  print_params(pi);
+  print_params(state);
   printf("\n");
   return 0;
   

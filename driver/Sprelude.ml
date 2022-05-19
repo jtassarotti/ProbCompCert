@@ -29,92 +29,22 @@ let printPreludeHeader sourcefile data_basics param_basics =
   Printf.fprintf ohc "%s\n" (String.concat "\n" [
     "#ifndef RUNTIME_H";
     "#define RUNTIME_H";
+    "";
     renderStruct "Data" data_basics;
-    (* "extern "^(renderGlobalStruct "observations" "Data" false)^"\n"; *)
     renderStruct "Params" param_basics;
-    "extern "^(renderGlobalStruct "state" "Params" false)^"\n";
     "";
     "void print_data(struct Data* observations);";
     "void read_data(struct Data* observations, char* file,char * perm);";
     "struct Data* alloc_data(void);";
-    "void print_params(void*);";
-    "void* get_state(void);";
-    "void set_state(void*);";
-    "void init_parameters(void);";
-    "void* propose(void *);";
+    "void print_params(struct Params* parameters);";
+    "void read_params(struct Params* parameters, char* file,char * perm);";
+    "struct Params* alloc_params(void);";    
+    "void propose(struct Params* state, struct Params* candidate);";
+    "void copy_params(struct Params* to, struct Params* from);";
     "";
     "#endif";
   ]);
   close_out ohc
-
-let renderGetAndSet global_name struct_type =
-  String.concat "\n" ([
-    "";
-    "void* get_" ^ global_name ^ " () {";
-    "  return (void*) &" ^ global_name ^ ";"; (* FIXME: this "return "*)
-    (* "  void* o = (void*\) " ^ global_name ^ ";"; *)
-    (* "  return o;"; *)
-    "}";
-    "";
-    ("void set_" ^ global_name ^ " (void* opaque) {");
-    ("  struct " ^ struct_type ^ "* s = (struct " ^ struct_type ^ "*) opaque;");
-    ("  " ^ global_name ^ " = *s;");
-    "}";
-    "";
-  ])
-  
-let renderPrintStruct name vs =
-  let field var = "s->" ^ var in
-  let index1 v ix = field v ^ "["^ string_of_int ix ^"]" in
-
-  let printer str var = "printf(\"" ^ str ^ "\", " ^ field var ^ ");" in
-  let typeTmpl t =
-     match t with
-    | StanE.Bint -> "%z"
-    | StanE.Breal -> "%f"
-    | StanE.Barray _ -> "%f"
-    | _ -> raise (NIY_gen "renderPrintStruct.typeTmpl: invalid type")
-  in
-  let range n = List.map (fun x -> x - 1) (List.init n Int.succ) in
-  let loopTmpl1 t size = "[" ^ (String.concat ", " (List.map (fun _ -> typeTmpl t) (range size))) ^ "]\\n" in
-  let loopVars1 v size = (String.concat ",\n    " (List.map (fun i -> index1 v i) (range size))) in
-  let loopPrinter1 v t size = "printf(\"" ^ v ^ " = " ^ loopTmpl1 t size ^ "\", " ^ loopVars1 v size ^ ");" in
-
-  let printField (p, t) =
-    let v = Camlcoq.extern_atom p in
-    match t with
-    | StanE.Breal -> ("  " ^ printer (v ^" = "^typeTmpl t^"\\n") v)
-    | StanE.Bint -> ("  " ^ printer (v ^" = "^typeTmpl t^"\\n") v)
-    | StanE.Barray (StanE.Bint, sz) -> ("  " ^ loopPrinter1 v t (Int32.to_int (Camlcoq.camlint_of_coqint sz)))
-    | StanE.Barray (StanE.Breal, sz) -> ("  " ^ loopPrinter1 v t (Int32.to_int (Camlcoq.camlint_of_coqint sz)))
-    | _ -> raise (NIY_gen "Printer: nested array")
-  in
-  String.concat "\n" ([
-    ("void print_" ^ String.lowercase_ascii name ^ " (void* opaque) {");
-    ("  struct " ^ name ^ "* s = (struct " ^ name ^ "*) opaque;");
-  ] @ (List.map printField vs) @ [
-    "}\n"
-  ])
-
-let renderParameters struct_type struct_vars =
-  let ret = "s" in
-  let renderField (p, t) =
-    let v = Camlcoq.extern_atom p in
-    match t with
-    (* See: https://mc-stan.org/docs/2_29/reference-manual/initialization.html *)
-    (* If there are no user-supplied initial values, the default initialization strategy is to initialize the unconstrained parameters directly with values drawn uniformly from the interval (−2,2) *)
-    | StanE.Breal             -> ("  "^ret^"->" ^ v ^" = 0.0; // For debugging. uniform_sample(-2,2);")
-    | _ -> "todo" (*raise (NIY_gen "renderParameters.renderField: incomplete for this type")*)
-  in
-  String.concat "\n" ([
-    "void init_parameters () {";
-    "  struct " ^ struct_type ^ "* "^ret^" = malloc(sizeof(struct " ^ struct_type ^ "));";
-  ] @ (List.map renderField struct_vars) @ [
-    ("  state = *"^ret^";");
-    (* ("  return "^ret^";"); *)
-    "}";
-    "";
-  ])
 
 let generate_read_data vs =
 
@@ -169,7 +99,73 @@ let generate_alloc_data () =
       "}"
     ]
 
-let printPreludeFile sourcefile data_basics param_basics proposal =
+let generate_read_params vs =
+
+  let generate_single v =
+    let name = Camlcoq.extern_atom (fst v) in
+    let typ = snd v in
+    match typ with
+    | StanE.Bint -> "read_int(fp,&parameters->" ^ name ^ ");"
+    | StanE.Breal -> "read_real(fp,&parameters->" ^ name ^ ");"
+    | StanE.Barray (StanE.Bint,sz) ->
+       "read_int_array(fp,parameters->" ^  name ^ "," ^ (Camlcoq.Z.to_string sz) ^ ");"
+    | StanE.Barray (StanE.Breal,sz) ->
+       "read_real_array(fp,parameters->" ^ name ^ "," ^ (Camlcoq.Z.to_string sz) ^ ");"
+    | _ -> raise (NIY_gen "Array of array or function")
+  in
+
+  String.concat "\n\n" [
+      "void read_params(struct Params* parameters, char* file,char * perm) {";
+      "  FILE *fp;";
+      "  fp = fopen(file, perm);";
+      List.fold_left (fun str -> fun v -> str ^ "  " ^ (generate_single v) ^ "\n") "" vs;
+      "  fclose(fp);";
+      "}"
+    ]  
+  
+let generate_alloc_params () =
+  String.concat "\n\n" [
+      "struct Params* alloc_params() {";
+      "  struct Params* params = (struct Params*) malloc(sizeof(struct Params));";
+      "  return params;";
+      "}"
+    ]
+
+let generate_print_params vs =
+
+  let generate_single v =
+    let name = Camlcoq.extern_atom (fst v) in
+    let typ = snd v in
+    match typ with
+    | StanE.Bint -> "print_int(parameters->" ^ name ^ ");"
+    | StanE.Breal -> "print_real(parameters->" ^ name ^ ");"
+    | StanE.Barray (StanE.Bint,sz) ->
+       "print_int_array(parameters->" ^ name ^ "," ^ (Camlcoq.Z.to_string sz) ^ ");"
+    | StanE.Barray (StanE.Breal,sz) ->
+       "print_real_array(parameters->" ^ name ^ "," ^ (Camlcoq.Z.to_string sz) ^ ");"
+    | _ -> raise (NIY_gen "Array of array or function")
+  in
+
+  String.concat "\n\n" [
+      "void print_params(struct Params* parameters) {";
+      List.fold_left (fun str -> fun v -> str ^ "  " ^ (generate_single v) ^ "\n") "" vs;
+      "}"
+    ]
+
+let generate_copy_params vs =
+
+  let generate_single v =
+    let name = Camlcoq.extern_atom (fst v) in
+    "to->" ^ name ^ " = " ^ "from->" ^ name ^ ";"
+  in
+
+  String.concat "\n\n" [
+      "void copy_params(struct Params* to, struct Params* from) {";
+      List.fold_left (fun str -> fun v -> str ^ "  " ^ (generate_single v) ^ "\n") "" vs;
+      "}"
+    ]    
+  
+let printPreludeFile sourcefile data_basics params_basics proposal =
   let sourceDir = Filename.dirname sourcefile in
   (*let sourceName = Filename.basename sourcefile in
   let preludeName = Filename.chop_extension sourceName in*)
@@ -182,14 +178,15 @@ let printPreludeFile sourcefile data_basics param_basics proposal =
     "#include <stdio.h>";
     "#include \"stanlib.h\"";
     "#include \"prelude.h\"";
-    renderGlobalStruct "state" "Params" false;
+    "";
     proposal;
-    renderGetAndSet "state" "Params";
-    renderPrintStruct "Params" param_basics;
-    renderParameters "Params" param_basics;
     generate_alloc_data ();
     generate_print_data data_basics;
     generate_read_data data_basics;
+    generate_alloc_params();
+    generate_print_params params_basics;
+    generate_read_params params_basics;
+    generate_copy_params params_basics;
   ]);
   close_out oc
         

@@ -2,16 +2,13 @@ exception NIY_propose of string
 
 let generate_prologue () =
   String.concat "\n" [
-      "void* propose (void * opaque_state) {";
-      "  struct Params* s = (struct Params*) opaque_state;";
-      "  struct Params* c = malloc(sizeof (struct Params));";
+      "void propose (struct Params* state, struct Params* candidate) {";
       "  double eps;";
       ""
     ]
 
 let generate_epilogue () =
   String.concat "\n" [
-      "  return c;";
       "}";
       ""
     ]
@@ -21,7 +18,7 @@ let generate_param (id, t) =
   match t with
   | StanE.Breal -> String.concat "\n" [
                    "  eps = randn(0.0,1.0);";
-                   "  c->" ^ name ^" = s->" ^ name ^" + eps;";
+                   "  candidate->" ^ name ^" = state->" ^ name ^" + eps;";
                      ]
   | StanE.Barray (StanE.Breal,sz) -> "Todo"
   | _ -> raise (NIY_propose "Not handling non-real types yet")
