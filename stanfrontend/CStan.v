@@ -129,9 +129,6 @@ Inductive blocktype
   := BTModel
   | BTParameters
   | BTData
-  | BTGetState | BTSetState
-  | BTPropose
-  | BTPrintState | BTPrintData | BTSetData
   | BTOther.
 
 Record function := mkfunction {
@@ -339,6 +336,7 @@ Definition transf_program(p: CStan.program): res CStan.program :=
 
       prog_constraints := p.(prog_constraints);
       prog_parameters_vars:= p.(prog_parameters_vars);
+
 
       prog_types:=p.(prog_types);
       prog_comp_env:=p.(prog_comp_env);

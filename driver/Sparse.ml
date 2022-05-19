@@ -359,16 +359,6 @@ let mkFunction name body rt params extraVars extraTemps =
 
   let blocktypeFundef = function
     | "model" -> CStan.BTModel
-    | "parameters" -> CStan.BTParameters
-    | "data" -> CStan.BTData
-
-    | "get_state" -> CStan.BTGetState (* neither of these are really blocks... *)
-    | "set_state" -> CStan.BTSetState
-    | "propose" -> CStan.BTPropose
-    | "print_state" -> CStan.BTPrintState
-    | "print_data" -> CStan.BTPrintData
-    | "set_data" -> CStan.BTSetData
-
     | _ -> CStan.BTOther
   in
 
