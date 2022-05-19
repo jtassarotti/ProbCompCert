@@ -163,7 +163,7 @@ Definition dist_func_eq_dec : forall (x y : dist_func), { x = y } + { x <> y }.
 Proof.
 decide equality.
 Defined.
-
+(*
 Record reserved_params := mkreserved_params {
   res_params_type: AST.ident;
   res_params_global_state: AST.ident;
@@ -177,7 +177,7 @@ Record reserved_data := mkreserved_data {
   res_data_arg: AST.ident; (* arguments may not be in the temp list and, therefore, cannot be trivially added through gensym *)
   res_data_tmp: AST.ident; (* Cshmgen will not allow us to use temp idents for compond_env lookups *)
 }.
-
+*)
 Record program : Type := {
   prog_defs: list (ident * globdef fundef type);
   prog_public: list ident;

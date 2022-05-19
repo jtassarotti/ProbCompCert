@@ -4,6 +4,10 @@ Require Import Floats.
 Require Import AST.
 Require Ctypes. 
 
+(* For the semantics *)
+Require Import Maps.
+Require Import Values. 
+
 Inductive b_op :=
   | Plus
   | Minus
@@ -86,3 +90,15 @@ Definition program_of_program (p: program) : AST.program fundef variable :=
      AST.prog_main := xH |}.
 
 Coercion program_of_program: program >-> AST.program.
+
+Section EXPR.
+
+Inductive eval_expr: expr -> val -> Prop :=
+  | eval_Econst_int:   forall i ty,
+      eval_expr (Econst_int i ty) (Vint i)
+  | eval_Econst_float:   forall f ty,
+      eval_expr (Econst_float f ty) (Vfloat f)
+
+.
+
+End EXPR.

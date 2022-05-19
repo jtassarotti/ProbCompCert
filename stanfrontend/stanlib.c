@@ -5,6 +5,7 @@
 #define M_PI (3.14159265358979323846)
 #endif
 
+/* A random number generator */
 
 double randn (double mu, double sigma)
 {
@@ -35,6 +36,29 @@ double randn (double mu, double sigma)
   return (mu + sigma * (double) X1);
 }
 
+/* Samplers: useful for the proposal */
+
+double uniform_sample(double l, double r)
+{
+  if (l > r) {
+    return NAN;
+  } else {
+	  return l + (rand() / (RAND_MAX / (r - l)));
+  }
+}
+
+double normal_sample(double mu, double sigma)
+{
+  return randn(mu, sigma);
+}
+
+double bernoulli_sample(double p)
+{
+  return (((double) rand () / RAND_MAX) > p) ? 0 : 1;
+}
+
+/* Ueful math functions */
+
 double logit(double p) {
   return (p <= 0 || p >= 1) ? INFINITY : log(p) - log(1-p);
 }
@@ -43,13 +67,7 @@ double expit(double a) {
   return 1 / (1 + exp(-a));
 }
 
-double log_sum_exp(double a[], int size) {
-  double acc = 0;
-  for (int i = 0; i < size; ++i) {
-    acc += exp(a[i]);
-  }
-  return log(acc);
-}
+/* Density and mass functions */
 
 double uniform_lpdf(double x, double a, double b)
 {
@@ -95,23 +113,66 @@ double exponential_lpdf(double x, double lambda){
   return 0.0;
 }
 
-double uniform_sample(double l, double r)
-{
-  if (l > r) {
-    return NAN;
-  } else {
-	  return l + (rand() / (RAND_MAX / (r - l)));
+/* Utilities for the data and parameter structures */
+
+void read_int(FILE *fp, int* i) {
+
+  fscanf(fp, "%i", i);
+
+}
+
+void print_int(int i){
+
+  printf("%i\n",i);
+  
+}
+
+void read_real(FILE *fp,float* f) {
+
+  fscanf(fp, "%f", f);
+
+}
+
+void print_real(float f){
+
+  printf("%f\n",f);
+  
+}
+
+void read_int_array(FILE *fp, int* arr, int N) {
+
+  for (int i = 0; i < N; i++) {
+
+    read_int(fp,arr + i);
+    
   }
+  
 }
 
-double normal_sample(double mu, double sigma)
-{
-  return randn(mu, sigma);
+void print_int_array(int* arr, int N) {
+
+  for (int i = 0; i < N; ++i) {
+    printf("%i ", arr[i]);
+  }
+  printf("\n");
+
 }
 
-double bernoulli_sample(double p)
-{
-  return (((double) rand () / RAND_MAX) > p) ? 0 : 1;
+void read_real_array(FILE *fp, float* arr, int N) {
+
+  for (int i = 0; i < N; i++) {
+
+    read_real(fp,arr + i);
+    
+  }
+  
 }
 
- 
+void print_real_array(float* arr, int N) {
+
+  for (int i = 0; i < N; ++i) {
+    printf("%f ", arr[i]);
+  }
+  printf("\n");
+
+}

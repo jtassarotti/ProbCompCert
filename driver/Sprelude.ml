@@ -30,16 +30,17 @@ let printPreludeHeader sourcefile data_basics param_basics =
     "#ifndef RUNTIME_H";
     "#define RUNTIME_H";
     renderStruct "Data" data_basics;
-    "extern "^(renderGlobalStruct "observations" "Data" false)^"\n";
+    (* "extern "^(renderGlobalStruct "observations" "Data" false)^"\n"; *)
     renderStruct "Params" param_basics;
     "extern "^(renderGlobalStruct "state" "Params" false)^"\n";
     "";
-    "void print_data(void *);";
+    "void print_data(struct Data* observations);";
+    "void read_data(struct Data* observations, char* file,char * perm);";
+    "struct Data* alloc_data(void);";
     "void print_params(void*);";
-    "void* get_state();";
+    "void* get_state(void);";
     "void set_state(void*);";
-    "void load_from_cli(void* opaque, char *files[]);";
-    "void init_parameters();";
+    "void init_parameters(void);";
     "void* propose(void *);";
     "";
     "#endif";
@@ -115,64 +116,58 @@ let renderParameters struct_type struct_vars =
     "";
   ])
 
-let renderDataLoaderFunctions vs =
-  let parseType t =
-     match t with
-    | StanE.Bint -> "atof"
-    | StanE.Breal -> "atoll"
-    | _ -> raise (NIY_gen "invalid type")
+let generate_read_data vs =
+
+  let generate_single v =
+    let name = fst v in
+    let typ = snd v in
+    match typ with
+    | StanE.Bint -> "read_int(fp,&observations->" ^ (Camlcoq.extern_atom name) ^ ");"
+    | StanE.Breal -> "read_real(fp,&observations->" ^ (Camlcoq.extern_atom name) ^ ");"
+    | StanE.Barray (StanE.Bint,sz) ->
+       "read_int_array(fp,observations->" ^  (Camlcoq.extern_atom name) ^ "," ^ (Camlcoq.Z.to_string sz) ^ ");"
+    | StanE.Barray (StanE.Breal,sz) ->
+       "read_real_array(fp,observations->" ^ (Camlcoq.extern_atom name) ^ "," ^ (Camlcoq.Z.to_string sz) ^ ");"
+    | _ -> raise (NIY_gen "Array of array or function")
   in
 
-  let loadField (p, t) =
-    let v = Camlcoq.extern_atom p in
-    match t with
-    | StanE.Breal -> "todo" (* raise (NIY_gen "Data loading: single real") *)
-    | StanE.Bint -> "todo" (* raise (NIY_gen "Data loading: single int") *)
-    | StanE.Barray (t,_) ->
-      String.concat "\n" [
-        "  if (0 == access(f, 0))";
-        "  {";
-        "      FILE *fp = fopen(f, \"r\" );";
-        "      char line[1024];";
-        "      int num = 0;";
-        "      while (fgets(line, 1024, fp))";
-        "      {";
-        "        char* tmp = strdup(line);";
-        "        const char* tok;";
-        "        for (tok = strtok(line, \",\");";
-        "          tok && *tok;";
-        "          tok = strtok(NULL, \",\\n\"))";
-        "        {";
-        "            " ^ "d->" ^v ^ "[num] = " ^ parseType t ^ "(tok);";
-        "            num++;";
-        "        }";
-        "        free(tmp);";
-        "      }";
-        "      fclose(fp);";
-        "  } else { printf(\"csv file not found for data field: "^ v ^"\\n\");}";
-        ]
-    | _ -> raise (NIY_gen "Data loading: nested arrays")
+  String.concat "\n\n" [
+      "void read_data(struct Data* observations, char* file,char * perm) {";
+      "  FILE *fp;";
+      "  fp = fopen(file, perm);";
+      List.fold_left (fun str -> fun v -> str ^ "  " ^ (generate_single v) ^ "\n") "" vs;
+      "  fclose(fp);";
+      "}"
+    ]  
+
+let generate_print_data vs =
+
+  let generate_single v =
+    let name = fst v in
+    let typ = snd v in
+    match typ with
+    | StanE.Bint -> "print_int(observations->" ^ (Camlcoq.extern_atom name) ^ ");"
+    | StanE.Breal -> "print_real(observations->" ^ (Camlcoq.extern_atom name) ^ ");"
+    | StanE.Barray (StanE.Bint,sz) ->
+       "print_int_array(observations->" ^  (Camlcoq.extern_atom name) ^ "," ^ (Camlcoq.Z.to_string sz) ^ ");"
+    | StanE.Barray (StanE.Breal,sz) ->
+       "print_real_array(observations->" ^ (Camlcoq.extern_atom name) ^ "," ^ (Camlcoq.Z.to_string sz) ^ ");"
+    | _ -> raise (NIY_gen "Array of array or function")
   in
 
-  let renderLoader (p, t) = let v = Camlcoq.extern_atom p in
-    String.concat "\n" [
-    "void load_" ^ v ^ " (void* opaque, char* f) {";
-    "  struct Data* d = (struct Data*) opaque;";
-    loadField (p, t);
-    "}";
-  ] in
-  String.concat "\n" (List.map renderLoader vs)
+  String.concat "\n\n" [
+      "void print_data(struct Data* observations) {";
+      List.fold_left (fun str -> fun v -> str ^ "  " ^ (generate_single v) ^ "\n") "" vs;
+      "}"
+    ]
 
-let renderCLILoader vs =
-  let runLoader ix (p, t) =
-    "  load_" ^ Camlcoq.extern_atom p ^ "(opaque, files[" ^ string_of_int (ix) ^ "]);"
-  in
-  String.concat "\n" ([
-    ("void load_from_cli (void* opaque, char *files[]) {");
-  ] @ (List.mapi runLoader vs) @ [
-    "}\n"
-  ])
-
+let generate_alloc_data () =
+  String.concat "\n\n" [
+      "struct Data* alloc_data() {";
+      "  struct Data* data = (struct Data*) malloc(sizeof(struct Data));";
+      "  return data;";
+      "}"
+    ]
 
 let printPreludeFile sourcefile data_basics param_basics proposal =
   let sourceDir = Filename.dirname sourcefile in
@@ -185,28 +180,16 @@ let printPreludeFile sourcefile data_basics param_basics proposal =
   Printf.fprintf oc "%s\n" (String.concat "\n" [
     "#include <stdlib.h>";
     "#include <stdio.h>";
-    "#include <unistd.h>";
-    "#include <string.h>";
-    "#include <math.h>";
     "#include \"stanlib.h\"";
-    "#include \""^"prelude.h\"";
-    "";
-    (* strdup is not standard *)
-    (* but ccomp doesn't permit for "#define _POSIX_C_SOURCE >= 200809L"; *)
-    "extern char* strdup(const char*);";
-
-    "";
-    renderGlobalStruct "observations" "Data" false;
+    "#include \"prelude.h\"";
     renderGlobalStruct "state" "Params" false;
-    (* file scope declarations: *)
     proposal;
-    renderGetAndSet "observations" "Data";
     renderGetAndSet "state" "Params";
-    renderPrintStruct "Data" data_basics;
     renderPrintStruct "Params" param_basics;
     renderParameters "Params" param_basics;
-    renderDataLoaderFunctions data_basics;
-    renderCLILoader data_basics;
+    generate_alloc_data ();
+    generate_print_data data_basics;
+    generate_read_data data_basics;
   ]);
   close_out oc
         

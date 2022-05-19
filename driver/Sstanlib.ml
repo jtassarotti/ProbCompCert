@@ -79,8 +79,6 @@ let rec search library name =
      begin
      match f with
      | f_name, tyret, tyargs ->
-        print_string ("Comparing: " ^ f_name ^ "\n");
-        flush(stdout);
         if ((f_name = name) || (f_name = (name^"_lpdf")) || (f_name = (name^"_lpmf")))
                                 then f else search l name
      end

@@ -17,9 +17,9 @@ int main(int argc, char* argv[]) {
   }
   int n = atoi(argv[1]);
 
-  load_from_cli(&observations, argv+2);
-  //transformed_data(&observations);
-  print_data(&observations);
+  struct Data* observations = alloc_data();
+  read_data(observations,argv[2],"r");
+  print_data(observations);
 
   init_parameters();
   
@@ -35,14 +35,14 @@ int main(int argc, char* argv[]) {
     void* pi = get_state();
     print_params(pi);
     //transformed_parameters(pi);
-    double lp_parameters = model(&observations,pi);
+    double lp_parameters = model(observations,pi);
     printf("P = %f\n",exp(lp_parameters));
 
     printf("\nproposal:\n");
     void* newpi = propose(pi);
     //transformed_parameters(newpi);
     print_params(newpi);
-    double lp_candidate = model(&observations,newpi);
+    double lp_candidate = model(observations,newpi);
     printf("P = %f\n",exp(lp_candidate));
     
     double lu = log((double) rand() / RAND_MAX);
