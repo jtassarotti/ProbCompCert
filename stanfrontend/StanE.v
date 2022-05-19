@@ -2,7 +2,7 @@ Require Import Integers.
 Require Import Coqlib.
 Require Import Floats.
 Require Import AST.
-Require CStan.
+Require Ctypes. 
 
 Inductive b_op :=
   | Plus
@@ -69,7 +69,6 @@ Record function := mkfunction {
   fn_return: option(basic);
   fn_params: list (basic * ident);
   fn_body: statement;
-  fn_blocktype: CStan.blocktype;
   fn_vars: list (ident * basic);
 }.
 

@@ -318,7 +318,7 @@ Definition transf_function (f: StanE.function): Errors.res CStan.function :=
         end;
       CStan.fn_params := params;
       CStan.fn_body := body;
-      CStan.fn_blocktype := f.(StanE.fn_blocktype);
+      CStan.fn_blocktype := CStan.BTModel;
       CStan.fn_callconv := AST.cc_default;
       CStan.fn_temps := nil;
       CStan.fn_vars := vars;
