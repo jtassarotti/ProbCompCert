@@ -184,7 +184,6 @@ Record reserved_data := mkreserved_data {
 Record program : Type := {
   prog_defs: list (ident * globdef fundef type);
   prog_public: list ident;
-  prog_model: ident;
   prog_constraints: list (ident * constraint);
   prog_parameters_vars: list (ident * type);
   prog_data_vars: list (ident * type);
@@ -340,8 +339,6 @@ Definition transf_program(p: CStan.program): res CStan.program :=
 
       prog_constraints := p.(prog_constraints);
       prog_parameters_vars:= p.(prog_parameters_vars);
-
-      prog_model:=p.(prog_model);
 
       prog_types:=p.(prog_types);
       prog_comp_env:=p.(prog_comp_env);

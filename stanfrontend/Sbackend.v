@@ -112,7 +112,7 @@ Definition backend (p: CStan.program): res Clight.program :=
   do p1 <- AST.transform_partial_program2 (fun i => transf_fundef) (fun i => transf_variable) p;
   OK {| 
       Ctypes.prog_defs := AST.prog_defs p1;
-      Ctypes.prog_public:= p.(CStan.prog_public);
+      Ctypes.prog_public:= $"model" :: nil;
       Ctypes.prog_main:= $"main"; 
       Ctypes.prog_types:=p.(CStan.prog_types);
       Ctypes.prog_comp_env:=p.(CStan.prog_comp_env);

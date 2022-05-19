@@ -448,10 +448,8 @@ let elaborate (sourcefile : string) (p: Stan.program) =
     
     {
       StanE.pr_defs=  helpers @ data_variables @ param_variables @ functions @ all_math_fns;
-      StanE.pr_public= List.map fst functions @ List.map fst all_math_fns;
       StanE.pr_data_vars=data_fields;
       StanE.pr_parameters_vars=param_fields;
-      StanE.pr_model=id_model;
     }
 
 let location t =

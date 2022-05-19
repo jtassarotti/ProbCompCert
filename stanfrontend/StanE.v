@@ -77,15 +77,13 @@ Definition fundef := Ctypes.fundef function.
 
 Record program := mkprogram {
   pr_defs: list (ident * globdef fundef variable);
-  pr_public: list ident;
-  pr_model: ident;
   pr_parameters_vars: list (ident * basic);
   pr_data_vars: list (ident * basic);
 }.
 
 Definition program_of_program (p: program) : AST.program fundef variable :=
   {| AST.prog_defs := p.(pr_defs);
-     AST.prog_public := p.(pr_public);
+     AST.prog_public := nil;
      AST.prog_main := xH |}.
 
 Coercion program_of_program: program >-> AST.program.
