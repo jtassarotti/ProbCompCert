@@ -70,7 +70,6 @@ Record function := mkfunction {
   fn_params: list (basic * ident);
   fn_body: statement;
   fn_blocktype: CStan.blocktype;
-  fn_temps: list (ident * basic);
   fn_vars: list (ident * basic);
 }.
 

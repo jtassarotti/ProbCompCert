@@ -165,6 +165,7 @@ Fixpoint transf_expression (e: StanE.expr) {struct e}: mon (list CStan.statement
     do (le, e) <~ transf_expression e;
     do ty <~ transf_type ty;
     do (li, i) <~ transf_expression i;
+    (* ret (le ++ li, CStan.Ebinop Oadd (CStan.Ederef e (tptr ty)) i ty) *)
     ret (le ++ li, CStan.Ederef (CStan.Ebinop Oadd e i (tptr ty)) ty)
   | Eindexed e _ ty =>
     error (Errors.msg "Denumpyification.transf_expression (NYI): Eindexed [i, ...]")
@@ -302,14 +303,13 @@ Definition transf_variable (_: AST.ident) (v: StanE.variable): Errors.res (type 
 Definition transf_function (f: StanE.function): Errors.res CStan.function :=
   let m :=
     do body <~ transf_statement f.(StanE.fn_body);
-    do temps <~ transf_vars f.(StanE.fn_temps);
     do vars <~ transf_vars f.(StanE.fn_vars);
     do ret_ty <~ option_mmap transf_type f.(StanE.fn_return);
     do params <~ transf_params f.(StanE.fn_params);
-    ret (body,temps,vars,ret_ty,params) in
+    ret (body,vars,ret_ty,params) in
   match m (SimplExpr.initial_generator tt) with
   | SimplExpr.Err msg => Errors.Error msg
-  | SimplExpr.Res (body, temps, vars, ret_ty, params) g i =>
+  | SimplExpr.Res (body, vars, ret_ty, params) g i =>
   Errors.OK {|
       CStan.fn_return :=
         match ret_ty with
@@ -320,7 +320,7 @@ Definition transf_function (f: StanE.function): Errors.res CStan.function :=
       CStan.fn_body := body;
       CStan.fn_blocktype := f.(StanE.fn_blocktype);
       CStan.fn_callconv := AST.cc_default;
-      CStan.fn_temps := temps;
+      CStan.fn_temps := nil;
       CStan.fn_vars := vars;
       CStan.fn_generator := g;
      |}

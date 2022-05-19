@@ -31,6 +31,7 @@ fi
 ../../../../ccomp -c -dcstan -dclight code.stan
 if [ $? -ne 0 ]; then
     echo 'Compilation of stan program' $1 'failed'
+    cat code.stan.c.* > code.stan.c.all
     exit
 else
     echo 'Compilation of stan program' $1 'succeeded'

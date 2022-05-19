@@ -377,7 +377,6 @@ let mkFunction name body rt params extraVars extraTemps =
     StanE.fn_params = List.map (fun param -> (snd (fst param),snd param)) params;
     StanE.fn_blocktype = blocktypeFundef name;
     StanE.fn_vars = List.concat [extraVars @ local_identifiers; (IdxHashtbl.fold (fun k v acc -> (k,StanE.Bint)::acc) index_set [])];
-    StanE.fn_temps = extraTemps;
     StanE.fn_body = body} in
   (id,  AST.Gfun(Ctypes.Internal fd))
 
