@@ -20,7 +20,12 @@ let generate_param (id, t) =
                    "  eps = randn(0.0,1.0);";
                    "  candidate->" ^ name ^" = state->" ^ name ^" + eps;";
                      ]
-  | StanE.Barray (StanE.Breal,sz) -> "Todo"
+  | StanE.Barray (StanE.Breal,sz) -> String.concat "\n" [
+                                         "  for (int i = 0; i < " ^ (Camlcoq.Z.to_string sz) ^ " ; i++) {";
+                                         "    eps = randn(0.0,1.0);";
+                                         "    candidate->" ^ name ^ "[i]" ^ " = state->" ^ name ^ "[i]" ^" + eps;";
+                                         "  }";
+                                       ]
   | _ -> raise (NIY_propose "Not handling non-real types yet")
       
 let generate_proposal program =

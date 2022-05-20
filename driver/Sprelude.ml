@@ -160,7 +160,16 @@ let generate_copy_params vs =
 
   let generate_single v =
     let name = Camlcoq.extern_atom (fst v) in
-    "to->" ^ name ^ " = " ^ "from->" ^ name ^ ";"
+    let typ = snd v in
+    match typ with
+    | StanE.Breal -> "to->" ^ name ^ " = " ^ "from->" ^ name ^ ";"
+    | StanE.Bint -> "to->" ^ name ^ " = " ^ "from->" ^ name ^ ";"
+    | StanE.Barray (_,sz) -> String.concat "\n" [
+                                 "for (int i = 0; i < " ^ (Camlcoq.Z.to_string sz) ^ " ; i++) {";
+                                 "  to->" ^ name ^ "[i]" ^ " = " ^ "from->" ^ name ^ "[i]" ^ ";";
+                                 "};";
+                               ] 
+    | _ -> "ddd"
   in
 
   String.concat "\n\n" [
