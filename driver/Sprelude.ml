@@ -29,6 +29,7 @@ let printPreludeHeader sourcefile data params =
   Printf.fprintf ohc "%s\n" (String.concat "\n" [
     "#ifndef RUNTIME_H";
     "#define RUNTIME_H";
+    "#include<stdbool.h>  ";
     "";
     renderStruct "Data" data;
     renderStruct "Params" params;
@@ -36,7 +37,7 @@ let printPreludeHeader sourcefile data params =
     "void print_data(struct Data* observations);";
     "void read_data(struct Data* observations, char* file,char * perm);";
     "struct Data* alloc_data(void);";
-    "void print_params(struct Params* parameters);";
+    "void print_params(struct Params* parameters, bool convert);";
     "void read_params(struct Params* parameters, char* file,char * perm);";
     "struct Params* alloc_params(void);";    
     "void propose(struct Params* state, struct Params* candidate);";
@@ -150,8 +151,10 @@ let generate_print_params vs =
   in
 
   String.concat "\n\n" [
-      "void print_params(struct Params* parameters) {";
-      "  unconstrained_to_constrained(parameters);";
+      "void print_params(struct Params* parameters, bool convert) {";
+      "  if (convert) {";
+      "    unconstrained_to_constrained(parameters);";
+      "  }";
       List.fold_left (fun str -> fun v -> str ^ "  " ^ (generate_single v) ^ "\n") "" vs;
       "}"
     ]

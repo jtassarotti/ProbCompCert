@@ -19,20 +19,20 @@ int main(int argc, char* argv[]) {
 
   struct Params* state = alloc_params();
   read_params(state,argv[3],"r");
-  print_params(state);
+  print_params(state,false);
   struct Params* candidate = alloc_params();
   
   for (int i = 0; i < n; ++i) {
 
     printf("\n\n\nIteration: %i\n\n\n", i);
     
-    print_params(state);
+    print_params(state,false);
     double lp_parameters = model(observations,state);
     printf("P = %f\n",exp(lp_parameters));
 
     printf("\nproposal:\n");
     propose(state,candidate);
-    print_params(candidate);
+    print_params(candidate,false);
     double lp_candidate = model(observations,candidate);
     printf("P = %f\n",exp(lp_candidate));
     
@@ -42,7 +42,7 @@ int main(int argc, char* argv[]) {
     if (lu <= lp_candidate - lp_parameters) {
       printf("\n-> Accepted\n");
       copy_params(state,candidate);
-      print_params(state);
+      print_params(state,false);
     } else {
       printf("\n-> Rejected\n");
     }
@@ -51,7 +51,7 @@ int main(int argc, char* argv[]) {
 
   printf("\n...completed execution!");
   printf("\n\nSummary:\n\t");
-  print_params(state);
+  print_params(state,true);
   printf("\n");
   return 0;
   
