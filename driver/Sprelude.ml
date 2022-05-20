@@ -173,6 +173,7 @@ let generate_constrained_to_unconstrained vs =
 
   let generate_single (name,typ,cons) =
     match cons with
+    | StanE.Cidentity -> ""
     | StanE.Clower_upper (lower, upper) ->
        begin
          match typ with
@@ -184,10 +185,33 @@ let generate_constrained_to_unconstrained vs =
             let den = "(" ^ b ^ " - " ^ a ^ ")" in
             let y = "logit(" ^ num ^ " / " ^ den ^")" in
             " constrained->" ^ name ^ " = " ^ y ^ ";"
-         | StanE.Bint -> raise (NIY_gen "Constraint lower upper NIY for int")
+         | StanE.Bint -> raise (NIY_gen "Typechecker failed, parameter cannot be int")
          | _ -> raise (NIY_gen "Constraints are currently only supported for scalars")
        end
-    | _ -> raise (NIY_gen "Constraint not implemented yet for prelude")
+    | StanE.Clower lower ->
+       begin
+         match typ with
+         | StanE.Breal ->
+            let x = "constrained->" ^ name in
+            let a = Float.to_string (Camlcoq.camlfloat_of_coqfloat lower) in
+            let num = "(" ^ x ^ " - " ^ a ^ ")" in
+            let y = "log(" ^ num ^ ")" in
+            " constrained->" ^ name ^ " = " ^ y ^ ";"
+         | StanE.Bint -> raise (NIY_gen "Typechecker failed, parameter cannot be int")
+         | _ -> raise (NIY_gen "Constraints are currently only supported for scalars")         
+       end
+    | StanE.Cupper upper ->
+       begin
+         match typ with
+         | StanE.Breal ->
+            let x = "constrained->" ^ name in
+            let b = Float.to_string (Camlcoq.camlfloat_of_coqfloat upper) in
+            let t = "(" ^ b ^ " - " ^ x ^ ")" in
+            let y = "log(" ^ t ^")" in
+            " constrained->" ^ name ^ " = " ^ y ^ ";"
+         | StanE.Bint -> raise (NIY_gen "Typechecker failed, parameter cannot be int")
+         | _ -> raise (NIY_gen "Constraints are currently only supported for scalars")
+       end       
   in
   
   String.concat "\n\n" [
@@ -200,6 +224,7 @@ let generate_unconstrained_to_constrained vs =
 
   let generate_single (name,typ,cons) =
     match cons with
+    | StanE.Cidentity -> ""
     | StanE.Clower_upper (lower, upper) ->
        begin
          match typ with
@@ -209,10 +234,31 @@ let generate_unconstrained_to_constrained vs =
             let b = Float.to_string (Camlcoq.camlfloat_of_coqfloat upper) in
             let x = a ^ " + " ^ "(" ^ b ^ " - " ^ a ^ ")" ^ " * " ^ "expit(" ^ y ^ ")" in
             " unconstrained->" ^ name ^ " = " ^ x ^ ";"
-         | StanE.Bint -> raise (NIY_gen "Constraint lower upper NIY for int")
+         | StanE.Bint -> raise (NIY_gen "Typechecker failed, parameter cannot be int")
          | _ -> raise (NIY_gen "Constraints are currently only supported for scalars")
        end
-    | _ -> raise (NIY_gen "Constraint not implemented yet for prelude")
+    | StanE.Clower lower ->
+       begin
+         match typ with
+         | StanE.Breal ->
+            let y = "unconstrained->" ^ name in
+            let a = Float.to_string (Camlcoq.camlfloat_of_coqfloat lower) in
+            let x = a ^ " + " ^ "exp(" ^ y ^ ")" in
+            " unconstrained->" ^ name ^ " = " ^ x ^ ";"
+         | StanE.Bint -> raise (NIY_gen "Typechecker failed, parameter cannot be int")
+         | _ -> raise (NIY_gen "Constraints are currently only supported for scalars")
+       end       
+    | StanE.Cupper upper ->
+       begin
+         match typ with
+         | StanE.Breal ->
+            let y = "unconstrained->" ^ name in
+            let b = Float.to_string (Camlcoq.camlfloat_of_coqfloat upper) in
+            let x = b ^ " - " ^ "expit(" ^ y ^ ")" in
+            " unconstrained->" ^ name ^ " = " ^ x ^ ";"
+         | StanE.Bint -> raise (NIY_gen "Typechecker failed, parameter cannot be int")
+         | _ -> raise (NIY_gen "Constraints are currently only supported for scalars")
+       end       
   in
   
   String.concat "\n\n" [
