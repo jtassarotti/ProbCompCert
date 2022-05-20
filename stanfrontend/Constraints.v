@@ -63,7 +63,7 @@ Definition int2float (e:expr) : mon expr :=
   end.
 
 
-Definition constraint_transform (p:program) (i: AST.ident) (c: constraint) : mon (option (AST.ident * statement)) :=
+Definition constrained_to_unconstrained (p:program) (i: AST.ident) (c: constraint) : mon (option (AST.ident * statement)) :=
   let evar := Evar i tdouble in
   let t := tdouble in
   match c with
@@ -80,7 +80,7 @@ Definition constraint_transform (p:program) (i: AST.ident) (c: constraint) : mon
   | _ => error (Errors.msg "Constraints: unsupported constraint")
   end.
 
-Definition inv_constraint_transform (p:program) (i: AST.ident) (c: constraint) : mon (option (AST.ident * statement)) :=
+Definition unconstrained_to_constrained (p:program) (i: AST.ident) (c: constraint) : mon (option (AST.ident * statement)) :=
   let evar := Evar i tdouble in
   let t := tdouble in
   match c with
@@ -257,7 +257,7 @@ Definition transf_statement_prelude (p:program) (body : statement): mon statemen
 
     (* let params_typed := filter_globvars (p.(prog_defs)) (p.(prog_parameters_vars)) in (*: list (AST.ident*CStan.type)*) *)
     let params_typed := (p.(prog_parameters_vars)) in (*: list (AST.ident*CStan.type)*)
-    do params_transformed <~ mon_fmap catMaybes (mon_mmap (transform_with_original_ident inv_constraint_transform p) p.(prog_constraints));
+    do params_transformed <~ mon_fmap catMaybes (mon_mmap (transform_with_original_ident unconstrained_to_constrained p) p.(prog_constraints));
     let params_map  := List.map (fun fr_to => (fst fr_to, fst (snd fr_to))) params_transformed in
     let params_stmts := List.map (fun fr_to => snd (snd fr_to)) params_transformed in
 

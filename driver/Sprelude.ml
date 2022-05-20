@@ -169,8 +169,8 @@ let generate_copy_params vs =
     | StanE.Bint -> "to->" ^ name ^ " = " ^ "from->" ^ name ^ ";"
     | StanE.Barray (_,sz) -> String.concat "\n" [
                                  "for (int i = 0; i < " ^ (Camlcoq.Z.to_string sz) ^ " ; i++) {";
-                                 "  to->" ^ name ^ "[i]" ^ " = " ^ "from->" ^ name ^ "[i]" ^ ";";
-                                 "};";
+                                 "    to->" ^ name ^ "[i]" ^ " = " ^ "from->" ^ name ^ "[i]" ^ ";";
+                                 "  };";
                                ] 
     | _ -> "ddd"
   in

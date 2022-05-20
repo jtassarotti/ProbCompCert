@@ -1,7 +1,7 @@
 data {
-  int<lower=1, upper=10> jj[100];  // student for observation n
-  int<lower=1, upper=20> kk[100];  // question for observation n
-  int<lower=0, upper=1> y[100];   // correctness for observation n
+  int jj[100];  // student for observation n
+  int kk[100];  // question for observation n
+  int y[100];   // correctness for observation n
 }
 parameters {
   real delta;            // mean student ability
