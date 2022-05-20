@@ -127,15 +127,15 @@ void print_int(int i){
   
 }
 
-void read_real(FILE *fp,float* f) {
+void read_real(FILE *fp,double* f) {
 
-  fscanf(fp, "%f", f);
+  fscanf(fp, "%lf", f);
 
 }
 
-void print_real(float f){
+void print_real(double f){
 
-  printf("%f\n",f);
+  printf("%lf\n",f);
   
 }
 
@@ -158,7 +158,7 @@ void print_int_array(int* arr, int N) {
 
 }
 
-void read_real_array(FILE *fp, float* arr, int N) {
+void read_real_array(FILE *fp, double* arr, int N) {
 
   for (int i = 0; i < N; i++) {
 
@@ -168,10 +168,10 @@ void read_real_array(FILE *fp, float* arr, int N) {
   
 }
 
-void print_real_array(float* arr, int N) {
+void print_real_array(double* arr, int N) {
 
   for (int i = 0; i < N; ++i) {
-    printf("%f ", arr[i]);
+    printf("%lf ", arr[i]);
   }
   printf("\n");
 

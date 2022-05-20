@@ -7,9 +7,8 @@
 double model(struct Data* d, struct Params *__p__);
 
 int main(int argc, char* argv[]) {
-  if (argc == 1) {
-    printf("One argument required: number of iterations\n");
-    printf("optionally, csv files of data in order of declaration\n");
+  if (argc != 4) {
+    printf("Three arguments required: number of iterations, data file, params file\n");
     exit(1);
   }
   int n = atoi(argv[1]);
@@ -19,7 +18,7 @@ int main(int argc, char* argv[]) {
   print_data(observations);
 
   struct Params* state = alloc_params();
-  read_params(state,argv[2],"r");
+  read_params(state,argv[3],"r");
   print_params(state);
   struct Params* candidate = alloc_params();
   

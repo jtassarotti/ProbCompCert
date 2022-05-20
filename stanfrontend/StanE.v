@@ -78,6 +78,7 @@ Record function := mkfunction {
 
 Definition fundef := Ctypes.fundef function.
 
+(* John: I think it is a mistake for the parameters and data to carry their types, it should be fetched from the variable*)
 Record program := mkprogram {
   pr_defs: list (ident * globdef fundef variable);
   pr_parameters_vars: list (ident * basic);

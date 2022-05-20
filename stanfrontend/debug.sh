@@ -41,7 +41,7 @@ fi
 ../../../../ccomp -lm stanlib.o prelude.o Runtime.o code.light.o -o executable
 
 # Run
-./executable $2 data.csv
+./executable $2 data.csv params.csv
 popd
 
 

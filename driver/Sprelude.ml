@@ -21,7 +21,7 @@ let renderStruct name vs =
 let renderGlobalStruct global_name struct_type is_ptr =
   "struct " ^ struct_type ^ (if is_ptr then "*" else "") ^" "^ global_name ^";"
   
-let printPreludeHeader sourcefile data_basics param_basics =
+let printPreludeHeader sourcefile data params =
   let sourceDir = Filename.dirname sourcefile in
   let file = sourceDir ^ "/" ^ "prelude.h" in
   Printf.fprintf stdout "Generating: %s\n" file;
@@ -30,8 +30,8 @@ let printPreludeHeader sourcefile data_basics param_basics =
     "#ifndef RUNTIME_H";
     "#define RUNTIME_H";
     "";
-    renderStruct "Data" data_basics;
-    renderStruct "Params" param_basics;
+    renderStruct "Data" data;
+    renderStruct "Params" params;
     "";
     "void print_data(struct Data* observations);";
     "void read_data(struct Data* observations, char* file,char * perm);";
@@ -41,6 +41,8 @@ let printPreludeHeader sourcefile data_basics param_basics =
     "struct Params* alloc_params(void);";    
     "void propose(struct Params* state, struct Params* candidate);";
     "void copy_params(struct Params* to, struct Params* from);";
+    "void constrained_to_unconstrained(struct Params* constrained);";
+    "void unconstrained_to_constrained(struct Params* unconstrained);";
     "";
     "#endif";
   ]);
@@ -120,6 +122,7 @@ let generate_read_params vs =
       "  fp = fopen(file, perm);";
       List.fold_left (fun str -> fun v -> str ^ "  " ^ (generate_single v) ^ "\n") "" vs;
       "  fclose(fp);";
+      "  constrained_to_unconstrained(parameters);";
       "}"
     ]  
   
@@ -148,6 +151,7 @@ let generate_print_params vs =
 
   String.concat "\n\n" [
       "void print_params(struct Params* parameters) {";
+      "  unconstrained_to_constrained(parameters);";
       List.fold_left (fun str -> fun v -> str ^ "  " ^ (generate_single v) ^ "\n") "" vs;
       "}"
     ]
@@ -164,34 +168,98 @@ let generate_copy_params vs =
       List.fold_left (fun str -> fun v -> str ^ "  " ^ (generate_single v) ^ "\n") "" vs;
       "}"
     ]    
+
+let generate_constrained_to_unconstrained vs =
+
+  let generate_single (name,typ,cons) =
+    match cons with
+    | StanE.Clower_upper (lower, upper) ->
+       begin
+         match typ with
+         | StanE.Breal ->
+            let x = "constrained->" ^ name in
+            let a = Float.to_string (Camlcoq.camlfloat_of_coqfloat lower) in
+            let b = Float.to_string (Camlcoq.camlfloat_of_coqfloat upper) in
+            let num = "(" ^ x ^ " - " ^ a ^ ")" in
+            let den = "(" ^ b ^ " - " ^ a ^ ")" in
+            let y = "logit(" ^ num ^ " / " ^ den ^")" in
+            " constrained->" ^ name ^ " = " ^ y ^ ";"
+         | StanE.Bint -> raise (NIY_gen "Constraint lower upper NIY for int")
+         | _ -> raise (NIY_gen "Constraints are currently only supported for scalars")
+       end
+    | _ -> raise (NIY_gen "Constraint not implemented yet for prelude")
+  in
   
-let printPreludeFile sourcefile data_basics params_basics proposal =
+  String.concat "\n\n" [
+      "void constrained_to_unconstrained(struct Params* constrained) {";
+      List.fold_left (fun str -> fun v -> str ^ "  " ^ (generate_single v) ^ "\n") "" vs;
+      "}"
+    ]   
+
+let generate_unconstrained_to_constrained vs =
+
+  let generate_single (name,typ,cons) =
+    match cons with
+    | StanE.Clower_upper (lower, upper) ->
+       begin
+         match typ with
+         | StanE.Breal ->
+            let y = "unconstrained->" ^ name in
+            let a = Float.to_string (Camlcoq.camlfloat_of_coqfloat lower) in
+            let b = Float.to_string (Camlcoq.camlfloat_of_coqfloat upper) in
+            let x = a ^ " + " ^ "(" ^ b ^ " - " ^ a ^ ")" ^ " * " ^ "expit(" ^ y ^ ")" in
+            " unconstrained->" ^ name ^ " = " ^ x ^ ";"
+         | StanE.Bint -> raise (NIY_gen "Constraint lower upper NIY for int")
+         | _ -> raise (NIY_gen "Constraints are currently only supported for scalars")
+       end
+    | _ -> raise (NIY_gen "Constraint not implemented yet for prelude")
+  in
+  
+  String.concat "\n\n" [
+      "void unconstrained_to_constrained(struct Params* unconstrained) {";
+      List.fold_left (fun str -> fun v -> str ^ "  " ^ (generate_single v) ^ "\n") "" vs;
+      "}"
+    ] 
+  
+let printPreludeFile sourcefile data params proposal params_with_constraints =
   let sourceDir = Filename.dirname sourcefile in
-  (*let sourceName = Filename.basename sourcefile in
-  let preludeName = Filename.chop_extension sourceName in*)
   let file = sourceDir ^ "/" ^ "prelude.c" in
   let oc = open_out file in
   Printf.fprintf stdout "Generating: %s\n" file;
 
-  Printf.fprintf oc "%s\n" (String.concat "\n" [
+  Printf.fprintf oc "%s\n" (String.concat "\n\n" [
     "#include <stdlib.h>";
     "#include <stdio.h>";
     "#include \"stanlib.h\"";
     "#include \"prelude.h\"";
-    "";
     proposal;
     generate_alloc_data ();
-    generate_print_data data_basics;
-    generate_read_data data_basics;
+    generate_print_data data;
+    generate_read_data data;
     generate_alloc_params();
-    generate_print_params params_basics;
-    generate_read_params params_basics;
-    generate_copy_params params_basics;
+    generate_print_params params;
+    generate_read_params params;
+    generate_copy_params params;
+    generate_constrained_to_unconstrained params_with_constraints;
+    generate_unconstrained_to_constrained params_with_constraints;
   ]);
   close_out oc
-        
+
+let rec filter_params defs params =
+  match defs with
+  | [] -> []
+  | (name,AST.Gvar v) :: defs ->
+     let name = Camlcoq.extern_atom name in
+     let filtered_params = filter_params defs params in
+     if List.mem name params
+     then (name,v.AST.gvar_info.StanE.vd_type,v.AST.gvar_info.StanE.vd_constraint) :: filtered_params
+     else filtered_params
+  | def :: defs -> filter_params defs params
+     
 let generate_prelude sourcefile program proposal =
+  let defs = program.StanE.pr_defs in
   let params = program.StanE.pr_parameters_vars in
+  let params_with_constraints = filter_params defs (List.map (fun v -> Camlcoq.extern_atom (fst v)) params) in
   let data = program.StanE.pr_data_vars in
   printPreludeHeader sourcefile data params;
-  printPreludeFile sourcefile data params proposal
+  printPreludeFile sourcefile data params proposal params_with_constraints
