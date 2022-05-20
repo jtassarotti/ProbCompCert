@@ -1,56 +1,85 @@
 #include <stdlib.h>
 #include <math.h>
 #include <stdio.h>
+#include <stdbool.h>
 #include "stanlib.h"
 #include "prelude.h"
 
 double model(struct Data* d, struct Params *__p__);
 
 int main(int argc, char* argv[]) {
-  if (argc != 4) {
+  if (argc < 4 || argc > 5) {
     printf("Three arguments required: number of iterations, data file, params file\n");
+    printf("One argument optional, debug");
     exit(1);
   }
+  bool debug = false;
+  if (argc == 5) {
+    debug = true;
+  }
+
   int n = atoi(argv[1]);
 
   struct Data* observations = alloc_data();
   read_data(observations,argv[2],"r");
-  print_data(observations);
-
+  if (debug) {
+    print_data(observations);
+  }
+    
   struct Params* state = alloc_params();
   read_params(state,argv[3],"r");
-  print_params(state,false);
+  if (debug) {
+    print_params(state,false);
+  }
   struct Params* candidate = alloc_params();
   
   for (int i = 0; i < n; ++i) {
 
-    printf("\n\n\nIteration: %i\n\n\n", i);
+    if (debug) {
+      printf("\n\n\nIteration: %i\n\n\n", i);
+      print_params(state,false);
+    }
     
-    print_params(state,false);
     double lp_parameters = model(observations,state);
-    printf("P = %f\n",exp(lp_parameters));
 
-    printf("\nproposal:\n");
-    propose(state,candidate);
-    print_params(candidate,false);
-    double lp_candidate = model(observations,candidate);
-    printf("P = %f\n",exp(lp_candidate));
+    if (debug) {
+      printf("P = %f\n",exp(lp_parameters));
+    }
+
+    if (debug) {
+      printf("\nproposal:\n");
+    }
     
+    propose(state,candidate);
+
+    if (debug) {
+      print_params(candidate,false);
+    }
+    
+    double lp_candidate = model(observations,candidate);
+
+    if (debug) {
+      printf("P = %f\n",exp(lp_candidate));
+    }
+      
     double lu = log((double) rand() / RAND_MAX);
 
 
     if (lu <= lp_candidate - lp_parameters) {
-      printf("\n-> Accepted\n");
       copy_params(state,candidate);
-      print_params(state,false);
+      if (debug) {
+	printf("\n-> Accepted\n");
+	print_params(state,false);
+      }
     } else {
-      printf("\n-> Rejected\n");
+      if (debug) {
+	printf("\n-> Rejected\n");
+      }
     }
 
   } 
 
-  printf("\n...completed execution!");
-  printf("\n\nSummary:\n\t");
+  printf("\nExecution success\n");
   print_params(state,true);
   printf("\n");
   return 0;

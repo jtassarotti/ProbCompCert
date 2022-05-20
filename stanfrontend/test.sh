@@ -27,6 +27,8 @@ pushd tests/classics/$1/
 if [ $? -ne 0 ]; then
     echo 'Compilation of stan library failed'
     exit
+else
+    echo "Compilation success: library"
 fi
 ../../../../ccomp -c -dcstan -dclight code.stan
 if [ $? -ne 0 ]; then
@@ -34,7 +36,7 @@ if [ $? -ne 0 ]; then
     cat code.stan.c.* > code.stan.c.all
     exit
 else
-    echo 'Compilation of stan program' $1 'succeeded'
+    echo 'Compilation success: stan'
 fi
 cat code.stan.c.* > code.stan.c.all
 ../../../../ccomp -c code.s
@@ -42,11 +44,15 @@ cat code.stan.c.* > code.stan.c.all
 if [ $? -ne 0 ]; then
     echo 'Compilation of prelude failed'
     exit
+else
+    echo "Compilation success: prelude"
 fi
 ../../../../ccomp -I. -c Runtime.c
 if [ $? -ne 0 ]; then
     echo 'Compilation of runtime failed'
     exit
+else
+    echo "Compilation success: runtime"
 fi
 ../../../../ccomp -lm stanlib.o prelude.o Runtime.o code.o -o executable
 
