@@ -277,12 +277,12 @@ Definition transf_vars (vs: list (AST.ident * StanE.basic)) : mon (list (AST.ide
   mapM transf_var vs.
 
 (* FIXME: lambdas are too general? typechecker seems to want something more concrete... *)
-Definition transf_param (p: StanE.basic * AST.ident) : mon (AST.ident * type) :=
+Definition transf_param (p: AST.ident * StanE.basic) : mon (AST.ident * type) :=
   match p with
-    | (t, i) => do t <~ transf_type t; ret (i, t)
+    | (i, t) => do t <~ transf_type t; ret (i, t)
   end.
 
-Definition transf_params (ps: list (StanE.basic * AST.ident)) : mon (list (AST.ident * type)) :=
+Definition transf_params (ps: list (AST.ident * StanE.basic)) : mon (list (AST.ident * type)) :=
   mapM transf_param ps.
 
 Definition option_mmap {X Y:Type} (f: X -> mon Y) (ox: option X) : mon (option Y) :=
