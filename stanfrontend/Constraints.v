@@ -53,23 +53,14 @@ Definition stan_exp (p: program) (e: expr) : mon (AST.ident * statement) := call
 Definition stan_logit (p: program) (e: expr) : mon (AST.ident * statement) := callmath p $"logit" (e::nil).
 Definition stan_expit (p: program) (e: expr) : mon (AST.ident * statement) := callmath p $"expit" (e::nil).
 
-Definition int2float (e:expr) : mon expr :=
-  match e with
-  | CStan.Econst_float _ _ => ret e
-  | CStan.Econst_int i _ => ret (CStan.Econst_float (Float.of_int i) tdouble)
-  | CStan.Econst_single f t => ret (CStan.Econst_float (Float.of_single f) tdouble)
-  | CStan.Econst_long i t => ret (CStan.Econst_float (Float.of_long i) tdouble)
-  | _ => error (Errors.msg "should never happen: incorrect use of this function")
-  end.
-
 
 Definition constrained_to_unconstrained (p:program) (i: AST.ident) (c: constraint) : mon (option (AST.ident * statement)) :=
   let evar := Evar i tdouble in
   let t := tdouble in
   match c with
   | Cidentity => ret None
-  | Clower a => do a <~ int2float a; mon_fmap Some (stan_log p (Ebinop Osub evar a t))
-  | Cupper b => do b <~ int2float b; mon_fmap Some (stan_log p (Ebinop Osub b evar t))
+  | Clower a =>  mon_fmap Some (stan_log p (Ebinop Osub evar a t))
+  | Cupper b =>  mon_fmap Some (stan_log p (Ebinop Osub b evar t))
   | Clower_upper a b =>
     mon_fmap Some (
       stan_logit p (Ebinop Odiv
@@ -87,7 +78,6 @@ Definition unconstrained_to_constrained (p:program) (i: AST.ident) (c: constrain
   | Cidentity => ret None
   | Clower a =>
     do rt_call <~ stan_exp p evar;
-    do a <~ int2float a;
     match rt_call with
     | (rt, call) =>
       do o <~ gensym t;
@@ -95,7 +85,6 @@ Definition unconstrained_to_constrained (p:program) (i: AST.ident) (c: constrain
     end
   | Cupper b =>
     do rt_call <~ stan_exp p evar;
-    do b <~ int2float b;
     match rt_call with
     | (rt, call) =>
       do o <~ gensym t;
@@ -103,8 +92,6 @@ Definition unconstrained_to_constrained (p:program) (i: AST.ident) (c: constrain
     end
   | Clower_upper a b =>
     do rt_call <~ stan_expit p evar;
-    do a <~ int2float a;
-    do b <~ int2float b;
     match rt_call with
     | (rt, call) =>
       let r := (Ebinop Oadd a (Ebinop Omul (Ebinop Osub b a t) (Etempvar rt tdouble) t) t) in
@@ -125,8 +112,6 @@ Definition density_of_transformed_var (p:program) (i: AST.ident) (c: constraint)
     do rt_call <~ stan_expit p e;
     let rt := fst rt_call in
     let call := snd rt_call in
-    do a <~ int2float a;
-    do b <~ int2float b;
     do J1 <~ stan_log p (Ebinop Omul (Ebinop Osub b a t) (Etempvar rt tdouble) t);
     do J2 <~ stan_log p (Ebinop Osub (Econst_float float_one t) (Etempvar rt tdouble) t);
     ret
@@ -255,8 +240,7 @@ Definition parameter_transformed_map (ts : list (AST.ident * AST.ident)) (i : AS
 
 Definition transf_statement_prelude (p:program) (body : statement): mon statement :=
 
-    (* let params_typed := filter_globvars (p.(prog_defs)) (p.(prog_parameters_vars)) in (*: list (AST.ident*CStan.type)*) *)
-    let params_typed := (p.(prog_parameters_vars)) in (*: list (AST.ident*CStan.type)*)
+    let params_typed := (p.(prog_parameters_vars)) in 
     do params_transformed <~ mon_fmap catMaybes (mon_mmap (transform_with_original_ident unconstrained_to_constrained p) p.(prog_constraints));
     let params_map  := List.map (fun fr_to => (fst fr_to, fst (snd fr_to))) params_transformed in
     let params_stmts := List.map (fun fr_to => snd (snd fr_to)) params_transformed in

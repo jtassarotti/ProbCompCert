@@ -430,7 +430,7 @@ with eval_lvalue: expr -> block -> ptrofs -> bitfield -> Prop :=
       ge.(genv_cenv)!id = Some co ->
       union_field_offset ge i (co_members co) = OK (delta, bf) ->
       eval_lvalue (Efield a i ty) l (Ptrofs.add ofs (Ptrofs.repr delta)) bf.
-
+ 
 Scheme eval_expr_ind2 := Minimality for eval_expr Sort Prop
   with eval_lvalue_ind2 := Minimality for eval_lvalue Sort Prop.
 Combined Scheme eval_expr_lvalue_ind from eval_expr_ind2, eval_lvalue_ind2.

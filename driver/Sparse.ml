@@ -259,7 +259,7 @@ let rec el_s s =
     let (_i, _ty) = match Hashtbl.find_opt transf_dist_idents i with
       | Some (ident, ty) -> (ident, ty)
       | None -> raise (NIY_elab ("tilde called with invalid distribution: "^ i))*)
-    StanE.Stilde (el_e e, StanE.Evar (Camlcoq.intern_string _id, _ty), map el_e el)
+    StanE.Stilde (el_e e, StanE.Evar (Camlcoq.intern_string _id, _ty), make_exprlist(map el_e el))
   | Stan.Stilde (e,i,el,(tr1,tr2)) -> raise (Unsupported "truncation")
 
 let elab elab_fun ol =

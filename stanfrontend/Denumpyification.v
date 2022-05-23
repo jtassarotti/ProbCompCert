@@ -245,8 +245,9 @@ Fixpoint transf_statement (s: StanE.statement) {struct s}: mon CStan.statement :
   | Stilde e d el =>
     do (le, e) <~ transf_expression e;
     do (ld ,d) <~ transf_expression d;
-    do (lel, el) <~ (CStan.mon_fmap unzip (CStan.mon_mmap transf_expression el));
-    ret (makeseq (le ++ ld ++ (flatten lel)) (CStan.Stilde e d el (None, None)))
+    (* do (lel, el) <~ (CStan.mon_fmap unzip (CStan.mon_mmap transf_expression el)); *)
+    do (lel, el) <~ transf_exprlist el;
+    ret (makeseq (le ++ ld ++ lel) (CStan.Stilde e d el (None, None)))
 end.
 
 Definition transf_constraint (c : StanE.constraint) : mon CStan.constraint :=
