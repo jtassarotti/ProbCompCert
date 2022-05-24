@@ -66,8 +66,6 @@ Record variable := mkvariable {
 }.
 
 Record function := mkfunction {
-  fn_return: option(basic);
-  fn_params: list (ident * basic);
   fn_body: statement;
   fn_vars: list (ident * basic);
 }.

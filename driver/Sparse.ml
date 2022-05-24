@@ -355,11 +355,8 @@ let mkFunction name body rt params extraVars extraTemps =
     a_loc = (name,0) };
   let local_identifiers = List.fold_left (fun s1 s2 -> s1 @ (el_s_ids s2)) [] body in
   let body = List.fold_left (fun s1 s2 -> StanE.Ssequence (s1, (el_s s2))) StanE.Sskip body in
-  let params = List.map (fun ((x,y),z) -> ((x,y), Camlcoq.intern_string z)) params in
-
+  
   let fd = {
-    StanE.fn_return = rt;
-    StanE.fn_params = List.map (fun param -> (snd param,snd (fst param))) params;
     StanE.fn_vars = List.concat [extraVars @ local_identifiers; (IdxHashtbl.fold (fun k v acc -> (k,StanE.Bint)::acc) index_set [])];
     StanE.fn_body = body} in
   (id,  AST.Gfun(Ctypes.Internal fd))

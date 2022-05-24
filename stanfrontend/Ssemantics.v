@@ -89,6 +89,7 @@ Section EXPR.
 
 Variable e: env.
 Variable m: mem.
+Variable t: float.
 
 Definition typeof (e: expr) : basic :=
   match e with
@@ -143,6 +144,8 @@ Inductive eval_expr: expr -> val -> Prop :=
       fd = External ef tyargs tyres cconv ->
       external_call ef ge vargs m t vres m' ->
       eval_expr (Ecall a al ty) vres 
+  | eval_Etarget: forall ty,
+      eval_expr (Etarget ty) (Vfloat t)
   | eval_Elvalue: forall a loc ofs v,
       eval_lvalue a loc ofs ->
       deref_loc (typeof a) m loc ofs v ->
@@ -184,58 +187,51 @@ Inductive state: Type :=
   | State
       (f: function)
       (s: statement)
+      (t: float)
       (k: cont)
       (e: env)
-      (m: mem) : state
-  | Callstate
-      (fd: fundef)
-      (args: list val)
-      (k: cont)
-      (m: mem) : state
-  | Returnstate
-      (res: val)
-      (k: cont)
       (m: mem) : state.
 
 Definition var_names (vars: list(ident * basic)) : list ident :=
   List.map (@fst ident basic) vars.
 
 Inductive step: state -> trace -> state -> Prop :=
-  | step_assign: forall f a1 a2 k e m loc ofs v2 v m',
-      eval_lvalue e m a1 loc ofs ->
-      eval_expr e m a2 v2 ->
+  | step_assign: forall f t a1 a2 k e m loc ofs v2 v m',
+      eval_lvalue e m t a1 loc ofs ->
+      eval_expr e m t a2 v2 ->
       (* sem_cast v2 (typeof a2) (typeof a1) m = Some v -> *)
       assign_loc ge (typeof a1) m loc ofs v m' ->
-      step (State f (Sassign a1 None a2) k e m)
-        E0 (State f Sskip k e m')
+      step (State f (Sassign a1 None a2) t k e m)
+        E0 (State f Sskip t k e m')
 
-  | step_ifthenelse: forall f a s1 s2 k e m v1 b,
-    eval_expr e m a v1 ->
+  | step_seq: forall f t s1 s2 k e m,
+    step (State f (Ssequence s1 s2) t k e m) E0 (State f s1 t (Kseq s2 k) e m)
+
+  | step_skip_seq: forall f t s k e m,
+      step (State f Sskip t (Kseq s k) e m)
+        E0 (State f s t k e m)
+
+  | step_ifthenelse: forall f t a s1 s2 k e m v1 b,
+    eval_expr e m t a v1 ->
       bool_val v1 (transf_type (typeof a)) m = Some b ->
-      step (State f (Sifthenelse a s1 s2) k e m)
-        E0 (State f (if b then s1 else s2) k e m)
-
-  | step_internal_function: forall f vargs k m e m1 m',
-      (*function_entry f vargs m e le m1 -> *)
-      list_norepet (var_names f.(fn_params) ++ var_names f.(fn_vars)) ->
-      alloc_variables empty_env m (f.(fn_params) ++ f.(fn_vars)) e m1 ->
-      bind_parameters e m1 f.(fn_params) vargs m' ->
-      step (Callstate (Internal f) vargs k m)
-        E0 (State f f.(fn_body) k e m1)
+      step (State f (Sifthenelse a s1 s2) t k e m)
+        E0 (State f (if b then s1 else s2) t k e m)
 
 .
 
+(* Note: no binding of parameters, no check for repetition, no parameters *)
 Inductive initial_state (p: program): state -> Prop :=
-  | initial_state_intro: forall b f m0,
+  | initial_state_intro: forall b f m0 m1 e,
       let ge := Genv.globalenv p in
       Genv.init_mem p = Some m0 ->
       Genv.find_symbol ge $"model" = Some b ->
-      Genv.find_funct_ptr ge b = Some f ->
-      initial_state p (Callstate f nil Kstop m0).
+      Genv.find_funct_ptr ge b = Some (Internal f) ->
+      alloc_variables empty_env m0 f.(fn_vars) e m1 ->
+      initial_state p (State f f.(fn_body) ((Floats.Float.of_int Integers.Int.zero)) Kstop e m1).
 
 Inductive final_state: state -> int -> Prop :=
-  | final_state_intro: forall r m,
-      final_state (Returnstate (Vint r) Kstop m) r.
+  | final_state_intro: forall f t e m,
+      final_state (State f Sskip t Kstop e m) Integers.Int.zero.
 
 End SEMANTICS.
 

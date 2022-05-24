@@ -90,7 +90,7 @@ Fixpoint transf_statement (pmap: AST.ident -> option expr) (s: StanE.statement) 
 Definition transf_function (pmap: AST.ident -> option expr) (correction: expr) (id: AST.ident) (f: StanE.function): StanE.function :=
   let body := transf_statement pmap f.(fn_body) in
   let body := Ssequence body (Starget correction) in 
-  mkfunction f.(fn_return) f.(fn_params) body f.(fn_vars). 
+  mkfunction body f.(fn_vars). 
 
 Definition transf_fundef (pmap: AST.ident -> option expr) (correction: expr) (id: AST.ident) (fd: StanE.fundef) : Errors.res StanE.fundef :=
   match fd with

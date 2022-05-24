@@ -305,19 +305,13 @@ Definition transf_function (f: StanE.function): Errors.res CStan.function :=
   let m :=
     do body <~ transf_statement f.(StanE.fn_body);
     do vars <~ transf_vars f.(StanE.fn_vars);
-    do ret_ty <~ option_mmap transf_type f.(StanE.fn_return);
-    do params <~ transf_params f.(StanE.fn_params);
-    ret (body,vars,ret_ty,params) in
+    ret (body,vars) in
   match m (SimplExpr.initial_generator tt) with
   | SimplExpr.Err msg => Errors.Error msg
-  | SimplExpr.Res (body, vars, ret_ty, params) g i =>
+  | SimplExpr.Res (body, vars) g i =>
   Errors.OK {|
-      CStan.fn_return :=
-        match ret_ty with
-          | Some ty => ty
-          | None => Tvoid
-        end;
-      CStan.fn_params := params;
+      CStan.fn_return := tdouble;
+      CStan.fn_params := nil;
       CStan.fn_body := body;
       CStan.fn_blocktype := CStan.BTModel;
       CStan.fn_callconv := AST.cc_default;
