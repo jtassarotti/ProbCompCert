@@ -84,6 +84,12 @@ Definition match_prog (p: CStan.program) (tp: Clight.program) :=
     match_program (fun ctx f tf => Sbackend.transf_fundef f = OK tf) eq p tp
  /\ prog_types tp = CStan.prog_types p.
 
+Lemma transf_program_match:
+  forall p tp, backend p = OK tp -> match_prog p tp.
+Proof.
+  intros.
+Admitted.
+
 Variable TRANSL: match_prog prog tprog.
 
 Lemma comp_env_preserved:
@@ -657,3 +663,8 @@ Qed.
 
 End PRESERVATION.
 
+Instance L: Linker CStan.program.
+Admitted. 
+
+Global Instance TransfSbackendLink : TransfLink match_prog.
+Admitted.

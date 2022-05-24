@@ -160,14 +160,14 @@ STANFRONTEND=Sops.v Stypes.v Stan.v StanE.v Ssemantics.v Sparser.v \
   CStanCont.v \
   CStanSemanticsBackend.v \
   CStanSemanticsTarget.v \
-  Scompiler.v \
   Reparameterization.v \
   Denumpyification.v  \
   Sampling.v \
   Constraints.v \
   VariableAllocation.v \
   Target.v \
-  Sbackend.v Sbackendproof.v
+  Sbackend.v Sbackendproof.v \
+  Scompiler.v
 
 # MenhirLib
 
