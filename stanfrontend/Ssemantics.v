@@ -161,9 +161,9 @@ with eval_lvalue: expr -> block -> ptrofs -> Prop :=
 with eval_exprlist: exprlist -> list val -> Prop :=
   | eval_Enil:
       eval_exprlist Enil nil
-  | eval_Econs: forall a bl v1 v2 vl,
+  | eval_Econs: forall a bl v1 v2 vl ty,
       eval_expr a v1 ->
-      (* sem_cast v1 (typeof a) ty m = Some v2 -> *)
+      sem_cast v1 (transf_type (typeof a)) ty m = Some v2 -> 
       eval_exprlist bl vl ->
       eval_exprlist (Econs a bl) (v2 :: vl).
 
@@ -194,7 +194,7 @@ Inductive step: state -> trace -> state -> Prop :=
   | step_assign: forall f t a1 a2 k e m loc ofs v2 v m',
       eval_lvalue e m t a1 loc ofs ->
       eval_expr e m t a2 v2 ->
-      (* sem_cast v2 (typeof a2) (typeof a1) m = Some v -> *)
+      sem_cast v2 (transf_type (typeof a2)) (transf_type (typeof a1)) m = Some v -> 
       assign_loc ge (typeof a1) m loc ofs v m' ->
       step (State f (Sassign a1 None a2) t k e m)
         E0 (State f Sskip t k e m')

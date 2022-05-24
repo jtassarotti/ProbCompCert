@@ -14,13 +14,22 @@ Import Integers.
 Require CStanSemanticsBackend.
 Require CStanCont.
 
+Require Import String.
+Open Scope string_scope.
+Import Clightdefs.ClightNotations.
+Local Open Scope Z_scope.
+
+Local Open Scope clight_scope.
+
+
+
 Section PRESERVATION.
 
 Variable prog: CStan.program.
 Variable tprog: Clight.program.
 Hypothesis TRANSF: Sbackend.backend prog = OK tprog.
 Let ge := CStan.globalenv prog.
-Let tge := globalenv tprog.
+Let tge := Clight.globalenv tprog.
 
 (** Matching continuations *)
 Inductive match_cont : CStanCont.cont -> Clight.cont -> Prop :=
@@ -29,7 +38,7 @@ Inductive match_cont : CStanCont.cont -> Clight.cont -> Prop :=
   | match_Kseq: forall s k ts tk ,
       transf_statement s = OK ts ->
       match_cont k tk ->
-      match_cont (CStanCont.Kseq s k) (Kseq ts tk)
+      match_cont (CStanCont.Kseq s k) (Clight.Kseq ts tk)
   | match_Kloop1: forall s1 s2 k ts1 ts2 tk ,
       transf_statement s1 = OK ts1 ->
       transf_statement s2 = OK ts2 ->
@@ -47,7 +56,7 @@ Inductive match_cont : CStanCont.cont -> Clight.cont -> Prop :=
       transf_function fn = OK tfn ->
       match_cont k tk ->
       match_cont (CStanCont.Kcall optid fn e le k)
-                        (Kcall optid tfn e le tk). (* FIXME: also asserting that te = e since this is an identity tranformation *)
+                        (Kcall optid tfn e le tk). 
 
 Inductive match_states: CStanSemanticsBackend.state -> Clight.state -> Prop :=
   | match_regular_states:
@@ -59,10 +68,10 @@ Inductive match_states: CStanSemanticsBackend.state -> Clight.state -> Prop :=
                    (Clight.State tf ts tk e le m)
   | match_call_state:
       forall fd vargs k m tfd tk
-      (TRFD: transf_fundef fd = OK tfd)
+      (TRFD: Sbackend.transf_fundef fd = OK tfd)
       (MCONT: match_cont k tk),
       match_states (CStanSemanticsBackend.Callstate fd vargs k m)
-                   (Clight.Callstate tfd vargs tk m)
+                   (Clight.Callstate tfd vargs tk m) 
   | match_return_state:
       forall v k m tk
       (MCONT: match_cont k tk),
@@ -118,7 +127,7 @@ Qed.
 Lemma functions_translated:
   forall (v: val) (f: CStan.fundef),
   Genv.find_funct ge v = Some f ->
-  exists tf, Genv.find_funct tge v = Some tf /\ transf_fundef f = OK tf.
+  exists tf, Genv.find_funct tge v = Some tf /\ Sbackend.transf_fundef f = OK tf.
 Proof.
   intros.
   edestruct (Genv.find_funct_match (proj1 TRANSL)) as (ctx' & tf & A & B & C'); eauto.
@@ -126,7 +135,7 @@ Qed.
 
 Lemma type_of_fundef_preserved:
   forall fd tfd,
-  transf_fundef fd = OK tfd -> type_of_fundef tfd = CStan.type_of_fundef fd.
+  Sbackend.transf_fundef fd = OK tfd -> type_of_fundef tfd = CStan.type_of_fundef fd.
 Proof.
   intros. destruct fd; monadInv H; auto.
   monadInv EQ. simpl; unfold type_of_function; simpl. auto.
@@ -181,7 +190,7 @@ Proof.
 
   - (* Evar expressions *)
     inv H. (* apply inversion on our CStan.eval_expr, this matches eval_lvalue. *)
-    eapply eval_Elvalue.
+    eapply Clight.eval_Elvalue.
 
     2:{
     inv H1; simpl in *.
@@ -192,8 +201,8 @@ Proof.
     }
 
     inv H0.
-    eapply eval_Evar_local. eauto.
-    eapply eval_Evar_global; eauto.
+    eapply Clight.eval_Evar_local. eauto.
+    eapply Clight.eval_Evar_global; eauto.
     rewrite symbols_preserved. eauto.
 
   - (* Etempvar expressions *)
@@ -205,13 +214,13 @@ Proof.
   - (* Ederef expressions *)
     inv H.
     inv H0.
-    eapply eval_Elvalue.
-    eapply eval_Ederef; eauto.
+    eapply Clight.eval_Elvalue.
+    eapply Clight.eval_Ederef; eauto.
     simpl in *.
     destruct H1.
-    eapply deref_loc_value; eauto.
-    eapply deref_loc_reference; eauto.
-    eapply deref_loc_copy; eauto.
+    eapply Clight.deref_loc_value; eauto.
+    eapply Clight.deref_loc_reference; eauto.
+    eapply Clight.deref_loc_copy; eauto.
     eapply Clight.deref_loc_bitfield; eauto.
 
   - (* cast *)
@@ -226,18 +235,18 @@ Proof.
     {
       inv H0.
       simpl in *.
-      eapply eval_Elvalue.
-      eapply eval_Efield_struct; eauto.
+      eapply Clight.eval_Elvalue.
+      eapply Clight.eval_Efield_struct; eauto.
       rewrite (transf_types_eq a x) in H5; eauto.
       assert (SUB: CStan.prog_comp_env prog = ge); eauto; rewrite SUB in *.
       rewrite comp_env_preserved in *; eauto.
       assert (SUB: CStan.prog_comp_env prog = ge); eauto; rewrite SUB in *.
       rewrite comp_env_preserved in *; eauto.
       destruct H1.
-      eapply deref_loc_value; eauto.
-      eapply deref_loc_reference; eauto.
-      eapply deref_loc_copy; eauto.
-      eapply deref_loc_bitfield; eauto.
+      eapply Clight.deref_loc_value; eauto.
+      eapply Clight.deref_loc_reference; eauto.
+      eapply Clight.deref_loc_copy; eauto.
+      eapply Clight.deref_loc_bitfield; eauto.
     }
 
   - (* addrof *)
@@ -287,10 +296,10 @@ Lemma eval_lvalue_correct:
 Proof.
   intros e le m a.
   induction a; intros; monadInv TRE; try (inv H).
-  - eapply eval_Evar_local; eauto.
-  - eapply eval_Evar_global; eauto.
+  - eapply Clight.eval_Evar_local; eauto.
+  - eapply Clight.eval_Evar_global; eauto.
     rewrite symbols_preserved; auto.
-  - eapply eval_Ederef.
+  - eapply Clight.eval_Ederef.
     eapply eval_expr_correct; eauto.
   - eapply eval_Efield_struct.
     eapply eval_expr_correct; eauto.
@@ -327,7 +336,7 @@ Lemma transf_sem_cast_inject:
   transf_expression x = OK tx ->
   transf_function f = OK tf ->
   Cop.sem_cast v (CStan.typeof x) (CStan.fn_return f) m = Some v' ->
-  Cop.sem_cast v (typeof tx) (fn_return tf) m = Some v'.
+  Cop.sem_cast v (Clight.typeof tx) (fn_return tf) m = Some v'.
 Proof.
   intros.
   generalize (types_correct _ _ H); intro.
@@ -339,7 +348,7 @@ Qed.
 Lemma alloc_variables_preserved:
   forall e m params e' m',
   CStanSemanticsBackend.alloc_variables ge e m params e' m' ->
-  alloc_variables tge e m params e' m'.
+  Clight.alloc_variables tge e m params e' m'.
 Proof.
   induction 1; econstructor; eauto. rewrite comp_env_preserved; auto.
 Qed.
@@ -350,15 +359,15 @@ Lemma bind_parameters_preserved:
   bind_parameters tge e m params args m'.
 Proof.
   induction 1; econstructor; eauto. inv H0.
-- eapply assign_loc_value; eauto.
-- eapply assign_loc_copy; eauto; rewrite <- comp_env_preserved in *; auto.
+- eapply Clight.assign_loc_value; eauto.
+- eapply Clight.assign_loc_copy; eauto; rewrite <- comp_env_preserved in *; auto.
 Qed.
 
 Lemma eval_exprlist_correct_simple:
   forall env le es tes tys m vs
   (TREL: transf_expression_list es = OK tes)
   (EVEL: CStanSemanticsBackend.eval_exprlist ge env le m es tys vs),
-  eval_exprlist tge env le m tes tys vs.
+  Clight.eval_exprlist tge env le m tes tys vs.
 Proof.
   intros env le es.
   induction es; intros.
@@ -388,13 +397,13 @@ Proof.
     rewrite H3 in *.
     rewrite H4 in *.
     unfold step1.
-    eapply step_assign; eauto.
+    eapply Clight.step_assign; eauto.
     eapply eval_lvalue_correct; eauto.
     eapply eval_expr_correct; eauto.
     * inv H2.
-      ** eapply assign_loc_value; eauto.
-      ** eapply assign_loc_copy; try (rewrite comp_env_preserved); eauto.
-      ** eapply assign_loc_bitfield; eauto.
+      ** eapply Clight.assign_loc_value; eauto.
+      ** eapply Clight.assign_loc_copy; try (rewrite comp_env_preserved); eauto.
+      ** eapply Clight.assign_loc_bitfield; eauto.
     * eapply match_regular_states; eauto.
   - (* set *)
     intros; inv MS.
@@ -421,7 +430,7 @@ Proof.
   - (* builtin *)
     intros; inv MS.
     monadInv TRS.
-    exists (State tf Sskip tk e (set_opttemp optid vres le) m').
+    exists (Clight.State tf Sskip tk e (set_opttemp optid vres le) m').
     split. eapply plus_one. unfold step1.
     eapply step_builtin.
     eapply eval_exprlist_correct_simple; eauto.
@@ -430,27 +439,27 @@ Proof.
   - (* sequence seq *)
     intros.
     inv MS; monadInv TRS.
-    exists (State tf x (Kseq x0 tk) e le m).
+    exists (Clight.State tf x (Clight.Kseq x0 tk) e le m).
     split.
     eapply plus_one.
     unfold step1.
-    eapply step_seq.
+    eapply Clight.step_seq.
     eapply match_regular_states; eauto.
     econstructor; eauto.
   - (* skip sequence *)
     intros.
     inv MS; monadInv TRS.
     inv MCONT.
-    exists (State tf ts tk0 e le m).
+    exists (Clight.State tf ts tk0 e le m).
     split.
     eapply plus_one.
     unfold step1.
-    eapply step_skip_seq.
+    eapply Clight.step_skip_seq.
     eapply match_regular_states; eauto.
   - (* continue sequence *)
     intros; inv MS; monadInv TRS.
     inv MCONT.
-    exists (State tf Scontinue tk0 e le m).
+    exists (Clight.State tf Scontinue tk0 e le m).
     split.
     eapply plus_one.
     unfold step1.
@@ -459,7 +468,7 @@ Proof.
   - (* break sequence *)
     intros; inv MS; monadInv TRS.
     inv MCONT.
-    exists (State tf Sbreak tk0 e le m).
+    exists (Clight.State tf Sbreak tk0 e le m).
     split.
     eapply plus_one; unfold step1.
     eapply step_break_seq.
@@ -477,7 +486,7 @@ Proof.
     destruct b; eauto.
   - (* step_loop *)
     intros; inv MS; monadInv TRS.
-    exists (State tf x (Kloop1 x x0 tk) e le m).
+    exists (Clight.State tf x (Kloop1 x x0 tk) e le m).
     split.
     eapply plus_one; unfold step1.
     eapply step_loop.
@@ -501,7 +510,7 @@ Proof.
     eapply match_regular_states; eauto.
   - (* step_skip_loop2 *)
     intros; inv MS; monadInv TRS; inv MCONT.
-    exists (State tf (Sloop ts1 ts2) tk0 e le m).
+    exists (Clight.State tf (Sloop ts1 ts2) tk0 e le m).
     split.
     eapply plus_one; unfold step1.
     eapply step_skip_loop2.
@@ -510,7 +519,7 @@ Proof.
 
   - (* step_break_loop2 *)
     intros; inv MS; monadInv TRS; inv MCONT.
-    exists (State tf Sskip tk0 e le m).
+    exists (Clight.State tf Sskip tk0 e le m).
     split. eapply plus_one; unfold step1.
     eapply  step_break_loop2.
     eapply match_regular_states; eauto.
@@ -556,7 +565,7 @@ Proof.
 
   - (* step_continue_switch *)
     intros; inv MS; monadInv TRS; inv MCONT.
-    exists (State tf Scontinue tk0 e le m).
+    exists (Clight.State tf Scontinue tk0 e le m).
     split. eapply plus_one; unfold step1.
     econstructor.
     eapply match_regular_states; eauto.
@@ -564,7 +573,7 @@ Proof.
   - (* step_internal_function *)
     intros; inv MS.
     monadInv TRFD.
-    exists (State x x.(fn_body) tk e le m1).
+    exists (Clight.State x x.(fn_body) tk e le m1).
     split. eapply plus_one; unfold step1.
     eapply step_internal_function.
     inversion H.
@@ -588,7 +597,7 @@ Proof.
   - (* step_returnstate *)
     intros. inv MS.
     inv MCONT.
-    exists (State tfn Sskip tk0 e (set_opttemp optid v le) m).
+    exists (Clight.State tfn Sskip tk0 e (set_opttemp optid v le) m).
     split. apply plus_one. eapply step_returnstate.
     eapply match_regular_states; eauto.
 Qed.
@@ -597,11 +606,11 @@ Lemma function_ptr_translated:
   forall m0
     (b: block) (f: CStan.fundef)
   (H0 : Genv.init_mem prog = Some m0)
-  (H1 : Genv.find_symbol ge (CStan.prog_main prog) = Some b)
+  (H1 : Genv.find_symbol ge $"main" = Some b)
   (H2 : Genv.find_funct_ptr ge b = Some f)
   (H3 : CStan.type_of_fundef f = Tfunction Tnil type_int32s AST.cc_default)
   , Genv.find_funct_ptr ge b = Some f ->
-  exists tf, Genv.find_funct_ptr tge b = Some tf /\ transf_fundef f = OK tf.
+  exists tf, Genv.find_funct_ptr tge b = Some tf /\ Sbackend.transf_fundef f = OK tf.
 Proof.
   intros.
   edestruct (Genv.find_funct_ptr_match (proj1 TRANSL)) as (ctx' & tf & A & B & C'); eauto.
@@ -613,11 +622,11 @@ Lemma initial_states_simulation:
 Proof.
   intros. inv H.
   exploit function_ptr_translated; eauto. intros (tf & A & B).
-  exists (Callstate tf nil Kstop m0).
+  exists (Clight.Callstate tf nil Clight.Kstop m0).
   split.
   eapply Clight.initial_state_intro; eauto.
   erewrite <- (Genv.init_mem_match (proj1 TRANSL)); eauto.
-  replace (prog_main tprog) with (CStan.prog_main prog).
+  replace (prog_main tprog) with $"main".
   rewrite <- H1. apply symbols_preserved.
   generalize (match_program_main (proj1 TRANSL)).
   unfold AST.prog_main.

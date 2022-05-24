@@ -167,7 +167,7 @@ STANFRONTEND=Sops.v Stypes.v Stan.v StanE.v Ssemantics.v Sparser.v \
   Constraints.v \
   VariableAllocation.v \
   Target.v \
-  Sbackend.v
+  Sbackend.v Sbackendproof.v
 
 # MenhirLib
 
