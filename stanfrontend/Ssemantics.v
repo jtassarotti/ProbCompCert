@@ -8,15 +8,6 @@ Require Import Clightdefs.
 Import Clightdefs.ClightNotations.
 Local Open Scope clight_scope.
 
-(*
-Require Import String.
-Require Clight Clightdefs. 
-Import Clightdefs.ClightNotations.
-Local Open Scope Z_scope.
-Local Open Scope string_scope.
-Local Open Scope clight_scope.
-*)
-
 Definition genv := Genv.t fundef variable.
 
 Definition globalenv (p: program) := Genv.globalenv p. 
@@ -72,19 +63,6 @@ Inductive alloc_variables: env -> mem ->
       alloc_variables (PTree.set id (b1, ty) e) m1 vars e2 m2 ->
       alloc_variables e m ((id, ty) :: vars) e2 m2.
 
-Inductive bind_parameters (e: env):
-                           mem -> list (ident * basic) -> list val ->
-                           mem -> Prop :=
-  | bind_parameters_nil:
-      forall m,
-      bind_parameters e m nil nil m
-  | bind_parameters_cons:
-      forall m id ty params v1 vl b m1 m2,
-      PTree.get id e = Some(b, ty) ->
-      assign_loc ge ty m b Ptrofs.zero v1 m1 ->
-      bind_parameters e m1 params vl m2 ->
-      bind_parameters e m ((id, ty) :: params) (v1 :: vl) m2.
-
 Section EXPR.
 
 Variable e: env.
@@ -121,6 +99,23 @@ Definition unary_op_conversion (op: u_op): unary_operation :=
   | PNot => Onotbool
   end. 
 
+Definition binary_op_conversion (op: b_op): binary_operation :=
+  match op with
+  | StanE.Plus => Oadd
+  | Minus => Osub
+  | Times => Omul
+  | Divide => Odiv
+  | Modulo => Omod
+  | Or => Oor
+  | And => Oand
+  | Equals => Oeq
+  | NEquals => One
+  | Less => Olt
+  | Leq => Ole
+  | Greater => Ogt
+  | Geq => Oge
+  end.
+
 Inductive eval_expr: expr -> val -> Prop :=
   | eval_Econst_int: forall i ty,
       eval_expr (Econst_int i ty) (Vint i)
@@ -130,13 +125,11 @@ Inductive eval_expr: expr -> val -> Prop :=
       eval_expr a v1 ->
       sem_unary_operation (unary_op_conversion op) v1 (transf_type (typeof a)) m = Some v ->
       eval_expr (Eunop op a ty) v
-(*
   | eval_Ebinop: forall op a1 a2 ty v1 v2 v,
       eval_expr a1 v1 ->
       eval_expr a2 v2 ->
-      sem_binary_operation ge op v1 (typeof a1) v2 (typeof a2) m = Some v ->
-      eval_expr (Ebinop op a1 a2 ty) v
-*)
+      sem_binary_operation (PTree.empty composite) (binary_op_conversion op) v1 (transf_type (typeof a1)) v2 (transf_type (typeof a2)) m = Some v ->
+      eval_expr (Ebinop a1 op a2 ty) v
   | eval_Ecall: forall a al vf ef fd vargs tyargs m ty vres tyres  m' cconv t, 
       eval_expr a vf ->
       eval_exprlist al vargs ->
@@ -159,9 +152,11 @@ with eval_lvalue: expr -> block -> ptrofs -> Prop :=
       e!id = None ->
       Genv.find_symbol ge id = Some l ->
       eval_lvalue (Evar id ty) l Ptrofs.zero
-  | eval_Ederef: forall a ty l ofs i,
-      eval_expr a (Vptr l ofs) ->
-      eval_lvalue (Eindexed a i ty) l ofs
+  | eval_Ederef: forall a al ty l v,
+      eval_expr a (Vptr l (Ptrofs.of_int Integers.Int.zero)) ->
+      (* Currently only doing array *)
+      eval_exprlist al ((Vint v) :: nil) ->
+      eval_lvalue (Eindexed a al ty) l (Ptrofs.of_int v)
 
 with eval_exprlist: exprlist -> list val -> Prop :=
   | eval_Enil:
@@ -181,7 +176,7 @@ Inductive cont: Type :=
   | Kfor2: expr -> statement -> statement -> cont -> cont (* Kfor2 e2 e3 s k = after e2 in for(e1;e2;e3) s *)
   | Kfor3: expr -> statement -> statement -> cont -> cont (* Kfor3 e2 e3 s k = after s in for(e1;e2;e3) s *)
   | Kfor4: expr -> statement -> statement -> cont -> cont (* Kfor4 e2 e3 s k = after e3 in for(e1;e2;e3) s *)
-  | Kreturn: cont -> cont.
+  .
 
 Inductive state: Type :=
   | State
@@ -213,13 +208,15 @@ Inductive step: state -> trace -> state -> Prop :=
 
   | step_ifthenelse: forall f t a s1 s2 k e m v1 b,
     eval_expr e m t a v1 ->
-      bool_val v1 (transf_type (typeof a)) m = Some b ->
-      step (State f (Sifthenelse a s1 s2) t k e m)
-        E0 (State f (if b then s1 else s2) t k e m)
+    bool_val v1 (transf_type (typeof a)) m = Some b ->
+    step (State f (Sifthenelse a s1 s2) t k e m) E0 (State f (if b then s1 else s2) t k e m)
 
+  | step_target: forall f t a v k e m,
+    eval_expr e m t a (Vfloat v) ->
+    step (State f (Starget a) t k e m) E0 (State f Sskip (Floats.Float.add t v) k e m)
 .
 
-(* Note: no binding of parameters, no check for repetition, no parameters *)
+(* Need to make assumption about AST -> globvar -> gvar_init *)
 Inductive initial_state (p: program): state -> Prop :=
   | initial_state_intro: forall b f m0 m1 e,
       let ge := Genv.globalenv p in
