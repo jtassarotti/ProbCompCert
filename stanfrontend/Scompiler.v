@@ -43,39 +43,46 @@ Definition transf_stan_program(p: StanE.program): res Clight.program :=
   @@@ time "Backend" backend. 
 
 Definition ProbCompCert's_passes :=
-      mkpass Targetproof.match_prog
+      mkpass Reparameterizationproof.match_prog
+  ::: mkpass Denumpyificationproof.match_prog
+  ::: mkpass Samplingproof.match_prog
+  ::: mkpass VariableAllocationproof.match_prog
+  ::: mkpass Targetproof.match_prog
   ::: mkpass Sbackendproof.match_prog
   ::: pass_nil _.
 
-Definition match_prog_test: CStan.program -> Clight.program -> Prop :=
+Definition match_prog_test: StanE.program -> Clight.program -> Prop :=
   pass_match (compose_passes ProbCompCert's_passes).
 
-Definition transf_cstan_program(p: CStan.program): res Clight.program :=
-  OK p
-  @@@ time "Target" Target.transf_program 
-  @@@ time "Backend" backend.
-
-Theorem transf_cstan_program_match:
+Theorem transf_stan_program_match:
   forall p tp,
-  transf_cstan_program p = OK tp ->
+  transf_stan_program p = OK tp ->
   match_prog_test p tp.
 Proof.
   intros p tp T.
-  unfold transf_cstan_program, time in T. simpl in T. 
-  destruct (Target.transf_program p) as [p1|e] eqn:P1; simpl in T; try discriminate.
-  destruct (Sbackend.backend p1) as [p2|e] eqn:P2; simpl in T; try discriminate.
+  unfold transf_stan_program, time in T. rewrite ! compose_print_identity in T. simpl in T.
+  destruct (Reparameterization.transf_program p) as [p1|e] eqn:P1; simpl in T; try discriminate.
+  destruct (Denumpyification.transf_program p1) as [p2|e] eqn:P2; simpl in T; try discriminate.
+  destruct (Sampling.transf_program p2) as [p3|e] eqn:P3; simpl in T; try discriminate.
+  destruct (VariableAllocation.transf_program p3) as [p4|e] eqn:P4; simpl in T; try discriminate.
+  destruct (Target.transf_program p4) as [p5|e] eqn:P5; simpl in T; try discriminate.
+  destruct (Sbackend.backend p5) as [p6|e] eqn:P6; simpl in T; try discriminate.
   unfold match_prog_test; simpl.
-  exists p1; split. eapply Targetproof.transf_program_match; eauto.
-  exists p2; split. eapply Sbackendproof.transf_program_match; eauto.
+  exists p1; split. eapply Reparameterizationproof.transf_program_match; eauto.
+  exists p2; split. eapply Denumpyificationproof.transf_program_match; eauto.
+  exists p3; split. eapply Samplingproof.transf_program_match; eauto.
+  exists p4; split. eapply VariableAllocationproof.transf_program_match; eauto.
+  exists p5; split. eapply Targetproof.transf_program_match; eauto.
+  exists p6; split. eapply Sbackendproof.transf_program_match; eauto.
   inversion T.  
   reflexivity.
 Qed. 
 
-Lemma transf_cstan_program_correct:
+Lemma transf_stan_program_correct_pre:
   forall p tp,
   match_prog_test p tp ->
-  transf_cstan_program p = OK tp ->
-  forward_simulation (CStanSemanticsTarget.semantics p) (Clight.semantics1 tp).
+  transf_stan_program p = OK tp ->
+  forward_simulation (Ssemantics.semantics p) (Clight.semantics1 tp).
 Proof.
   intros p tp M. unfold match_prog_test, pass_match in M; simpl in M.
   Ltac DestructM_test :=
@@ -88,6 +95,14 @@ Proof.
 
   intros.
   eapply compose_forward_simulations.
+    eapply Reparameterizationproof.transf_program_correct; eassumption.
+  eapply compose_forward_simulations.
+    eapply Denumpyificationproof.transf_program_correct; eassumption.
+  eapply compose_forward_simulations.
+    eapply Samplingproof.transf_program_correct; eassumption.
+  eapply compose_forward_simulations.
+    eapply VariableAllocationproof.transf_program_correct; eassumption.
+  eapply compose_forward_simulations.
     eapply Targetproof.transf_program_correct; eassumption.
   eapply compose_forward_simulations.
     eapply Sbackendproof.transf_program_correct; eassumption.  
@@ -99,7 +114,10 @@ Theorem transf_stan_program_correct:
   transf_stan_program p = OK tp ->
   forward_simulation (Ssemantics.semantics p) (Clight.semantics1 tp).
 Proof.
-Admitted.
+  intros. 
+  eapply transf_stan_program_correct_pre; try eassumption.
+  eapply transf_stan_program_match; eassumption.
+Qed.
 
 Definition CompCert's_passes :=
       mkpass SimplLocalsproof.match_prog

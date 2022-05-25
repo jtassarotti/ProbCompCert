@@ -372,5 +372,8 @@ Definition option_mon_mmap {X Y:Type} (f: X -> mon Y) (ox: option X) : mon (opti
 
 Require Import Linking.
 
+
+(* Example of what needs to be done: https://compcert.org/doc/html/compcert.cfrontend.Ctypes.html#Linker_program *)
+
 Instance L: Linker CStan.program.
 Admitted.

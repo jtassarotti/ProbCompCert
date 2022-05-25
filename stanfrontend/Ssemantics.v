@@ -3,6 +3,7 @@ Local Open Scope string_scope.
 Require Import Integers Floats Values AST Memory Builtins Events Globalenvs.
 Require Import Ctypes Cop StanE.
 Require Import Smallstep.
+Require Import Linking.
 
 Require Import Clightdefs.
 Import Clightdefs.ClightNotations.
@@ -235,3 +236,8 @@ End SEMANTICS.
 Definition semantics (p: program) :=
   let ge := Genv.globalenv p in
   Semantics_gen step (initial_state p) final_state ge ge.
+
+(* Example of what needs to be done: https://compcert.org/doc/html/compcert.cfrontend.Ctypes.html#Linker_program *)
+
+Instance L: Linker StanE.program.
+Admitted.
