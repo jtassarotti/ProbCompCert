@@ -10,14 +10,18 @@ Require Import Compiler.
 Require Import Reparameterization. 
 Require Import Denumpyification.
 Require Import Sampling.
-Require Import Constraints.
 Require Import VariableAllocation.
 Require Import Target.
 Require Import Sbackend.
 Require Import Coqlib.
 Require Import Linking. 
 
-Require Import Sbackendproof.
+Require Reparameterizationproof.
+Require Denumpyificationproof.
+Require Samplingproof.
+Require VariableAllocationproof.
+Require Targetproof.
+Require Sbackendproof.
 
 Open Scope string_scope.
 Local Open Scope linking_scope.
@@ -38,9 +42,9 @@ Definition transf_stan_program(p: StanE.program): res Clight.program :=
   @@ print (print_CStan 3)
   @@@ time "Backend" backend. 
 
-
 Definition ProbCompCert's_passes :=
-  mkpass Sbackendproof.match_prog
+      mkpass Targetproof.match_prog
+  ::: mkpass Sbackendproof.match_prog
   ::: pass_nil _.
 
 Definition match_prog_test: CStan.program -> Clight.program -> Prop :=
@@ -48,6 +52,7 @@ Definition match_prog_test: CStan.program -> Clight.program -> Prop :=
 
 Definition transf_cstan_program(p: CStan.program): res Clight.program :=
   OK p
+  @@@ time "Target" Target.transf_program 
   @@@ time "Backend" backend.
 
 Theorem transf_cstan_program_match:
@@ -57,9 +62,11 @@ Theorem transf_cstan_program_match:
 Proof.
   intros p tp T.
   unfold transf_cstan_program, time in T. simpl in T. 
-  destruct (Sbackend.backend p) as [p1|e] eqn:P2; simpl in T; try discriminate.
+  destruct (Target.transf_program p) as [p1|e] eqn:P1; simpl in T; try discriminate.
+  destruct (Sbackend.backend p1) as [p2|e] eqn:P2; simpl in T; try discriminate.
   unfold match_prog_test; simpl.
-  exists p1; split. eapply Sbackendproof.transf_program_match; eauto. 
+  exists p1; split. eapply Targetproof.transf_program_match; eauto.
+  exists p2; split. eapply Sbackendproof.transf_program_match; eauto.
   inversion T.  
   reflexivity.
 Qed. 
@@ -68,7 +75,7 @@ Lemma transf_cstan_program_correct:
   forall p tp,
   match_prog_test p tp ->
   transf_cstan_program p = OK tp ->
-  forward_simulation (CStanSemanticsBackend.semantics p) (Clight.semantics1 tp).
+  forward_simulation (CStanSemanticsTarget.semantics p) (Clight.semantics1 tp).
 Proof.
   intros p tp M. unfold match_prog_test, pass_match in M; simpl in M.
   Ltac DestructM_test :=
@@ -81,9 +88,11 @@ Proof.
 
   intros.
   eapply compose_forward_simulations.
+    eapply Targetproof.transf_program_correct; eassumption.
+  eapply compose_forward_simulations.
     eapply Sbackendproof.transf_program_correct; eassumption.  
   eapply forward_simulation_identity; eauto.
-Qed.  
+Qed.
 
 Theorem transf_stan_program_correct:
   forall p tp,

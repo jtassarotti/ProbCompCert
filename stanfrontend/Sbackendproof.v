@@ -27,7 +27,6 @@ Section PRESERVATION.
 
 Variable prog: CStan.program.
 Variable tprog: Clight.program.
-Hypothesis TRANSF: Sbackend.backend prog = OK tprog.
 Let ge := CStan.globalenv prog.
 Let tge := Clight.globalenv tprog.
 
@@ -663,8 +662,10 @@ Qed.
 
 End PRESERVATION.
 
+(*
 Instance L: Linker CStan.program.
 Admitted. 
+*)
 
 Global Instance TransfSbackendLink : TransfLink match_prog.
 Admitted.

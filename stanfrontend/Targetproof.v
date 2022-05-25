@@ -1,3 +1,41 @@
+Require Import Smallstep.
+Require Import Errors.
+Require Import Linking.
+
+Require CStan.
+Require CStanSemanticsBackend. 
+Require CStanSemanticsTarget.
+Require Target.
+
+
+Parameter match_prog: CStan.program -> CStan.program -> Prop.
+
+Lemma transf_program_match:
+  forall p tp, Target.transf_program p = OK tp -> match_prog p tp.
+Proof.
+Admitted.
+
+Section PRESERVATION.
+
+Variable prog: CStan.program.
+Variable tprog: CStan.program.
+(*Hypothesis TRANSF: Target.transf_program prog = OK tprog.*)
+Variable TRANSL: match_prog prog tprog.
+
+Theorem transf_program_correct:
+  forward_simulation (CStanSemanticsTarget.semantics prog) (CStanSemanticsBackend.semantics tprog).
+Proof.
+Admitted.
+
+End PRESERVATION.
+
+(*Instance L: Linker CStan.program.
+Admitted. *)
+
+Global Instance TransfTargetLink : TransfLink match_prog.
+Admitted.
+
+(*
 Require Import Coqlib.
 Require Import Smallstep.
 Require Import Target.
@@ -1227,3 +1265,4 @@ Proof.
 Qed.
 
 End PRESERVATION.
+*)

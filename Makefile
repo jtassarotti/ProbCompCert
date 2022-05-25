@@ -160,12 +160,11 @@ STANFRONTEND=Sops.v Stypes.v Stan.v StanE.v Ssemantics.v Sparser.v \
   CStanCont.v \
   CStanSemanticsBackend.v \
   CStanSemanticsTarget.v \
-  Reparameterization.v \
-  Denumpyification.v  \
-  Sampling.v \
-  Constraints.v \
-  VariableAllocation.v \
-  Target.v \
+  Reparameterization.v Reparameterizationproof.v \
+  Denumpyification.v Denumpyificationproof.v \
+  Sampling.v Samplingproof.v \
+  VariableAllocation.v VariableAllocationproof.v \
+  Target.v Targetproof.v \
   Sbackend.v Sbackendproof.v \
   Scompiler.v
 

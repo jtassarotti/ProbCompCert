@@ -370,4 +370,7 @@ Definition option_mon_mmap {X Y:Type} (f: X -> mon Y) (ox: option X) : mon (opti
   | Some x => do x <~ f x; ret (Some x)
   end.
 
+Require Import Linking.
 
+Instance L: Linker CStan.program.
+Admitted.
