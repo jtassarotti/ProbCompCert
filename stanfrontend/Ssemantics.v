@@ -192,6 +192,13 @@ Definition var_names (vars: list(ident * basic)) : list ident :=
   List.map (@fst ident basic) vars.
 
 Inductive step: state -> trace -> state -> Prop :=
+  | step_skip_seq: forall f t s k e m,
+      step (State f Sskip t (Kseq s k) e m)
+        E0 (State f s t k e m)
+
+  | step_seq: forall f t s1 s2 k e m,
+    step (State f (Ssequence s1 s2) t k e m) E0 (State f s1 t (Kseq s2 k) e m)
+
   | step_assign: forall f t a1 a2 k e m loc ofs v2 v m',
       eval_lvalue e m t a1 loc ofs ->
       eval_expr e m t a2 v2 ->
@@ -199,13 +206,6 @@ Inductive step: state -> trace -> state -> Prop :=
       assign_loc ge (typeof a1) m loc ofs v m' ->
       step (State f (Sassign a1 None a2) t k e m)
         E0 (State f Sskip t k e m')
-
-  | step_seq: forall f t s1 s2 k e m,
-    step (State f (Ssequence s1 s2) t k e m) E0 (State f s1 t (Kseq s2 k) e m)
-
-  | step_skip_seq: forall f t s k e m,
-      step (State f Sskip t (Kseq s k) e m)
-        E0 (State f s t k e m)
 
   | step_ifthenelse: forall f t a s1 s2 k e m v1 b,
     eval_expr e m t a v1 ->

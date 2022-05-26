@@ -19,9 +19,12 @@ Fixpoint transf_statement (s: statement) {struct s}: statement :=
   | _ => s
   end. 
 
+Definition transf_function (f: function) : function :=
+  mkfunction (transf_statement f.(fn_body)) f.(fn_vars). 
+
 Definition transf_fundef (fd: fundef) : fundef :=
   match fd with
-  | Ctypes.Internal f => Ctypes.Internal (mkfunction (transf_statement f.(fn_body)) f.(fn_vars))
+  | Ctypes.Internal f => Ctypes.Internal (transf_function f)
   | Ctypes.External ef targs tres cc => Ctypes.External ef targs tres cc
   end.
 

@@ -2,6 +2,7 @@ Require Import Integers.
 Require Import Coqlib.
 Require Import Floats.
 Require Import AST.
+Require Import Globalenvs. 
 Require Ctypes. 
 
 Inductive b_op :=
@@ -85,4 +86,8 @@ Definition program_of_program (p: program) : AST.program fundef variable :=
      AST.prog_main := xH |}.
 
 Coercion program_of_program: program >-> AST.program.
+
+Definition globalenv (p: program) :=
+   Genv.add_globals (Genv.empty_genv fundef variable nil) p.(prog_defs).
+
 
