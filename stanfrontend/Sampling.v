@@ -1,9 +1,5 @@
-Require Import List. 
-Require Import Ctypes.
+Require Import AST. 
 Require Import Stanlight.
-Require Import SimplExpr.
-Require Import Clightdefs.
-Local Open Scope gensym_monad_scope.
 
 Fixpoint transf_statement (s: statement) {struct s}: statement := 
   match s with 
@@ -23,15 +19,15 @@ Fixpoint transf_statement (s: statement) {struct s}: statement :=
   | _ => s
   end. 
 
-Definition transf_fundef (fd: Stanlight.fundef) : Stanlight.fundef :=
+Definition transf_fundef (fd: fundef) : fundef :=
   match fd with
   | Ctypes.Internal f => Ctypes.Internal (mkfunction (transf_statement f.(fn_body)) f.(fn_vars))
   | Ctypes.External ef targs tres cc => Ctypes.External ef targs tres cc
   end.
 
-Definition transf_program(p: Stanlight.program): Errors.res Stanlight.program := 
-  let p1 := AST.transform_program transf_fundef p in
-  Errors.OK {|
+Definition transf_program(p: program): program := 
+  let p1:= AST.transform_program transf_fundef p in
+  {|
       Stanlight.pr_defs := AST.prog_defs p1;
       Stanlight.pr_parameters_vars := p.(pr_parameters_vars);
       Stanlight.pr_data_vars := p.(pr_data_vars);

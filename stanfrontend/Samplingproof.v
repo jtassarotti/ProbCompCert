@@ -1,5 +1,4 @@
 Require Import Smallstep.
-Require Import Errors.
 Require Import Linking.
 
 Require Stanlight.
@@ -9,7 +8,7 @@ Require Ssemantics.
 Parameter match_prog: Stanlight.program -> Stanlight.program -> Prop.
 
 Lemma transf_program_match:
-  forall p tp, Sampling.transf_program p = OK tp -> match_prog p tp.
+  forall p tp, Sampling.transf_program p = tp -> match_prog p tp.
 Proof.
 Admitted.
 

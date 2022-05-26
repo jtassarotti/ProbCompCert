@@ -31,7 +31,7 @@ Parameter print_CStan: Z -> CStan.program -> unit.
 
 Definition transf_stan_program(p: Stanlight.program): res Clight.program :=
   OK p
-  @@@ time "Sampling" Sampling.transf_program
+  @@ time "Sampling" Sampling.transf_program
   @@@ time "Reparameterization" Reparameterization.transf_program
   @@@ time "Clightification" Clightification.transf_program
   @@ print (print_CStan 0)
@@ -58,11 +58,9 @@ Theorem transf_stan_program_match:
   transf_stan_program p = OK tp ->
   match_prog_test p tp.
 Proof.
-Admitted.
-(*
   intros p tp T.
   unfold transf_stan_program, time in T. rewrite ! compose_print_identity in T. simpl in T.
-  destruct (Sampling.transf_program p) as [p1|e] eqn:P1; simpl in T; try discriminate.
+  set (p1 :=  Sampling.transf_program p) in *. 
   destruct (Reparameterization.transf_program p1) as [p2|e] eqn:P2; simpl in T; try discriminate.
   destruct (Clightification.transf_program p2) as [p3|e] eqn:P3; simpl in T; try discriminate.
   destruct (VariableAllocation.transf_program p3) as [p4|e] eqn:P4; simpl in T; try discriminate.
@@ -74,11 +72,11 @@ Admitted.
   exists p3; split. eapply Clightificationproof.transf_program_match; eauto.
   exists p4; split. eapply VariableAllocationproof.transf_program_match; eauto.
   exists p5; split. eapply Targetproof.transf_program_match; eauto.
-  exists p6; split. eapply Sbackendproof.transf_program_match; eauto. 
-  inversion T.  
+  exists p6; split. eapply Sbackendproof.transf_program_match; eauto.
+  inversion T.
   reflexivity.
 Qed. 
-*)
+
 Lemma transf_stan_program_correct_pre:
   forall p tp,
   match_prog_test p tp ->
