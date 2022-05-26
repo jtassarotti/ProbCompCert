@@ -32,18 +32,18 @@ AbsInt Angewandte Informatik GmbH.
 ## Architecture of ProbCompCert
 
 The part of ProbCompcert that is formally verified can be found in the
-stanfrontend directory, which contains a description of the compiler's
-architecture.
+[stanfrontend](stanfrontend) directory, which contains a [description
+of the compiler's architecture](stanfrontend/README.md).
 
 The compiler also relies on the following unverified code that can be
 found in driver:
 
-* Sparse.ml: code that drives the parser and elaborates the compiled
+* [Sparse](driver/Sparse.ml): code that drives the parser and elaborates the compiled
   program. Currently, Sparse also performs type checking and some
   syntax desugaring. 
 
-* Sprelude.ml: generation of the structures and utilities for the parameters and the data. 
+* [Sprelude](driver/Sparse.ml): generation of the structures and utilities for the parameters and the data. 
 
-* Spropose.ml: generation of the proposal function. 
+* [Spropose](driver/Sparse.ml): generation of the proposal function. 
 
-* Sstanlib.ml: declarationelaboration of the standard library
+* [Sstanlib](driver/Sparse.ml): declarationelaboration of the standard library
