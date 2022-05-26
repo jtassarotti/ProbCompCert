@@ -161,7 +161,7 @@ STANFRONTEND=Sops.v Stypes.v Stan.v Stanlight.v Ssemantics.v Sparser.v \
   CStanSemanticsBackend.v \
   CStanSemanticsTarget.v \
   Reparameterization.v Reparameterizationproof.v \
-  Denumpyification.v Denumpyificationproof.v \
+  Clightification.v Clightificationproof.v \
   Sampling.v Samplingproof.v \
   VariableAllocation.v VariableAllocationproof.v \
   Target.v Targetproof.v \

@@ -168,7 +168,7 @@ Fixpoint transf_expression (e: Stanlight.expr) {struct e}: mon (list CStan.state
     (* ret (le ++ li, CStan.Ebinop Oadd (CStan.Ederef e (tptr ty)) i ty) *)
     ret (le ++ li, CStan.Ederef (CStan.Ebinop Oadd e i (tptr ty)) ty)
   | Eindexed e _ ty =>
-    error (Errors.msg "Denumpyification.transf_expression (NYI): Eindexed [i, ...]")
+    error (Errors.msg "Clightification.transf_expression (NYI): Eindexed [i, ...]")
   | Etarget ty => 
     do ty <~ transf_type ty;
     ret (nil, CStan.Etarget Tvoid)
@@ -211,7 +211,7 @@ Fixpoint transf_statement (s: Stanlight.statement) {struct s}: mon CStan.stateme
     do e1 <~ transf_expression e1;
     do e2 <~ transf_expression e2;
     do o <~ transf_operator o;
-    error (Errors.msg "Denumpyification.transf_statement (NYI): Sassign")
+    error (Errors.msg "Clightification.transf_statement (NYI): Sassign")
   | Ssequence s1 s2 =>
     do s1 <~ (transf_statement s1);
     do s2 <~ (transf_statement s2);

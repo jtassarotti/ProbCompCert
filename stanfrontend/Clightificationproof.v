@@ -6,13 +6,13 @@ Require CStan.
 Require Stanlight.
 Require Ssemantics. 
 Require CStanSemanticsTarget.
-Require Denumpyification.
+Require Clightification.
 
 
 Parameter match_prog: Stanlight.program -> CStan.program -> Prop.
 
 Lemma transf_program_match:
-  forall p tp, Denumpyification.transf_program p = OK tp -> match_prog p tp.
+  forall p tp, Clightification.transf_program p = OK tp -> match_prog p tp.
 Proof.
 Admitted.
 
@@ -29,5 +29,5 @@ Admitted.
 
 End PRESERVATION.
 
-Global Instance TransfDenumpyificationLink : TransfLink match_prog.
+Global Instance TransfClightificationLink : TransfLink match_prog.
 Admitted.

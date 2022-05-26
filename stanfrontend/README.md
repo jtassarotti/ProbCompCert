@@ -54,7 +54,7 @@ at Boston College.
 | Pass | Source | Target | Code | Proof |
 | ---- | ------ | ------ | ---- | ----- |
 | Reparameterize constrained parameters | Stanlight | Stanlight | [Reparameterization](Reparameterization.v) | [Reparameterizationproof](Reparameterizationproof.v) |
-| Pull calls out of expressions, compile for loops | Stanlight| CStan | [Denumpyification](Denumpyification.v) | [Denumpyificationproof](Denumpyificationproof.v) |
+| Pull calls out of expressions, compile for loops | Stanlight| CStan | [Clightification](Clightification.v) | [Clightificationproof](Clightificationproof.v) |
 | Implement sampling statement | CStan | CStan | [Sampling](Sampling.v) | [Samplingproof](Samplingproof.v) |
 | Replace gloval parameters and data by structures | CStan | CStan | [AllocateVariables](AllocateVariables.v) | [AllocateVariablesproof](AllocateVariablesproof.v) |
 | Explicit target | CStan | CStan | [Target](Target.v) | [Targetproof](Targetproof.v) |

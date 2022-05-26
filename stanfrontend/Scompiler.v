@@ -8,7 +8,7 @@ Require Import String.
 
 Require Import Compiler.
 Require Import Reparameterization. 
-Require Import Denumpyification.
+Require Import Clightification.
 Require Import Sampling.
 Require Import VariableAllocation.
 Require Import Target.
@@ -17,7 +17,7 @@ Require Import Coqlib.
 Require Import Linking. 
 
 Require Reparameterizationproof.
-Require Denumpyificationproof.
+Require Clightificationproof.
 Require Samplingproof.
 Require VariableAllocationproof.
 Require Targetproof.
@@ -32,7 +32,7 @@ Parameter print_CStan: Z -> CStan.program -> unit.
 Definition transf_stan_program(p: Stanlight.program): res Clight.program :=
   OK p
   @@@ time "Reparameterization" Reparameterization.transf_program
-  @@@ time "Denumpyification" Denumpyification.transf_program
+  @@@ time "Clightification" Clightification.transf_program
   @@ print (print_CStan 0)
   @@@ time "Sampling" Sampling.transf_program
   @@ print (print_CStan 1)
@@ -44,7 +44,7 @@ Definition transf_stan_program(p: Stanlight.program): res Clight.program :=
 
 Definition ProbCompCert's_passes :=
       mkpass Reparameterizationproof.match_prog
-  ::: mkpass Denumpyificationproof.match_prog
+  ::: mkpass Clightificationproof.match_prog
   ::: mkpass Samplingproof.match_prog
   ::: mkpass VariableAllocationproof.match_prog
   ::: mkpass Targetproof.match_prog
@@ -62,14 +62,14 @@ Proof.
   intros p tp T.
   unfold transf_stan_program, time in T. rewrite ! compose_print_identity in T. simpl in T.
   destruct (Reparameterization.transf_program p) as [p1|e] eqn:P1; simpl in T; try discriminate.
-  destruct (Denumpyification.transf_program p1) as [p2|e] eqn:P2; simpl in T; try discriminate.
+  destruct (Clightification.transf_program p1) as [p2|e] eqn:P2; simpl in T; try discriminate.
   destruct (Sampling.transf_program p2) as [p3|e] eqn:P3; simpl in T; try discriminate.
   destruct (VariableAllocation.transf_program p3) as [p4|e] eqn:P4; simpl in T; try discriminate.
   destruct (Target.transf_program p4) as [p5|e] eqn:P5; simpl in T; try discriminate.
   destruct (Sbackend.backend p5) as [p6|e] eqn:P6; simpl in T; try discriminate.
   unfold match_prog_test; simpl.
   exists p1; split. eapply Reparameterizationproof.transf_program_match; eauto.
-  exists p2; split. eapply Denumpyificationproof.transf_program_match; eauto.
+  exists p2; split. eapply Clightificationproof.transf_program_match; eauto.
   exists p3; split. eapply Samplingproof.transf_program_match; eauto.
   exists p4; split. eapply VariableAllocationproof.transf_program_match; eauto.
   exists p5; split. eapply Targetproof.transf_program_match; eauto.
@@ -97,7 +97,7 @@ Proof.
   eapply compose_forward_simulations.
     eapply Reparameterizationproof.transf_program_correct; eassumption.
   eapply compose_forward_simulations.
-    eapply Denumpyificationproof.transf_program_correct; eassumption.
+    eapply Clightificationproof.transf_program_correct; eassumption.
   eapply compose_forward_simulations.
     eapply Samplingproof.transf_program_correct; eassumption.
   eapply compose_forward_simulations.
