@@ -54,12 +54,15 @@ at Boston College.
 
 | Pass | Source | Target | Code | Proof |
 | ---- | ------ | ------ | ---- | ----- |
+| Implement sampling statement | Stanlight | Stanlight | [Sampling](Sampling.v) | [Samplingproof](Samplingproof.v) |
 | Reparameterize constrained parameters | Stanlight | Stanlight | [Reparameterization](Reparameterization.v) | [Reparameterizationproof](Reparameterizationproof.v) |
 | Pull calls out of expressions, compile for loops, translate types to C types, translate operators | Stanlight| CStan | [Clightification](Clightification.v) | [Clightificationproof](Clightificationproof.v) |
-| Implement sampling statement | CStan | CStan | [Sampling](Sampling.v) | [Samplingproof](Samplingproof.v) |
 | Replace gloval parameters and data by structures | CStan | CStan | [AllocateVariables](AllocateVariables.v) | [AllocateVariablesproof](AllocateVariablesproof.v) |
 | Explicit target | CStan | CStan | [Target](Target.v) | [Targetproof](Targetproof.v) |
 | Generate Clight | CStan | Clight | [Sbackend](Sbackend.v) | [Sbackendproof](Sbackendproof.v) |
+
+Notes:
+* The stanlight to stanlight transformations need not preserve the smallstep operation semantics
 
 ## All together
 

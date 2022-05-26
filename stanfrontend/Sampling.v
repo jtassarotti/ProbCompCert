@@ -1,25 +1,38 @@
 Require Import List. 
 Require Import Ctypes.
-Require Import CStan.
+Require Import Stanlight.
 Require Import SimplExpr.
 Require Import Clightdefs.
 Local Open Scope gensym_monad_scope.
 
-Definition tr_statement (p: program) (s: statement): mon statement :=
+Fixpoint transf_statement (s: statement) {struct s}: statement := 
   match s with 
-  | Stilde e d le (oe0, oe1) =>
-    do tmp <~ gensym tdouble;
-    let etmp := (Etempvar tmp tdouble) in
-    let params := e::le in
-    ret (Ssequence
-          (Scall (Some tmp) d params)
-          (Starget etmp))
-  | _ => ret s
+  | Ssequence s1 s2 =>
+    let s1 := transf_statement s1 in
+    let s2 := transf_statement s2 in
+    Ssequence s1 s2
+  | Sifthenelse e s1 s2 =>
+    let s1 := transf_statement s1 in
+    let s2 := transf_statement s2 in
+    Sifthenelse e s1 s2
+  | Sfor i e1 e2 s =>
+    let s := transf_statement s in
+    Sfor i e1 e2 s
+  | Stilde e d el =>
+    Starget (Ecall d (Econs e el) Breal)
+  | _ => s
+  end. 
+
+Definition transf_fundef (fd: Stanlight.fundef) : Stanlight.fundef :=
+  match fd with
+  | Ctypes.Internal f => Ctypes.Internal (mkfunction (transf_statement f.(fn_body)) f.(fn_vars))
+  | Ctypes.External ef targs tres cc => Ctypes.External ef targs tres cc
   end.
 
-Definition transf_statement := map_transf_statement tr_statement. 
-
-Definition transf_function := transf_function_basic transf_statement. 
-
-Definition transf_program := transf_program (transf_function).
-
+Definition transf_program(p: Stanlight.program): Errors.res Stanlight.program := 
+  let p1 := AST.transform_program transf_fundef p in
+  Errors.OK {|
+      Stanlight.pr_defs := AST.prog_defs p1;
+      Stanlight.pr_parameters_vars := p.(pr_parameters_vars);
+      Stanlight.pr_data_vars := p.(pr_data_vars);
+    |}.

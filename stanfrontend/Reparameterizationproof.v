@@ -2,7 +2,7 @@ Require Import Smallstep.
 Require Import Errors.
 Require Import Linking.
 
-Require CStan.
+Require Stanlight.
 Require Ssemantics. 
 Require Reparameterization.
 

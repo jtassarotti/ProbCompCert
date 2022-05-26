@@ -2,11 +2,11 @@ Require Import Smallstep.
 Require Import Errors.
 Require Import Linking.
 
-Require CStan.
+Require Stanlight.
 Require Sampling.
-Require CStanSemanticsTarget.
+Require Ssemantics.
 
-Parameter match_prog: CStan.program -> CStan.program -> Prop.
+Parameter match_prog: Stanlight.program -> Stanlight.program -> Prop.
 
 Lemma transf_program_match:
   forall p tp, Sampling.transf_program p = OK tp -> match_prog p tp.
@@ -15,12 +15,12 @@ Admitted.
 
 Section PRESERVATION.
 
-Variable prog: CStan.program.
-Variable tprog: CStan.program.
+Variable prog: Stanlight.program.
+Variable tprog: Stanlight.program.
 Variable TRANSL: match_prog prog tprog.
 
 Theorem transf_program_correct:
-  forward_simulation (CStanSemanticsTarget.semantics prog) (CStanSemanticsTarget.semantics tprog).
+  forward_simulation (Ssemantics.semantics prog) (Ssemantics.semantics tprog).
 Proof.
 Admitted.
 
