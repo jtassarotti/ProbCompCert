@@ -1,5 +1,5 @@
 Require Import List.
-Require Import StanE.
+Require Import Stanlight.
 Require Import Ctypes.
 Require CStan.
 Require Errors.
@@ -34,86 +34,86 @@ Notation "'do' ( X , Y ) <~ A ; B" := (bind2 A (fun X Y => B))
 
 Local Open Scope gensym_monad_scope.
 
-Fixpoint transf_type (t: StanE.basic) : mon type :=
+Fixpoint transf_type (t: Stanlight.basic) : mon type :=
   match t with
-  | StanE.Bint => ret tint
-  | StanE.Breal => ret tdouble
-  | StanE.Barray ty i => 
+  | Stanlight.Bint => ret tint
+  | Stanlight.Breal => ret tdouble
+  | Stanlight.Barray ty i => 
       do ty <~ transf_type ty;
       ret (tarray ty i)
-  | StanE.Bfunction tl rty =>
+  | Stanlight.Bfunction tl rty =>
     do tl <~ transf_typelist tl;
     do ty <~ transf_type rty;
     ret (Ctypes.Tfunction tl ty AST.cc_default)
   end
-with transf_typelist (tl: StanE.basiclist) : mon Ctypes.typelist :=
+with transf_typelist (tl: Stanlight.basiclist) : mon Ctypes.typelist :=
   match tl with
-  | StanE.Bnil =>  ret Ctypes.Tnil
-  | StanE.Bcons t tl =>
+  | Stanlight.Bnil =>  ret Ctypes.Tnil
+  | Stanlight.Bcons t tl =>
     do t <~ transf_type t;
     do tl <~ transf_typelist tl;
     ret (Ctypes.Tcons t tl)
   end.
 
-Fixpoint transf_type_res (t: StanE.basic) : Errors.res type :=
+Fixpoint transf_type_res (t: Stanlight.basic) : Errors.res type :=
   match t with
-  | StanE.Bint => Errors.OK tint
-  | StanE.Breal => Errors.OK tdouble
-  | StanE.Barray ty i => 
+  | Stanlight.Bint => Errors.OK tint
+  | Stanlight.Breal => Errors.OK tdouble
+  | Stanlight.Barray ty i => 
       do ty <- transf_type_res ty;
       Errors.OK (tarray ty i)
-  | StanE.Bfunction tl ret =>
+  | Stanlight.Bfunction tl ret =>
     do tl <- transf_typelist_res tl;
     do ty <- transf_type_res ret;
     Errors.OK (Ctypes.Tfunction tl ty AST.cc_default)
   end
-with transf_typelist_res (tl: StanE.basiclist) : Errors.res Ctypes.typelist :=
+with transf_typelist_res (tl: Stanlight.basiclist) : Errors.res Ctypes.typelist :=
   match tl with
-  | StanE.Bnil =>  Errors.OK Ctypes.Tnil
-  | StanE.Bcons t tl =>
+  | Stanlight.Bnil =>  Errors.OK Ctypes.Tnil
+  | Stanlight.Bcons t tl =>
     do t <- transf_type_res t;
     do tl <- transf_typelist_res tl;
     Errors.OK (Ctypes.Tcons t tl)
   end.
 
-Definition transf_operator (o: StanE.b_op): mon Cop.binary_operation :=
+Definition transf_operator (o: Stanlight.b_op): mon Cop.binary_operation :=
   match o with
-  | StanE.Plus => ret Cop.Oadd
-  | StanE.Minus => ret Cop.Osub
-  | StanE.Times => ret Cop.Omul
-  | StanE.Divide => ret Cop.Odiv
-  | StanE.Modulo => ret Cop.Omod
-  | StanE.Or => ret Cop.Oor
-  | StanE.And => ret Cop.Oand
-  | StanE.Equals => ret Cop.Oeq
-  | StanE.NEquals => ret Cop.One
-  | StanE.Less => ret Cop.Olt
-  | StanE.Leq => ret Cop.Ole
-  | StanE.Greater => ret Cop.Ogt
-  | StanE.Geq => ret Cop.Oge
+  | Stanlight.Plus => ret Cop.Oadd
+  | Stanlight.Minus => ret Cop.Osub
+  | Stanlight.Times => ret Cop.Omul
+  | Stanlight.Divide => ret Cop.Odiv
+  | Stanlight.Modulo => ret Cop.Omod
+  | Stanlight.Or => ret Cop.Oor
+  | Stanlight.And => ret Cop.Oand
+  | Stanlight.Equals => ret Cop.Oeq
+  | Stanlight.NEquals => ret Cop.One
+  | Stanlight.Less => ret Cop.Olt
+  | Stanlight.Leq => ret Cop.Ole
+  | Stanlight.Greater => ret Cop.Ogt
+  | Stanlight.Geq => ret Cop.Oge
   end.
 
-Definition transf_operator_return (o: StanE.b_op): mon Ctypes.type :=
+Definition transf_operator_return (o: Stanlight.b_op): mon Ctypes.type :=
   match o with
-  | StanE.Plus => ret tdouble
-  | StanE.Minus => ret tdouble
-  | StanE.Times => ret tdouble
-  | StanE.Divide => ret tdouble
-  | StanE.Modulo => ret tint
-  | StanE.Or => ret tbool
-  | StanE.And => ret tbool
-  | StanE.Equals => ret tbool
-  | StanE.NEquals => ret tbool
-  | StanE.Less => ret tbool
-  | StanE.Leq => ret tbool
-  | StanE.Greater => ret tbool
-  | StanE.Geq =>	ret tbool
+  | Stanlight.Plus => ret tdouble
+  | Stanlight.Minus => ret tdouble
+  | Stanlight.Times => ret tdouble
+  | Stanlight.Divide => ret tdouble
+  | Stanlight.Modulo => ret tint
+  | Stanlight.Or => ret tbool
+  | Stanlight.And => ret tbool
+  | Stanlight.Equals => ret tbool
+  | Stanlight.NEquals => ret tbool
+  | Stanlight.Less => ret tbool
+  | Stanlight.Leq => ret tbool
+  | Stanlight.Greater => ret tbool
+  | Stanlight.Geq =>	ret tbool
   end.
 
 
-Definition transf_unary_operator (o: StanE.u_op): mon Cop.unary_operation :=
+Definition transf_unary_operator (o: Stanlight.u_op): mon Cop.unary_operation :=
   match o with
-  | StanE.PNot => ret Cop.Onotbool
+  | Stanlight.PNot => ret Cop.Onotbool
   end.
 
 Fixpoint unzip {X Y: Type} (l: list (X * Y)) {struct l} : (list X) * (list Y) :=
@@ -131,7 +131,7 @@ Fixpoint flatten (l: list (list CStan.statement)) {struct l} : list CStan.statem
   | l :: ll => l ++ flatten ll
   end. 
 
-Fixpoint transf_expression (e: StanE.expr) {struct e}: mon (list CStan.statement * CStan.expr) :=
+Fixpoint transf_expression (e: Stanlight.expr) {struct e}: mon (list CStan.statement * CStan.expr) :=
   match e with
   | Econst_int i ty => 
     do ty <~ transf_type ty; 
@@ -200,7 +200,7 @@ Fixpoint makeseq (l: list CStan.statement) (s: CStan.statement) : CStan.statemen
   | s' :: l' => makeseq l' (CStan.Ssequence s' s) 
   end.
 
-Fixpoint transf_statement (s: StanE.statement) {struct s}: mon CStan.statement :=
+Fixpoint transf_statement (s: Stanlight.statement) {struct s}: mon CStan.statement :=
   match s with
   | Sskip => ret CStan.Sskip
   | Sassign e1 None e2 => (* v = x *)
@@ -250,12 +250,12 @@ Fixpoint transf_statement (s: StanE.statement) {struct s}: mon CStan.statement :
     ret (makeseq (le ++ ld ++ lel) (CStan.Stilde e d el (None, None)))
 end.
 
-Definition transf_constraint (c : StanE.constraint) : mon CStan.constraint :=
+Definition transf_constraint (c : Stanlight.constraint) : mon CStan.constraint :=
   match c with
-  | StanE.Cidentity => ret CStan.Cidentity
-  | StanE.Clower e => ret (CStan.Clower (CStan.Econst_float e tdouble))
-  | StanE.Cupper e => ret (CStan.Cupper (CStan.Econst_float e tdouble))
-  | StanE.Clower_upper e0 e1 =>
+  | Stanlight.Cidentity => ret CStan.Cidentity
+  | Stanlight.Clower e => ret (CStan.Clower (CStan.Econst_float e tdouble))
+  | Stanlight.Cupper e => ret (CStan.Cupper (CStan.Econst_float e tdouble))
+  | Stanlight.Clower_upper e0 e1 =>
     ret (CStan.Clower_upper (CStan.Econst_float e0 tdouble) (CStan.Econst_float e1 tdouble))
   end.
  
@@ -268,21 +268,21 @@ Fixpoint mapM {X Y:Type} (f: X -> mon Y) (xs: list X) : mon (list Y) :=
     ret (cons y l)
   end.
 (**********************************************************************************************************)
-Definition transf_var (v: AST.ident * StanE.basic) : mon (AST.ident * type) :=
+Definition transf_var (v: AST.ident * Stanlight.basic) : mon (AST.ident * type) :=
   match v with
     | (i, t) => do t <~ transf_type t; ret (i, t)
   end.
 
-Definition transf_vars (vs: list (AST.ident * StanE.basic)) : mon (list (AST.ident * type)) :=
+Definition transf_vars (vs: list (AST.ident * Stanlight.basic)) : mon (list (AST.ident * type)) :=
   mapM transf_var vs.
 
 (* FIXME: lambdas are too general? typechecker seems to want something more concrete... *)
-Definition transf_param (p: AST.ident * StanE.basic) : mon (AST.ident * type) :=
+Definition transf_param (p: AST.ident * Stanlight.basic) : mon (AST.ident * type) :=
   match p with
     | (i, t) => do t <~ transf_type t; ret (i, t)
   end.
 
-Definition transf_params (ps: list (AST.ident * StanE.basic)) : mon (list (AST.ident * type)) :=
+Definition transf_params (ps: list (AST.ident * Stanlight.basic)) : mon (list (AST.ident * type)) :=
   mapM transf_param ps.
 
 Definition option_mmap {X Y:Type} (f: X -> mon Y) (ox: option X) : mon (option Y) :=
@@ -291,20 +291,20 @@ Definition option_mmap {X Y:Type} (f: X -> mon Y) (ox: option X) : mon (option Y
   | Some x => do x <~ f x; ret (Some x)
   end.
 
-Definition transf_variable (_: AST.ident) (v: StanE.variable): Errors.res (type * CStan.constraint) :=
+Definition transf_variable (_: AST.ident) (v: Stanlight.variable): Errors.res (type * CStan.constraint) :=
   let m :=
-    do ty <~ transf_type (StanE.vd_type v);
-    do c <~ transf_constraint (StanE.vd_constraint v);
+    do ty <~ transf_type (Stanlight.vd_type v);
+    do c <~ transf_constraint (Stanlight.vd_constraint v);
     ret (ty, c) in
   match m (SimplExpr.initial_generator tt) with
   | SimplExpr.Err msg => Errors.Error msg
   | SimplExpr.Res (ty, c) g i =>   Errors.OK (ty,c)
   end.
 
-Definition transf_function (f: StanE.function): Errors.res CStan.function :=
+Definition transf_function (f: Stanlight.function): Errors.res CStan.function :=
   let m :=
-    do body <~ transf_statement f.(StanE.fn_body);
-    do vars <~ transf_vars f.(StanE.fn_vars);
+    do body <~ transf_statement f.(Stanlight.fn_body);
+    do vars <~ transf_vars f.(Stanlight.fn_vars);
     ret (body,vars) in
   match m (SimplExpr.initial_generator tt) with
   | SimplExpr.Err msg => Errors.Error msg
@@ -321,7 +321,7 @@ Definition transf_function (f: StanE.function): Errors.res CStan.function :=
      |}
 end.
 
-Definition transf_fundef (id: AST.ident) (fd: StanE.fundef) : Errors.res CStan.fundef :=
+Definition transf_fundef (id: AST.ident) (fd: Stanlight.fundef) : Errors.res CStan.fundef :=
   match fd with
   | Internal f =>
       do tf <- transf_function f; Errors.OK (Internal tf)
@@ -404,7 +404,7 @@ Fixpoint list_mmap_res {X Y: Type} (f: X-> Errors.res Y)(l: list X) {struct l}: 
     Errors.OK (cons e l)
   end.
 
-Definition transf_program(p: StanE.program): Errors.res CStan.program :=
+Definition transf_program(p: Stanlight.program): Errors.res CStan.program :=
   do p1 <- AST.transform_partial_program2 transf_fundef transf_variable p;
 
   let all_elaborated_defs := AST.prog_defs p1 in
@@ -413,12 +413,12 @@ Definition transf_program(p: StanE.program): Errors.res CStan.program :=
 
   let params_struct_id := $"Params" in 
 
-  do parameter_vars <- list_mmap_res (fun ib => do b <- transf_type_res (snd ib); Errors.OK (fst ib, b)) p.(StanE.pr_parameters_vars);
+  do parameter_vars <- list_mmap_res (fun ib => do b <- transf_type_res (snd ib); Errors.OK (fst ib, b)) p.(Stanlight.pr_parameters_vars);
   let parameter_members := List.map (fun tlp => Member_plain (fst tlp) (snd tlp)) parameter_vars in
   let params_struct := Composite params_struct_id Ctypes.Struct parameter_members Ctypes.noattr in
 
   let data_struct_id := $"Data" in
-  do data_vars <- list_mmap_res (fun ib => do b <- transf_type_res (snd ib); Errors.OK (fst ib, b)) p.(StanE.pr_data_vars);
+  do data_vars <- list_mmap_res (fun ib => do b <- transf_type_res (snd ib); Errors.OK (fst ib, b)) p.(Stanlight.pr_data_vars);
   let data_members := List.map (fun tlp => Member_plain (fst tlp) (snd tlp)) data_vars in
   let data_struct := Composite data_struct_id Ctypes.Struct data_members Ctypes.noattr in
 

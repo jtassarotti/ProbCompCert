@@ -1,4 +1,4 @@
-Require Import StanE.
+Require Import Stanlight.
 Require Import Ssemantics.
 Require Import Clight.
 Require Import Errors.
@@ -29,7 +29,7 @@ Local Open Scope linking_scope.
 (** Pretty-printers (defined in Caml). *)
 Parameter print_CStan: Z -> CStan.program -> unit.
 
-Definition transf_stan_program(p: StanE.program): res Clight.program :=
+Definition transf_stan_program(p: Stanlight.program): res Clight.program :=
   OK p
   @@@ time "Reparameterization" Reparameterization.transf_program
   @@@ time "Denumpyification" Denumpyification.transf_program
@@ -51,7 +51,7 @@ Definition ProbCompCert's_passes :=
   ::: mkpass Sbackendproof.match_prog
   ::: pass_nil _.
 
-Definition match_prog_test: StanE.program -> Clight.program -> Prop :=
+Definition match_prog_test: Stanlight.program -> Clight.program -> Prop :=
   pass_match (compose_passes ProbCompCert's_passes).
 
 Theorem transf_stan_program_match:
@@ -255,7 +255,7 @@ Proof.
   eapply Asmgenproof.transf_program_correct; eassumption.
 Qed.
 
-Definition transf_stan_program_complete(p: StanE.program): res Asm.program :=
+Definition transf_stan_program_complete(p: Stanlight.program): res Asm.program :=
   let p := transf_stan_program p in
   match p with
   | OK p => transf_clight_program p

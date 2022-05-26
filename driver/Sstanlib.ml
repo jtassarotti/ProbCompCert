@@ -68,8 +68,8 @@ let declare_library () =
   
 let convert_Ctypes_to_Stan ty =
   match ty with
-  | Ctypes.Tfloat _ -> StanE.Breal
-  | Ctypes.Tint _  -> StanE.Bint
+  | Ctypes.Tfloat _ -> Stanlight.Breal
+  | Ctypes.Tint _  -> Stanlight.Bint
   | _ -> raise (NIY_stanlib "Missing type conversion")
        
 let rec search library name =
@@ -85,12 +85,12 @@ let rec search library name =
 
 let rec type_of_parameters tyargs =
   match tyargs with
-  | [] -> StanE.Bnil
-  | arg :: args -> StanE.Bcons (convert_Ctypes_to_Stan arg, type_of_parameters args)
+  | [] -> Stanlight.Bnil
+  | arg :: args -> Stanlight.Bcons (convert_Ctypes_to_Stan arg, type_of_parameters args)
     
 let type_of_library_function name =
   let (f,tyret,tyargs) = search library_math_functions name in
-  (f,StanE.Bfunction (type_of_parameters tyargs, convert_Ctypes_to_Stan tyret))
+  (f,Stanlight.Bfunction (type_of_parameters tyargs, convert_Ctypes_to_Stan tyret))
 
 
 

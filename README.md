@@ -41,9 +41,12 @@ found in driver:
 * [Sparse](driver/Sparse.ml): code that drives the parser and elaborates the compiled
   program. Currently, Sparse also performs type checking and some
   syntax desugaring. 
-
 * [Sprelude](driver/Sparse.ml): generation of the structures and utilities for the parameters and the data. 
-
 * [Spropose](driver/Sparse.ml): generation of the proposal function. 
-
 * [Sstanlib](driver/Sparse.ml): declarationelaboration of the standard library
+
+## Other relevant files
+
+* [driver](driver/Driver.ml): compiler's entrypoint, extended to handle stan inputs
+* [Makefile](Makefile): ProbcompCert's Coq files need to be listed here
+* [extraction](extraction/extraction.v): extended to handle the generation of compiler for stan inputs

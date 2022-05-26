@@ -1,7 +1,7 @@
 Require Import Coqlib Errors Maps String.
 Local Open Scope string_scope.
 Require Import Integers Floats Values AST Memory Builtins Events Globalenvs.
-Require Import Ctypes Cop StanE.
+Require Import Ctypes Cop Stanlight.
 Require Import Smallstep.
 Require Import Linking.
 
@@ -102,7 +102,7 @@ Definition unary_op_conversion (op: u_op): unary_operation :=
 
 Definition binary_op_conversion (op: b_op): binary_operation :=
   match op with
-  | StanE.Plus => Oadd
+  | Stanlight.Plus => Oadd
   | Minus => Osub
   | Times => Omul
   | Divide => Odiv
@@ -239,5 +239,5 @@ Definition semantics (p: program) :=
 
 (* Example of what needs to be done: https://compcert.org/doc/html/compcert.cfrontend.Ctypes.html#Linker_program *)
 
-Instance L: Linker StanE.program.
+Instance L: Linker Stanlight.program.
 Admitted.

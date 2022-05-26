@@ -6,7 +6,7 @@ Require Integers.
 Local Open Scope Z_scope.
 Local Open Scope string_scope.
 
-Require Import StanE. 
+Require Import Stanlight. 
 Require Errors.
 Require Import Clightdefs.
 Import Clightdefs.ClightNotations.
@@ -21,7 +21,7 @@ Local Open Scope gensym_monad_scope.
 
 
 
-Fixpoint transf_expr (pmap: AST.ident -> option expr) (e: StanE.expr) {struct e}: StanE.expr :=
+Fixpoint transf_expr (pmap: AST.ident -> option expr) (e: Stanlight.expr) {struct e}: Stanlight.expr :=
   match e with
   | Evar id ty => 
     match pmap id with
@@ -56,7 +56,7 @@ with transf_exprlist (pmap: AST.ident -> option expr) (el: exprlist) {struct el}
   end.
 
 (* WARNING: missing lists *)
-Fixpoint transf_statement (pmap: AST.ident -> option expr) (s: StanE.statement) {struct s} : StanE.statement :=
+Fixpoint transf_statement (pmap: AST.ident -> option expr) (s: Stanlight.statement) {struct s} : Stanlight.statement :=
   match s with 
   | Sskip => Sskip
   | Sassign e1 o e2 => 
@@ -87,12 +87,12 @@ Fixpoint transf_statement (pmap: AST.ident -> option expr) (s: StanE.statement) 
     Stilde e d el
   end. 
 
-Definition transf_function (pmap: AST.ident -> option expr) (correction: expr) (id: AST.ident) (f: StanE.function): StanE.function :=
+Definition transf_function (pmap: AST.ident -> option expr) (correction: expr) (id: AST.ident) (f: Stanlight.function): Stanlight.function :=
   let body := transf_statement pmap f.(fn_body) in
   let body := Ssequence body (Starget correction) in 
   mkfunction body f.(fn_vars). 
 
-Definition transf_fundef (pmap: AST.ident -> option expr) (correction: expr) (id: AST.ident) (fd: StanE.fundef) : Errors.res StanE.fundef :=
+Definition transf_fundef (pmap: AST.ident -> option expr) (correction: expr) (id: AST.ident) (fd: Stanlight.fundef) : Errors.res Stanlight.fundef :=
   match fd with
   | Ctypes.Internal f =>
       let tf := transf_function pmap correction id f in 
@@ -100,7 +100,7 @@ Definition transf_fundef (pmap: AST.ident -> option expr) (correction: expr) (id
   | Ctypes.External ef targs tres cc => Errors.OK (Ctypes.External ef targs tres cc)
   end.
 
-Definition transf_variable (_: AST.ident) (v: StanE.variable): Errors.res StanE.variable := 
+Definition transf_variable (_: AST.ident) (v: Stanlight.variable): Errors.res Stanlight.variable := 
   Errors.OK (mkvariable (v.(vd_type)) (Cidentity)).
 
 Fixpoint find_parameter (defs: list (AST.ident * AST.globdef fundef variable)) (entry: AST.ident * basic) {struct defs}: Errors.res (AST.ident * variable) :=
@@ -188,7 +188,7 @@ Fixpoint collect_corrections (parameters: list (AST.ident * variable)) {struct p
     end
   end.
 
-Definition transf_program(p: StanE.program): Errors.res StanE.program := 
+Definition transf_program(p: Stanlight.program): Errors.res Stanlight.program := 
 
   do parameters <- Errors.mmap (find_parameter p.(pr_defs)) p.(pr_parameters_vars);
   let pmap := u_to_c_rewrite_map parameters in
@@ -196,7 +196,7 @@ Definition transf_program(p: StanE.program): Errors.res StanE.program :=
 
   do p1 <- AST.transform_partial_program2 (transf_fundef pmap correction) transf_variable p;
   Errors.OK {|
-      StanE.pr_defs := AST.prog_defs p1;
-      StanE.pr_parameters_vars := p.(pr_parameters_vars);
-      StanE.pr_data_vars := p.(pr_data_vars);
+      Stanlight.pr_defs := AST.prog_defs p1;
+      Stanlight.pr_parameters_vars := p.(pr_parameters_vars);
+      Stanlight.pr_data_vars := p.(pr_data_vars);
     |}.

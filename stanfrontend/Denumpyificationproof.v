@@ -3,13 +3,13 @@ Require Import Errors.
 Require Import Linking.
 
 Require CStan.
-Require StanE.
+Require Stanlight.
 Require Ssemantics. 
 Require CStanSemanticsTarget.
 Require Denumpyification.
 
 
-Parameter match_prog: StanE.program -> CStan.program -> Prop.
+Parameter match_prog: Stanlight.program -> CStan.program -> Prop.
 
 Lemma transf_program_match:
   forall p tp, Denumpyification.transf_program p = OK tp -> match_prog p tp.
@@ -18,7 +18,7 @@ Admitted.
 
 Section PRESERVATION.
 
-Variable prog: StanE.program.
+Variable prog: Stanlight.program.
 Variable tprog: CStan.program.
 Variable TRANSL: match_prog prog tprog.
 

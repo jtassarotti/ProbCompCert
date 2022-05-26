@@ -13,7 +13,7 @@ exception Unsupported of string
 exception TypeError of string
 
 let type_table = Hashtbl.create 123456;;
-Hashtbl.add type_table "target" StanE.Breal
+Hashtbl.add type_table "target" Stanlight.Breal
 
 module IdxTable =
   struct
@@ -32,19 +32,19 @@ let mapo o f =
 
 let filter_b_op o =
   match o with
-  | Sops.Plus -> StanE.Plus
-  | Sops.Minus -> StanE.Minus
-  | Sops.Times -> StanE.Times
-  | Sops.Divide -> StanE.Divide
-  | Sops.Modulo -> StanE.Modulo
-  | Sops.Or -> StanE.Or
-  | Sops.And -> StanE.And
-  | Sops.Equals -> StanE.Equals
-  | Sops.NEquals -> StanE.NEquals
-  | Sops.Less -> StanE.Less
-  | Sops.Leq -> StanE.Leq
-  | Sops.Greater -> StanE.Greater
-  | Sops.Geq -> StanE.Geq
+  | Sops.Plus -> Stanlight.Plus
+  | Sops.Minus -> Stanlight.Minus
+  | Sops.Times -> Stanlight.Times
+  | Sops.Divide -> Stanlight.Divide
+  | Sops.Modulo -> Stanlight.Modulo
+  | Sops.Or -> Stanlight.Or
+  | Sops.And -> Stanlight.And
+  | Sops.Equals -> Stanlight.Equals
+  | Sops.NEquals -> Stanlight.NEquals
+  | Sops.Less -> Stanlight.Less
+  | Sops.Leq -> Stanlight.Leq
+  | Sops.Greater -> Stanlight.Greater
+  | Sops.Geq -> Stanlight.Geq
   | Sops.IntDivide -> raise (Unsupported "binary operator: integer division")
   | Sops.LDivide -> raise (Unsupported "binary operator: L divide?")
   | Sops.EltTimes -> raise (Unsupported "binary operator: pointwise times")
@@ -56,57 +56,57 @@ let filter_b_op o =
 
 let typeof e  =
   match e with
-  | StanE.Econst_int (_, ty) -> ty
-  | StanE.Econst_float (_, ty) -> ty
-  | StanE.Evar (_, ty) -> ty
-  | StanE.Ecall (_,_,ty) -> ty
-  | StanE.Eunop (_, ty) -> ty
-  | StanE.Ebinop (_, _, _, ty) -> ty
-  | StanE.Eindexed (_, _, ty) -> ty
-  | StanE.Etarget ty -> ty
+  | Stanlight.Econst_int (_, ty) -> ty
+  | Stanlight.Econst_float (_, ty) -> ty
+  | Stanlight.Evar (_, ty) -> ty
+  | Stanlight.Ecall (_,_,ty) -> ty
+  | Stanlight.Eunop (_, ty) -> ty
+  | Stanlight.Ebinop (_, _, _, ty) -> ty
+  | Stanlight.Eindexed (_, _, ty) -> ty
+  | Stanlight.Etarget ty -> ty
 
 let op_to_string o =
   match o with
-  | StanE.Plus -> " + "
-  | StanE.Minus -> " - "
-  | StanE.Times -> " * "
-  | StanE.Divide -> " / "
-  | StanE.Modulo -> " % "
-  | StanE.Or -> " || "
-  | StanE.And -> " && "
-  | StanE.Equals -> " == "
-  | StanE.NEquals -> " != "
-  | StanE.Less -> " < "
-  | StanE.Leq -> " <= "
-  | StanE.Greater -> " > "
-  | StanE.Geq -> " >= "
+  | Stanlight.Plus -> " + "
+  | Stanlight.Minus -> " - "
+  | Stanlight.Times -> " * "
+  | Stanlight.Divide -> " / "
+  | Stanlight.Modulo -> " % "
+  | Stanlight.Or -> " || "
+  | Stanlight.And -> " && "
+  | Stanlight.Equals -> " == "
+  | Stanlight.NEquals -> " != "
+  | Stanlight.Less -> " < "
+  | Stanlight.Leq -> " <= "
+  | Stanlight.Greater -> " > "
+  | Stanlight.Geq -> " >= "
 
 let rec make_exprlist el =
   match el with
-  | [] -> StanE.Enil
-  | e :: l -> StanE.Econs (e, make_exprlist l)
+  | [] -> Stanlight.Enil
+  | e :: l -> Stanlight.Econs (e, make_exprlist l)
                
 let rec el_e e =
   match e with
-  | Stan.Econst_int i -> StanE.Econst_int (Camlcoq.Z.of_sint (int_of_string i), StanE.Bint)
-  | Stan.Econst_float f -> StanE.Econst_float (Camlcoq.coqfloat_of_camlfloat (float_of_string f), StanE.Breal)
+  | Stan.Econst_int i -> Stanlight.Econst_int (Camlcoq.Z.of_sint (int_of_string i), Stanlight.Bint)
+  | Stan.Econst_float f -> Stanlight.Econst_float (Camlcoq.coqfloat_of_camlfloat (float_of_string f), Stanlight.Breal)
   | Stan.Evar i ->
     begin match Hashtbl.find_opt type_table i with
-    | None -> raise (Internal ("Variable of unknown type " ^ i)) (* StanE.Evar (Camlcoq.intern_string i, StanE.Breal) *)
-    | Some (StanE.Bfunction (_, _)) -> raise (Internal "Something to think about carefully")
-    | Some ty -> StanE.Evar (Camlcoq.intern_string i, ty)
+    | None -> raise (Internal ("Variable of unknown type " ^ i)) (* Stanlight.Evar (Camlcoq.intern_string i, Stanlight.Breal) *)
+    | Some (Stanlight.Bfunction (_, _)) -> raise (Internal "Something to think about carefully")
+    | Some ty -> Stanlight.Evar (Camlcoq.intern_string i, ty)
     end
   | Stan.Eunop (o,e) ->
      begin
        match o with
-       | Sops.PNot -> raise (Internal "confused")(* StanE.Eunop (StanE.PNot, el_e e) *)
+       | Sops.PNot -> raise (Internal "confused")(* Stanlight.Eunop (Stanlight.PNot, el_e e) *)
        | Sops.PPlus ->
           let e = el_e e in
           let ty = typeof e in
           begin
             match ty with
-            | StanE.Bint -> StanE.Ebinop (StanE.Econst_int (Camlcoq.Z.of_sint 0, StanE.Bint),StanE.Plus,e,ty) 
-            | StanE.Breal -> StanE.Ebinop (StanE.Econst_float (Camlcoq.coqfloat_of_camlfloat 0.0, StanE.Breal),StanE.Plus,e,ty) 
+            | Stanlight.Bint -> Stanlight.Ebinop (Stanlight.Econst_int (Camlcoq.Z.of_sint 0, Stanlight.Bint),Stanlight.Plus,e,ty) 
+            | Stanlight.Breal -> Stanlight.Ebinop (Stanlight.Econst_float (Camlcoq.coqfloat_of_camlfloat 0.0, Stanlight.Breal),Stanlight.Plus,e,ty) 
             | _ -> raise (TypeError "Unop PPlus")
           end
        | Sops.PMinus ->
@@ -114,8 +114,8 @@ let rec el_e e =
           let ty = typeof e in
           begin
             match ty with
-            | StanE.Bint -> StanE.Ebinop (StanE.Econst_int (Camlcoq.Z.of_sint 0, StanE.Bint),StanE.Minus,e,ty) 
-            | StanE.Breal -> StanE.Ebinop (StanE.Econst_float (Camlcoq.coqfloat_of_camlfloat 0.0, StanE.Breal),StanE.Minus,e,ty) 
+            | Stanlight.Bint -> Stanlight.Ebinop (Stanlight.Econst_int (Camlcoq.Z.of_sint 0, Stanlight.Bint),Stanlight.Minus,e,ty) 
+            | Stanlight.Breal -> Stanlight.Ebinop (Stanlight.Econst_float (Camlcoq.coqfloat_of_camlfloat 0.0, Stanlight.Breal),Stanlight.Minus,e,ty) 
             | _ -> raise (TypeError "Unop PPlus")
           end
        | _ -> raise (Internal "binary operator used in unary position")
@@ -130,18 +130,18 @@ let rec el_e e =
      let t =
        begin 
          match t1, t2 with
-         | StanE.Bint, StanE.Bint -> StanE.Bint
-         | StanE.Breal, StanE.Breal -> StanE.Breal
-         | StanE.Breal, StanE.Bint -> raise (Unsupported ("Casting 1" ^ (op_to_string o)))
-         | StanE.Bint, StanE.Breal -> raise (Unsupported ("Casting 2" ^ (op_to_string o)))
+         | Stanlight.Bint, Stanlight.Bint -> Stanlight.Bint
+         | Stanlight.Breal, Stanlight.Breal -> Stanlight.Breal
+         | Stanlight.Breal, Stanlight.Bint -> raise (Unsupported ("Casting 1" ^ (op_to_string o)))
+         | Stanlight.Bint, Stanlight.Breal -> raise (Unsupported ("Casting 2" ^ (op_to_string o)))
          | _, _ -> raise (TypeError "Type error: operator applied to array")
        end in
-     StanE.Ebinop (e1,o,e2,t) 
+     Stanlight.Ebinop (e1,o,e2,t) 
   | Stan.Ecall (i,el) ->
      let (_,ty) = type_of_library_function i in
-     let e = StanE.Evar (Camlcoq.intern_string i, ty) in
+     let e = Stanlight.Evar (Camlcoq.intern_string i, ty) in
      let el = List.map el_e el in
-     StanE.Ecall (e,make_exprlist el,StanE.Breal)
+     Stanlight.Ecall (e,make_exprlist el,Stanlight.Breal)
   | Stan.Econdition (e1,e2,e3) -> raise (Unsupported "expression: conditional")
   | Stan.Earray el -> raise (Unsupported "expression: array")
   | Stan.Erow el -> raise (Unsupported "expression: row")
@@ -149,16 +149,16 @@ let rec el_e e =
      let e = el_e e in
      let t = typeof e in
      let il = List.map el_i il in
-     let index_are_all_ints = List.fold_left (fun b e -> b && typeof(e) == StanE.Bint) true il in
+     let index_are_all_ints = List.fold_left (fun b e -> b && typeof(e) == Stanlight.Bint) true il in
      begin
        match il, t, index_are_all_ints with
        | [], _, _ -> raise (TypeError "Type error: indexing with no indices")
        | _, _, false -> raise (TypeError "Type error: indices must be integers")
-       | _ , StanE.Barray (it,_), _ -> StanE.Eindexed (e, make_exprlist il, it)
+       | _ , Stanlight.Barray (it,_), _ -> Stanlight.Eindexed (e, make_exprlist il, it)
        | _, _, _ -> raise (TypeError "Type error: indexing can only be applied to arrays")
      end
   | Stan.Edist (i,el) -> raise (Unsupported "expression: distribution")
-  | Stan.Etarget -> StanE.Etarget StanE.Breal
+  | Stan.Etarget -> Stanlight.Etarget Stanlight.Breal
 
 and el_i i =
   match i with
@@ -196,10 +196,10 @@ let coqZ_of_string s =
                   
 let el_b b dims =
   match (b, dims) with
-  | (Stan.Bint,  []) -> StanE.Bint
-  | (Stan.Breal, []) -> StanE.Breal
-  | (Stan.Bint,  [Stan.Econst_int i]) -> StanE.Barray (StanE.Bint,(coqZ_of_string i)) 
-  | (Stan.Breal, [Stan.Econst_int i]) -> StanE.Barray (StanE.Breal,(coqZ_of_string i))
+  | (Stan.Bint,  []) -> Stanlight.Bint
+  | (Stan.Breal, []) -> Stanlight.Breal
+  | (Stan.Bint,  [Stan.Econst_int i]) -> Stanlight.Barray (Stanlight.Bint,(coqZ_of_string i)) 
+  | (Stan.Breal, [Stan.Econst_int i]) -> Stanlight.Barray (Stanlight.Breal,(coqZ_of_string i))
   | (Stan.Breal, _ ) -> raise (NIY_elab "compositive real")
   | (Stan.Bint, _ ) -> raise (NIY_elab "compositive int")        
   | (Stan.Bvector _, _) -> raise (Unsupported "vector type")
@@ -234,32 +234,32 @@ let rec el_s_ids s =
                   
 let rec el_s s =
   match s with
-  | Stan.Sskip -> StanE.Sskip
-  | Stan.Sassign (e1,oo,e2) -> StanE.Sassign (el_e e1, mapo oo filter_b_op, el_e e2)
-  | Stan.Sblock sl -> List.fold_left (fun s1 s2 -> StanE.Ssequence (s1, (el_s s2))) StanE.Sskip sl
-  | Stan.Sifthenelse (e,s1,s2) -> StanE.Sifthenelse (el_e e, el_s s1, el_s s2)
+  | Stan.Sskip -> Stanlight.Sskip
+  | Stan.Sassign (e1,oo,e2) -> Stanlight.Sassign (el_e e1, mapo oo filter_b_op, el_e e2)
+  | Stan.Sblock sl -> List.fold_left (fun s1 s2 -> Stanlight.Ssequence (s1, (el_s s2))) Stanlight.Sskip sl
+  | Stan.Sifthenelse (e,s1,s2) -> Stanlight.Sifthenelse (el_e e, el_s s1, el_s s2)
   | Stan.Swhile (e,s) -> raise (Unsupported "statement: while")
   | Stan.Sfor (i,e1,e2,s) ->
      let isym = Camlcoq.intern_string i in
      IdxHashtbl.add index_set isym ();
-     Hashtbl.add type_table i StanE.Bint;
-     StanE.Sfor (isym, el_e e1, el_e e2, el_s s)
+     Hashtbl.add type_table i Stanlight.Bint;
+     Stanlight.Sfor (isym, el_e e1, el_e e2, el_s s)
   | Stan.Sbreak -> raise (Unsupported "statement: break")
   | Stan.Scontinue -> raise (Unsupported "statement: continue")
   | Stan.Sreturn oe -> raise (Unsupported "statement: return")
-  | Stan.Svar v -> StanE.Sskip     
+  | Stan.Svar v -> Stanlight.Sskip     
   | Stan.Scall (i,el) -> raise (Unsupported "statement: call")
   | Stan.Sprint lp -> raise (Unsupported "statement: print")
   | Stan.Sreject lp -> raise (Unsupported "statement: reject")
   | Stan.Sforeach (i,e,s) ->raise (Unsupported "statement: foreach")
-  | Stan.Starget e -> StanE.Starget (el_e e)
+  | Stan.Starget e -> Stanlight.Starget (el_e e)
   | Stan.Stilde (e,i,el,(None,None)) ->
      let (_id,_ty) = type_of_library_function i in
      (*
     let (_i, _ty) = match Hashtbl.find_opt transf_dist_idents i with
       | Some (ident, ty) -> (ident, ty)
       | None -> raise (NIY_elab ("tilde called with invalid distribution: "^ i))*)
-    StanE.Stilde (el_e e, StanE.Evar (Camlcoq.intern_string _id, _ty), make_exprlist(map el_e el))
+    Stanlight.Stilde (el_e e, Stanlight.Evar (Camlcoq.intern_string _id, _ty), make_exprlist(map el_e el))
   | Stan.Stilde (e,i,el,(tr1,tr2)) -> raise (Unsupported "truncation")
 
 let elab elab_fun ol =
@@ -289,23 +289,23 @@ let str_to_coqint s =
 
 let stype2basic s =
   match s with
-  | Stypes.Tint -> StanE.Bint
-  | Stypes.Treal -> StanE.Breal
+  | Stypes.Tint -> Stanlight.Bint
+  | Stypes.Treal -> Stanlight.Breal
   | _ -> raise (NIY_elab "stype2basic: do not call stype2basic on complex data representations")
 
 let el_c c =
   match c with
-  | Stan.Cidentity -> StanE.Cidentity
+  | Stan.Cidentity -> Stanlight.Cidentity
   | Stan.Clower e ->
      let b = eval_e e in
-     StanE.Clower b
+     Stanlight.Clower b
   | Stan.Cupper e ->
      let b = eval_e e in
-     StanE.Cupper b
+     Stanlight.Cupper b
   | Stan.Clower_upper (l, u) ->
      let b1 = eval_e l in
      let b2 = eval_e u in
-     StanE.Clower_upper (b1,b2)
+     Stanlight.Clower_upper (b1,b2)
   | Stan.Coffset e -> raise (Unsupported "constraint:offset")
   | Stan.Cmultiplier e -> raise (Unsupported "constraint:multiplier")
   | Stan.Coffset_multiplier (l, u) -> raise (Unsupported "constraint:offset_multiplier")
@@ -334,8 +334,8 @@ let mkLocal v =
 
 let mkVariableFromLocal (v, id, basic) =
   let vd = {
-    StanE.vd_type = basic;
-    StanE.vd_constraint = el_c(v.Stan.vd_constraint);
+    Stanlight.vd_type = basic;
+    Stanlight.vd_constraint = el_c(v.Stan.vd_constraint);
   } in
   (id,  AST.Gvar { AST.gvar_info = vd; gvar_init = transf_v_init v.Stan.vd_type v.Stan.vd_dims;
                    gvar_readonly = false; gvar_volatile = false})
@@ -354,11 +354,11 @@ let mkFunction name body rt params extraVars extraTemps =
     a_inline = Noinline;
     a_loc = (name,0) };
   let local_identifiers = List.fold_left (fun s1 s2 -> s1 @ (el_s_ids s2)) [] body in
-  let body = List.fold_left (fun s1 s2 -> StanE.Ssequence (s1, (el_s s2))) StanE.Sskip body in
+  let body = List.fold_left (fun s1 s2 -> Stanlight.Ssequence (s1, (el_s s2))) Stanlight.Sskip body in
   
   let fd = {
-    StanE.fn_vars = List.concat [extraVars @ local_identifiers; (IdxHashtbl.fold (fun k v acc -> (k,StanE.Bint)::acc) index_set [])];
-    StanE.fn_body = body} in
+    Stanlight.fn_vars = List.concat [extraVars @ local_identifiers; (IdxHashtbl.fold (fun k v acc -> (k,Stanlight.Bint)::acc) index_set [])];
+    Stanlight.fn_body = body} in
   (id,  AST.Gfun(Ctypes.Internal fd))
 
 let declareFundef name body rt params =
@@ -404,7 +404,7 @@ let elaborate (sourcefile : string) (p: Stan.program) =
 
     let _ = Camlcoq.intern_string "target" in
     let (id_model,f_model) =
-      mkFunction "model" ((get_code td) @ (get_code tp) @ (get_code m)) (Some StanE.Breal) [] [] [] in 
+      mkFunction "model" ((get_code td) @ (get_code tp) @ (get_code m)) (Some Stanlight.Breal) [] [] [] in 
     
     let functions = (id_model,f_model) :: functions in
  
@@ -428,9 +428,9 @@ let elaborate (sourcefile : string) (p: Stan.program) =
     let all_math_fns = declare_library () in
     
     {
-      StanE.pr_defs=  helpers @ data_variables @ param_variables @ functions @ all_math_fns;
-      StanE.pr_data_vars=data_fields;
-      StanE.pr_parameters_vars=param_fields;
+      Stanlight.pr_defs=  helpers @ data_variables @ param_variables @ functions @ all_math_fns;
+      Stanlight.pr_data_vars=data_fields;
+      Stanlight.pr_parameters_vars=param_fields;
     }
 
 let location t =
