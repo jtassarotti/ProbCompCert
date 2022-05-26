@@ -250,15 +250,6 @@ Fixpoint transf_statement (s: Stanlight.statement) {struct s}: mon CStan.stateme
     ret (makeseq (le ++ ld ++ lel) (CStan.Stilde e d el (None, None)))
 end.
 
-Definition transf_constraint (c : Stanlight.constraint) : mon CStan.constraint :=
-  match c with
-  | Stanlight.Cidentity => ret CStan.Cidentity
-  | Stanlight.Clower e => ret (CStan.Clower (CStan.Econst_float e tdouble))
-  | Stanlight.Cupper e => ret (CStan.Cupper (CStan.Econst_float e tdouble))
-  | Stanlight.Clower_upper e0 e1 =>
-    ret (CStan.Clower_upper (CStan.Econst_float e0 tdouble) (CStan.Econst_float e1 tdouble))
-  end.
- 
 Fixpoint mapM {X Y:Type} (f: X -> mon Y) (xs: list X) : mon (list Y) :=
   match xs with
   | nil => ret nil
@@ -291,14 +282,13 @@ Definition option_mmap {X Y:Type} (f: X -> mon Y) (ox: option X) : mon (option Y
   | Some x => do x <~ f x; ret (Some x)
   end.
 
-Definition transf_variable (_: AST.ident) (v: Stanlight.variable): Errors.res (type * CStan.constraint) :=
+Definition transf_variable (_: AST.ident) (v: Stanlight.variable): Errors.res type :=
   let m :=
     do ty <~ transf_type (Stanlight.vd_type v);
-    do c <~ transf_constraint (Stanlight.vd_constraint v);
-    ret (ty, c) in
+    ret ty in
   match m (SimplExpr.initial_generator tt) with
   | SimplExpr.Err msg => Errors.Error msg
-  | SimplExpr.Res (ty, c) g i =>   Errors.OK (ty,c)
+  | SimplExpr.Res ty g i =>   Errors.OK ty
   end.
 
 Definition transf_function (f: Stanlight.function): Errors.res CStan.function :=
@@ -364,21 +354,6 @@ Definition filter_globvars (all_defs : list (AST.ident*AST.globdef CStan.fundef 
   let plain_members := List.map (fun tpl => Member_plain (fst tpl) (snd tpl)) stan_members in
   plain_members.
 
-Definition eglobdef_to_constr : AST.globdef CStan.fundef (type * CStan.constraint) -> option CStan.constraint :=
-  map_globdef (fun x => match x with | (_, c) => c end).
-
-Definition transf_elaborated_globdef (gd : AST.globdef CStan.fundef (type * CStan.constraint)) : AST.globdef CStan.fundef type :=
-  match gd with
-  | AST.Gfun f => AST.Gfun f
-  | AST.Gvar t =>
-    AST.Gvar {|
-      AST.gvar_info := (fst t.(AST.gvar_info));
-      AST.gvar_init := t.(AST.gvar_init);
-      AST.gvar_readonly := t.(AST.gvar_readonly);
-      AST.gvar_volatile := t.(AST.gvar_volatile);
-    |}
-  end.
-
 Definition map_values {K V X:Type} (f : V -> X) : list (K * V) -> list (K * X) :=
   List.map (fun tpl => (fst tpl, f (snd tpl))).
 
@@ -407,10 +382,6 @@ Fixpoint list_mmap_res {X Y: Type} (f: X-> Errors.res Y)(l: list X) {struct l}: 
 Definition transf_program(p: Stanlight.program): Errors.res CStan.program :=
   do p1 <- AST.transform_partial_program2 transf_fundef transf_variable p;
 
-  let all_elaborated_defs := AST.prog_defs p1 in
-  let all_defs := map_values transf_elaborated_globdef all_elaborated_defs in
-  let all_contraints := cat_values (map_values eglobdef_to_constr all_elaborated_defs) in
-
   let params_struct_id := $"Params" in 
 
   do parameter_vars <- list_mmap_res (fun ib => do b <- transf_type_res (snd ib); Errors.OK (fst ib, b)) p.(Stanlight.pr_parameters_vars);
@@ -428,10 +399,9 @@ Definition transf_program(p: Stanlight.program): Errors.res CStan.program :=
 
 
   Errors.OK {|
-      CStan.prog_defs := all_defs;
+      CStan.prog_defs := AST.prog_defs p1;
       CStan.prog_public:=nil;
       CStan.prog_data_vars:=data_vars;
-      CStan.prog_constraints := all_contraints;
       CStan.prog_parameters_vars:=parameter_vars;
       CStan.prog_types:= composite_types;
       CStan.prog_comp_env:= comp_env;

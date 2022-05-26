@@ -35,7 +35,8 @@ are associated with multiple semantics.
    Stanlight.
 
 * [CStan](CStan.v): an extension of Clight with probabilistic
-  programming features. Includes features such as structures which are
+  programming features. CStan uses the C type system and global
+  environment. Includes features such as structures which are
   necessary for compilation.
 
 ## Parsing
@@ -54,7 +55,7 @@ at Boston College.
 | Pass | Source | Target | Code | Proof |
 | ---- | ------ | ------ | ---- | ----- |
 | Reparameterize constrained parameters | Stanlight | Stanlight | [Reparameterization](Reparameterization.v) | [Reparameterizationproof](Reparameterizationproof.v) |
-| Pull calls out of expressions, compile for loops | Stanlight| CStan | [Clightification](Clightification.v) | [Clightificationproof](Clightificationproof.v) |
+| Pull calls out of expressions, compile for loops, translate types to C types, translate operators | Stanlight| CStan | [Clightification](Clightification.v) | [Clightificationproof](Clightificationproof.v) |
 | Implement sampling statement | CStan | CStan | [Sampling](Sampling.v) | [Samplingproof](Samplingproof.v) |
 | Replace gloval parameters and data by structures | CStan | CStan | [AllocateVariables](AllocateVariables.v) | [AllocateVariablesproof](AllocateVariablesproof.v) |
 | Explicit target | CStan | CStan | [Target](Target.v) | [Targetproof](Targetproof.v) |

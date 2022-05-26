@@ -27,7 +27,6 @@ Require Import Globalenvs.
 Require Import Smallstep.
 Require Import Ctypes.
 Require Import Cop.
-Require Import Stan.
 Require Import SimplExpr.
 
 Require Import String. 
@@ -37,9 +36,9 @@ Local Open Scope string_scope.
 Local Open Scope clight_scope.
 
 Inductive expr : Type :=
-  | Econst_int: int -> type -> expr       (**r integer literal *)       (*FIXME: I think we can remove this *)
+  | Econst_int: int -> type -> expr       (**r integer literal *)
   | Econst_float: float -> type -> expr   (**r double float literal *)
-  | Econst_single: float32 -> type -> expr (**r single float literal *) (*FIXME: I think we can remove this *)
+  | Econst_single: float32 -> type -> expr (**r single float literal *)
   | Econst_long: int64 -> type -> expr    (**r long integer literal *)
   | Evar: ident -> type -> expr           (**r variable *)
   | Etempvar: ident -> type -> expr       (**r temporary variable *)
@@ -108,23 +107,6 @@ Definition Sfor
   (s4: statement) (* postprocessing statement *)
   := Ssequence s1 (Sloop (Ssequence (Sifthenelse e2 Sskip Sbreak) s3) s4).
 
-Inductive constraint :=
-  | Cidentity
-  | Clower: expr -> constraint
-  | Cupper: expr -> constraint
-  | Clower_upper: expr -> expr -> constraint
-  | Coffset: expr -> constraint
-  | Cmultiplier: expr -> constraint
-  | Coffset_multiplier: expr -> expr -> constraint
-  | Cordered
-  | Cpositive_ordered
-  | Csimplex
-  | Cunit_vector
-  | Ccholesky_corr
-  | Ccholesky_cov
-  | Ccorrelation
-  | Ccovariance.
-
 Inductive blocktype
   := BTModel
   | BTParameters
@@ -163,25 +145,10 @@ Definition dist_func_eq_dec : forall (x y : dist_func), { x = y } + { x <> y }.
 Proof.
 decide equality.
 Defined.
-(*
-Record reserved_params := mkreserved_params {
-  res_params_type: AST.ident;
-  res_params_global_state: AST.ident;
-  res_params_global_proposal: AST.ident;
-  res_params_arg: AST.ident; (* arguments may not be in the temp list and, therefore, cannot be trivially added through gensym *)
-  res_params_tmp: AST.ident; (* Cshmgen will not allow us to use temp idents for compond_env lookups *)
-}.
-Record reserved_data := mkreserved_data {
-  res_data_type: AST.ident;
-  res_data_global: AST.ident;
-  res_data_arg: AST.ident; (* arguments may not be in the temp list and, therefore, cannot be trivially added through gensym *)
-  res_data_tmp: AST.ident; (* Cshmgen will not allow us to use temp idents for compond_env lookups *)
-}.
-*)
+
 Record program : Type := {
   prog_defs: list (ident * globdef fundef type);
   prog_public: list ident;
-  prog_constraints: list (ident * constraint);
   prog_parameters_vars: list (ident * type);
   prog_data_vars: list (ident * type);
   prog_types: list composite_definition;
@@ -294,7 +261,7 @@ Definition transf_function_basic (p:CStan.program) (f: function): res (function)
       fn_params := f.(fn_params);
       fn_body := tbody;
 
-      fn_temps := g.(SimplExpr.gen_trail); (* ++ f.(fn_temps);*)
+      fn_temps := g.(SimplExpr.gen_trail); 
       fn_vars := f.(fn_vars);
       fn_generator := g;
 
@@ -308,8 +275,8 @@ Variable transf_function: program -> function -> res function.
 
 Definition transf_external (ef: AST.external_function) : res AST.external_function :=
   match ef with
-  | AST.EF_external n sig => OK (AST.EF_external n sig) (*link to blas ops?*)
-  | AST.EF_runtime n sig => OK (AST.EF_runtime n sig) (*link runtime?*)
+  | AST.EF_external n sig => OK (AST.EF_external n sig) 
+  | AST.EF_runtime n sig => OK (AST.EF_runtime n sig) 
   | _ => OK ef
   end.
 
@@ -334,7 +301,6 @@ Definition transf_program(p: CStan.program): res CStan.program :=
 
       prog_data_vars:=p.(prog_data_vars);
 
-      prog_constraints := p.(prog_constraints);
       prog_parameters_vars:= p.(prog_parameters_vars);
 
 
