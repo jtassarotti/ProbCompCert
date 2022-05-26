@@ -1,20 +1,19 @@
-# CompCert
-The formally-verified C compiler.
+# ProbCompCert
+The formally-verified Stan compiler.
 
 ## Overview
-The CompCert C verified compiler is a compiler for a large subset of the
-C programming language that generates code for the PowerPC, ARM, x86 and
-RISC-V processors.
+The ProbCompCert verified compiler is a prototype compiler for a subset of the
+Stan programming that ties into the CompCert C compiler.
 
-The distinguishing feature of CompCert is that it has been formally
+The distinguishing feature of ProbCompCert is that it is being formally
 verified using the Coq proof assistant: the generated assembly code is
 formally guaranteed to behave as prescribed by the semantics of the
-source C code.
+source Stan code.
 
-For more information on CompCert (supported platforms, supported C
-features, installation instructions, using the compiler, etc), please
-refer to the [Web site](https://compcert.org/) and especially
-the [user's manual](https://compcert.org/man/).
+ProbCompCert is derived from CompCert. With the exception of the files
+in the stanfrontend directory and the files in the driver directory
+whose filename starts with an uppercase S, all files are subject to
+CompCert's licensing and copyright rules, as explained below. 
 
 ## License
 CompCert is not free software.  This non-commercial release can only
@@ -30,10 +29,21 @@ Recherche en Informatique et en Automatique (INRIA) and
 AbsInt Angewandte Informatik GmbH.
 
 
-## Contact
-General discussions on CompCert take place on the
-[compcert-users@inria.fr](https://sympa.inria.fr/sympa/info/compcert-users)
-mailing list.
+## Architecture of ProbCompCert
 
-For inquiries on the commercial version of CompCert, please contact
-info@absint.com
+The part of ProbCompcert that is formally verified can be found in the
+stanfrontend directory, which contains a description of the compiler's
+architecture.
+
+The compiler also relies on the following unverified code that can be
+found in driver:
+
+* Sparse.ml: code that drives the parser and elaborates the compiled
+  program. Currently, Sparse also performs type checking and some
+  syntax desugaring. 
+
+* Sprelude.ml: generation of the structures and utilities for the parameters and the data. 
+
+* Spropose.ml: generation of the proposal function. 
+
+* Sstanlib.ml: declarationelaboration of the standard library
