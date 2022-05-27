@@ -241,8 +241,23 @@ Definition semantics (p: program) :=
 
 (* Example of what needs to be done: https://compcert.org/doc/html/compcert.cfrontend.Ctypes.html#Linker_program *)
 
-Instance LV: Linker Stanlight.variable.
-Admitted.
+Axiom variable_eq: forall (ty1 ty2: variable), {ty1=ty2} + {ty1<>ty2}.
 
-Instance L: Linker Stanlight.program.
-Admitted.
+Global Program Instance LV: Linker variable := {
+  link := fun t1 t2 => if variable_eq t1 t2 then Some t1 else None;
+  linkorder := fun t1 t2 => t1 = t2
+}.
+Next Obligation.
+destruct (variable_eq x y); inversion H; subst; auto.
+Defined.
+
+Axiom program_eq: forall (ty1 ty2: program), {ty1=ty2} + {ty1<>ty2}.
+
+Global Program Instance Linker_program: Linker program := {
+  link := fun t1 t2 => if program_eq t1 t2 then Some t1 else None;
+  linkorder := fun t1 t2 => t1 = t2
+}.
+Next Obligation.
+destruct (program_eq x y); inversion H; subst; auto.
+Defined. 
+
