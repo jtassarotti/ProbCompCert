@@ -7,7 +7,6 @@ Require Import String.
 Require Import Floats.
 Open Scope string_scope.
 Require Import Coqlib.
-Require Import Sops.
 Require Import Cop.
 Require Import Globalenvs.
 Require Import Integers.

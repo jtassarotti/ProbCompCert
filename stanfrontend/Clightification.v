@@ -6,7 +6,6 @@ Require Errors.
 Require Import String.
 Open Scope string_scope.
 Require Import Coqlib.
-Require Import Sops.
 Require Import Cop.
 Require Import Clightdefs.
 Require Import Int.

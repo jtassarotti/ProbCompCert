@@ -32,26 +32,26 @@ let mapo o f =
 
 let filter_b_op o =
   match o with
-  | Sops.Plus -> Stanlight.Plus
-  | Sops.Minus -> Stanlight.Minus
-  | Sops.Times -> Stanlight.Times
-  | Sops.Divide -> Stanlight.Divide
-  | Sops.Modulo -> Stanlight.Modulo
-  | Sops.Or -> Stanlight.Or
-  | Sops.And -> Stanlight.And
-  | Sops.Equals -> Stanlight.Equals
-  | Sops.NEquals -> Stanlight.NEquals
-  | Sops.Less -> Stanlight.Less
-  | Sops.Leq -> Stanlight.Leq
-  | Sops.Greater -> Stanlight.Greater
-  | Sops.Geq -> Stanlight.Geq
-  | Sops.IntDivide -> raise (Unsupported "binary operator: integer division")
-  | Sops.LDivide -> raise (Unsupported "binary operator: L divide?")
-  | Sops.EltTimes -> raise (Unsupported "binary operator: pointwise times")
-  | Sops.EltDivide -> raise (Unsupported "binary operator: pointwise divide")
-  | Sops.Pow -> raise (Unsupported "binary operator: power")
-  | Sops.EltPow -> raise (Unsupported "binary operator: pointwise power")
-  | Sops.Transpose -> raise (Unsupported "binary operator: transpose")
+  | Stan.Plus -> Stanlight.Plus
+  | Stan.Minus -> Stanlight.Minus
+  | Stan.Times -> Stanlight.Times
+  | Stan.Divide -> Stanlight.Divide
+  | Stan.Modulo -> Stanlight.Modulo
+  | Stan.Or -> Stanlight.Or
+  | Stan.And -> Stanlight.And
+  | Stan.Equals -> Stanlight.Equals
+  | Stan.NEquals -> Stanlight.NEquals
+  | Stan.Less -> Stanlight.Less
+  | Stan.Leq -> Stanlight.Leq
+  | Stan.Greater -> Stanlight.Greater
+  | Stan.Geq -> Stanlight.Geq
+  | Stan.IntDivide -> raise (Unsupported "binary operator: integer division")
+  | Stan.LDivide -> raise (Unsupported "binary operator: L divide?")
+  | Stan.EltTimes -> raise (Unsupported "binary operator: pointwise times")
+  | Stan.EltDivide -> raise (Unsupported "binary operator: pointwise divide")
+  | Stan.Pow -> raise (Unsupported "binary operator: power")
+  | Stan.EltPow -> raise (Unsupported "binary operator: pointwise power")
+  | Stan.Transpose -> raise (Unsupported "binary operator: transpose")
   | _ -> raise (Internal "unary operator in binary position")                   
 
 let typeof e  =
@@ -99,8 +99,8 @@ let rec el_e e =
   | Stan.Eunop (o,e) ->
      begin
        match o with
-       | Sops.PNot -> raise (Internal "confused")(* Stanlight.Eunop (Stanlight.PNot, el_e e) *)
-       | Sops.PPlus ->
+       | Stan.PNot -> raise (Internal "confused")(* Stanlight.Eunop (Stanlight.PNot, el_e e) *)
+       | Stan.PPlus ->
           let e = el_e e in
           let ty = typeof e in
           begin
@@ -109,7 +109,7 @@ let rec el_e e =
             | Stanlight.Breal -> Stanlight.Ebinop (Stanlight.Econst_float (Camlcoq.coqfloat_of_camlfloat 0.0, Stanlight.Breal),Stanlight.Plus,e,ty) 
             | _ -> raise (TypeError "Unop PPlus")
           end
-       | Sops.PMinus ->
+       | Stan.PMinus ->
           let e = el_e e in
           let ty = typeof e in
           begin
@@ -172,7 +172,7 @@ let rec eval_e_aux e =
   match e with
   | Stan.Econst_int i -> (float_of_string i)
   | Stan.Econst_float f -> (float_of_string f)
-  | Stan.Eunop (Sops.PMinus,e) -> -. (eval_e_aux e)
+  | Stan.Eunop (Stan.PMinus,e) -> -. (eval_e_aux e)
   | Stan.Eunop _ -> raise (Unsupported "Complex constant expression: unop")
   | Stan.Ebinop _ -> raise (Unsupported "Complex constant expression: binop")
   | Stan.Evar i -> raise (Unsupported "Complex constant expression: var")
@@ -289,8 +289,8 @@ let str_to_coqint s =
 
 let stype2basic s =
   match s with
-  | Stypes.Tint -> Stanlight.Bint
-  | Stypes.Treal -> Stanlight.Breal
+  | Stan.Tint -> Stanlight.Bint
+  | Stan.Treal -> Stanlight.Breal
   | _ -> raise (NIY_elab "stype2basic: do not call stype2basic on complex data representations")
 
 let el_c c =

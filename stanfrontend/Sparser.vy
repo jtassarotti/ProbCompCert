@@ -10,10 +10,7 @@ Require Import List.
 Import ListNotations.
 Require Import Nat.
 
-Require Import Sops.
-Require Import Stypes.
 Require Import Stan.
-Require Import Cop.
 
 (* Takes a sized_basic_type and a list of sizes and repeatedly applies then
    Sarray constructor, taking sizes off the list *)

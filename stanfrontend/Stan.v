@@ -2,9 +2,6 @@ Require Import Globalenvs.
 Require Import Events.
 Require Import Integers.
 
-Require Import Sops.
-Require Import Stypes.
-
 Require Import String.
 Open Scope string_scope. 
 
@@ -15,7 +12,44 @@ Parameter loc: Type.
 
 Definition identifier := string.
 
-(* FIXME add type system *)
+Inductive type :=
+  | Tint
+  | Treal
+  | Tvector
+  | Trow
+  | Tmatrix
+  | Tarray: type -> type.
+
+Inductive autodifftype :=
+  | Adata_only 
+  | Aauto_diffable.
+
+Inductive operator :=
+  | Plus
+  | Minus
+  | Times
+  | Divide
+  | Modulo
+  | Or
+  | And
+  | Equals
+  | NEquals
+  | Less
+  | Leq
+  | Greater
+  | Geq
+  | PNot
+
+  | PPlus
+  | PMinus
+  | IntDivide
+  | LDivide
+  | EltTimes
+  | EltDivide
+  | Pow
+  | EltPow
+  | Transpose.
+
 Inductive expr :=
   (* Classical expressions that exist in C *)
   | Econst_int: string -> expr

@@ -9,7 +9,7 @@ Require Import Globalenvs.
 Require Import Memory.
 Require Import Maps.
 Require Import Values.
-Require Import Linking Ctypes Stypes.
+Require Import Linking Ctypes.
 Import Integers.
 Require CStanSemanticsBackend.
 Require CStanCont.
