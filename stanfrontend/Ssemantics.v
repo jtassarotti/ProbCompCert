@@ -11,6 +11,7 @@ Local Open Scope clight_scope.
 
 Definition genv := Genv.t fundef variable.
 
+(* Neither used nor right... *)
 Definition globalenv (p: program) := Genv.globalenv p. 
 
 Definition env := PTree.t (block * basic).
@@ -131,10 +132,11 @@ Inductive eval_expr: expr -> val -> Prop :=
       eval_expr a2 v2 ->
       sem_binary_operation (PTree.empty composite) (binary_op_conversion op) v1 (transf_type (typeof a1)) v2 (transf_type (typeof a2)) m = Some v ->
       eval_expr (Ebinop a1 op a2 ty) v
-  | eval_Ecall: forall a al vf ef fd vargs tyargs m ty vres tyres  m' cconv t, 
+  | eval_Ecall: forall a al vf ef name sig fd vargs tyargs m ty vres tyres  m' cconv t, 
       eval_expr a vf ->
       eval_exprlist al vargs ->
       Genv.find_funct ge vf = Some fd ->
+      ef = EF_external name sig ->
       fd = External ef tyargs tyres cconv ->
       external_call ef ge vargs m t vres m' ->
       eval_expr (Ecall a al ty) vres 
@@ -220,7 +222,7 @@ Inductive step: state -> trace -> state -> Prop :=
 (* Need to make assumption about AST -> globvar -> gvar_init *)
 Inductive initial_state (p: program): state -> Prop :=
   | initial_state_intro: forall b f m0 m1 e,
-      let ge := Genv.globalenv p in
+      let ge := globalenv p in
       Genv.init_mem p = Some m0 ->
       Genv.find_symbol ge $"model" = Some b ->
       Genv.find_funct_ptr ge b = Some (Internal f) ->
@@ -238,6 +240,9 @@ Definition semantics (p: program) :=
   Semantics_gen step (initial_state p) final_state ge ge.
 
 (* Example of what needs to be done: https://compcert.org/doc/html/compcert.cfrontend.Ctypes.html#Linker_program *)
+
+Instance LV: Linker Stanlight.variable.
+Admitted.
 
 Instance L: Linker Stanlight.program.
 Admitted.

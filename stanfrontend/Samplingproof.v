@@ -6,12 +6,16 @@ Require Import Stanlight.
 Require Import Ssemantics.
 Require Import Sampling.
 
-Parameter match_prog: program -> program -> Prop.
+Definition match_prog (p: program) (tp: program) :=
+      match_program (fun ctx f tf => tf = transf_fundef f) eq p tp.  
 
 Lemma transf_program_match:
-  forall p tp, transf_program p = tp -> match_prog p tp.
+  forall p: program,  match_prog p (transf_program p).
 Proof.
-Admitted.
+  intros. unfold match_prog.
+  unfold transf_program. destruct p; simpl. 
+  eapply match_transform_program; eauto.  
+Qed. 
 
 Section PRESERVATION.
 
@@ -21,30 +25,132 @@ Variable TRANSL: match_prog prog tprog.
 Let ge := globalenv prog.
 Let tge := globalenv tprog.
 
+Lemma functions_translated:
+  forall v f,
+  Genv.find_funct ge v = Some f ->
+  Genv.find_funct tge v = Some (transf_fundef f).
+Proof.
+  intros. 
+  eapply Genv.find_funct_transf; eauto.  
+Qed. 
+
 Lemma symbols_preserved:
   forall id,
   Genv.find_symbol tge id = Genv.find_symbol ge id.
 Proof.
-Admitted. 
+  intros. 
+  eapply Genv.find_symbol_transf; eauto. 
+Qed. 
 
 Lemma senv_preserved:
   Senv.equiv ge tge.
-Proof. 
-Admitted. 
+Proof.
+  intros. 
+  eapply Genv.senv_transf; eauto.  
+Qed. 
+
+Lemma external_call_preserved:
+  forall name sig vargs m0 t0 v m',
+  Events.external_functions_sem name sig ge vargs m0 t0 v m' ->
+  Events.external_functions_sem name sig tge vargs m0 t0 v m'.
+Proof.
+Admitted.  
+
+Scheme eval_expr_rec := Minimality for eval_expr Sort Prop
+  with eval_lvalue_rec := Minimality for eval_lvalue Sort Prop
+  with eval_exprlist_rec := Minimality for eval_exprlist Sort Prop.
+
+Combined Scheme eval_expr_mutind from eval_expr_rec, eval_lvalue_rec, eval_exprlist_rec. 
+
+Lemma evaluation_preserved:
+  forall en m t,
+      (forall e v, eval_expr ge en m t e v -> eval_expr tge en m t e v)
+  /\  (forall e loc ofs, eval_lvalue ge en m t e loc ofs -> eval_lvalue tge en m t e loc ofs)
+  /\  (forall el vl, eval_exprlist ge en m t el vl -> eval_exprlist tge en m t el vl).
+Proof.
+  intros. 
+  set (P1 := fun e v => eval_expr ge en m t e v -> eval_expr tge en m t e v). 
+  set (P2 := fun e loc ofs => eval_lvalue ge en m t e loc ofs -> eval_lvalue tge en m t e loc ofs).
+  set (P3 := fun el vl => eval_exprlist ge en m t el vl -> eval_exprlist tge en m t el vl). 
+  generalize (eval_expr_mutind ge en m t P1 P2 P3); intro IND.
+
+  (* Evaluation of expressions *)
+  split.
+  intros e v EVAL. 
+  eapply IND; eauto; intros; subst; subst P1; subst P2; subst P3; simpl; intros.
+  econstructor; eauto.
+  econstructor; eauto.
+  econstructor; eauto.
+  econstructor; eauto.
+  econstructor; eauto.
+  generalize (functions_translated _ _ H3); intro FUN. eauto. 
+  eapply external_call_preserved; eauto.
+  econstructor; eauto.
+  econstructor; eauto.
+  econstructor; eauto.
+  eapply eval_Evar_global; eauto. 
+  rewrite symbols_preserved; auto. 
+  econstructor; eauto.
+  econstructor; eauto.
+  econstructor; eauto.
+
+  (* Evaluation of lvalues *)
+  split.
+  intros e loc ofs EVAL. 
+  eapply IND; eauto; intros; subst; subst P1; subst P2; subst P3; simpl; intros.
+  econstructor; eauto.
+  econstructor; eauto.
+  econstructor; eauto.
+  econstructor; eauto.
+  econstructor; eauto.
+  generalize (functions_translated _ _ H3); intro FUN. eauto. 
+  eapply external_call_preserved; eauto.
+  econstructor; eauto.
+  econstructor; eauto.
+  econstructor; eauto.
+  eapply eval_Evar_global; eauto. 
+  rewrite symbols_preserved; auto. 
+  econstructor; eauto.
+  econstructor; eauto.
+  econstructor; eauto.
+
+  (* Evaluation of list of expressions *)
+  intros el vl EVAL. 
+  eapply IND; eauto; intros; subst; subst P1; subst P2; subst P3; simpl; intros.
+  econstructor; eauto.
+  econstructor; eauto.
+  econstructor; eauto.
+  econstructor; eauto.
+  econstructor; eauto.
+  generalize (functions_translated _ _ H3); intro FUN. eauto. 
+  eapply external_call_preserved; eauto.
+  econstructor; eauto.
+  econstructor; eauto.
+  econstructor; eauto.
+  eapply eval_Evar_global; eauto. 
+  rewrite symbols_preserved; auto. 
+  econstructor; eauto.
+  econstructor; eauto.
+  econstructor; eauto.
+Qed.   
 
 Lemma eval_expr_preserved:
   forall en m t e v,
   eval_expr ge en m t e v ->
   eval_expr tge en m t e v.
 Proof. 
-Admitted.
+  intros. 
+  eapply evaluation_preserved; eauto. 
+Qed. 
 
 Lemma eval_lvalue_preserved:
   forall en m t e loc ofs,
   eval_lvalue ge en m t e loc ofs ->
   eval_lvalue tge en m t e loc ofs.
 Proof.
-Admitted. 
+  intros. 
+  eapply evaluation_preserved; eauto.  
+Qed. 
 
 Inductive match_cont: cont -> cont -> Prop :=
   | match_Kseq: forall s k k',
