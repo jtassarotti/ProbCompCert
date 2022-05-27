@@ -11,8 +11,7 @@ formally guaranteed to behave as prescribed by the semantics of the
 source Stan code.
 
 ProbCompCert is derived from CompCert. With the exception of the files
-in the stanfrontend directory and the files in the driver directory
-whose filename starts with an uppercase S, all files are subject to
+in the stanfrontend directory, all files are subject to
 CompCert's licensing and copyright rules, as explained below. 
 
 ## License

@@ -39,6 +39,10 @@ are associated with multiple semantics.
   environment. Includes features such as structures which are
   necessary for compilation.
 
+| Test | Test | Test |
+| ---- | ---- | ---- |
+| Foo  | Bar  | * test1 *test 2 | 
+
 ## Parsing
 
 The parser uses Menhir's verified parsing tools. The verified parser

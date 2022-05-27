@@ -1,4 +1,0 @@
-#+TITLE: Notes
-
-* not correctly supporting functions called by model that include tilde statements
-* returns in model: we do the wrong thing if the user has a return statement or we generate a return statement in the model block (ie: for early exit)
