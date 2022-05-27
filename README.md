@@ -31,22 +31,19 @@ AbsInt Angewandte Informatik GmbH.
 
 ## Architecture of ProbCompCert
 
-The part of ProbCompcert that is formally verified can be found in the
+We try to keep ProbCompCert's modifications to CompCert
+separated. Most of ProbCompCert's files can be found in the
 [stanfrontend](stanfrontend) directory, which contains a [description
-of the compiler's architecture](stanfrontend/README.md).
+of the compiler's architecture](stanfrontend/README.md). There are a
+few exceptions where rubber meets the road:
 
-The compiler also relies on the following unverified code that can be
-found in driver:
-
-* [Sparse](driver/Sparse.ml): code that drives the parser and elaborates the compiled
-  program. Currently, Sparse also performs type checking and some
-  syntax desugaring. 
-* [Sprelude](driver/Sparse.ml): generation of the structures and utilities for the parameters and the data. 
-* [Spropose](driver/Sparse.ml): generation of the proposal function. 
-* [Sstanlib](driver/Sparse.ml): declarationelaboration of the standard library
-
-## Other relevant files
-
-* [driver](driver/Driver.ml): compiler's entrypoint, extended to handle stan inputs
+* [driver](driver/Driver.ml): compiler's entrypoint, extended to know what to do with stan programs
 * [Makefile](Makefile): ProbcompCert's Coq files need to be listed here
+* [Makefile.extr](Makefile.extr): Makefile to build the final executable
 * [extraction](extraction/extraction.v): extended to handle the generation of compiler for stan inputs
+
+Notes to developpers:
+
+* In general, you do not need to edit the driver or the extraction
+* You only need to modify Makefile.extr if you want to add plain Caml code in new directories. Such directories need to be declared so that the OCaml build tools know where to look for code
+* If you add new Coq file in stanfrontend, it needs to be listed in the Makefile, and order does matter
