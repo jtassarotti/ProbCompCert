@@ -49,13 +49,6 @@ Proof.
   eapply Genv.senv_transf; eauto.  
 Qed. 
 
-Lemma external_call_preserved:
-  forall name sig vargs m0 t0 v m',
-  Events.external_functions_sem name sig ge vargs m0 t0 v m' ->
-  Events.external_functions_sem name sig tge vargs m0 t0 v m'.
-Proof.
-Admitted.  
-
 Scheme eval_expr_rec := Minimality for eval_expr Sort Prop
   with eval_lvalue_rec := Minimality for eval_lvalue Sort Prop
   with eval_exprlist_rec := Minimality for eval_exprlist Sort Prop.
@@ -84,7 +77,7 @@ Proof.
   econstructor; eauto.
   econstructor; eauto.
   generalize (functions_translated _ _ H3); intro FUN. eauto. 
-  eapply external_call_preserved; eauto.
+  eapply Events.external_call_symbols_preserved; eauto. apply senv_preserved.
   econstructor; eauto.
   econstructor; eauto.
   econstructor; eauto.
@@ -104,7 +97,7 @@ Proof.
   econstructor; eauto.
   econstructor; eauto.
   generalize (functions_translated _ _ H3); intro FUN. eauto. 
-  eapply external_call_preserved; eauto.
+  eapply Events.external_call_symbols_preserved; eauto. apply senv_preserved.
   econstructor; eauto.
   econstructor; eauto.
   econstructor; eauto.
@@ -123,7 +116,7 @@ Proof.
   econstructor; eauto.
   econstructor; eauto.
   generalize (functions_translated _ _ H3); intro FUN. eauto. 
-  eapply external_call_preserved; eauto.
+  eapply Events.external_call_symbols_preserved; eauto. apply senv_preserved.
   econstructor; eauto.
   econstructor; eauto.
   econstructor; eauto.
@@ -184,8 +177,8 @@ Proof.
   split.
   generalize (eval_expr_preserved _ _ _ _ _ H0); intro.
   generalize (eval_lvalue_preserved _ _ _ _ _ _ H); intro.
-  econstructor; eauto. 
-  admit. (* Preservation of assign location *)
+  econstructor; eauto. inversion H2. 
+  eapply assign_loc_value; eauto.  
   econstructor; eauto. 
   - (* Conditional statement *)  
   exists (State (transf_function f) (if b then (transf_statement s1) else (transf_statement s2)) t k' e m).
@@ -199,7 +192,7 @@ Proof.
   generalize (eval_expr_preserved _ _ _ _ _ H); intro.
   econstructor; eauto.
   econstructor; eauto.
-Admitted.   
+Qed.   
 
 Lemma transf_initial_states:
   forall S1, initial_state prog S1 ->
