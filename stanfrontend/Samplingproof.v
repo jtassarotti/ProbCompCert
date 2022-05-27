@@ -34,6 +34,15 @@ Proof.
   eapply Genv.find_funct_transf; eauto.  
 Qed. 
 
+Lemma function_ptr_translated:
+  forall v f,
+  Genv.find_funct_ptr ge v = Some f ->
+  Genv.find_funct_ptr tge v = Some (transf_fundef f).
+Proof.
+  intros. 
+  eapply Genv.find_funct_ptr_transf; eauto. 
+Qed. 
+
 Lemma symbols_preserved:
   forall id,
   Genv.find_symbol tge id = Genv.find_symbol ge id.
@@ -148,7 +157,9 @@ Qed.
 Inductive match_cont: cont -> cont -> Prop :=
   | match_Kseq: forall s k k',
       match_cont k k' -> 
-      match_cont (Kseq s k) (Kseq (transf_statement s) k').
+      match_cont (Kseq s k) (Kseq (transf_statement s) k')
+  | match_Kstop: 
+      match_cont Kstop Kstop.
 
 Inductive match_states: state -> state -> Prop :=
   | match_regular_states: forall f s t k k' e m
@@ -198,12 +209,27 @@ Lemma transf_initial_states:
   forall S1, initial_state prog S1 ->
   exists S2, initial_state tprog S2 /\ match_states S1 S2.
 Proof.
-Admitted. 
+  intros. inversion H. 
+  exists (State (transf_function f) (transf_statement (fn_body f)) (Floats.Float.of_int Integers.Int.zero) Kstop e m1).
+  split. 
+  econstructor; eauto. 
+  eapply (Genv.init_mem_match TRANSL); eauto.
+  rewrite symbols_preserved. eauto.
+  generalize (function_ptr_translated b (Ctypes.Internal f) H2); intro TR.
+  unfold transf_fundef in TR. eauto.  
+  econstructor; eauto.
+  econstructor.  
+Qed. 
 
 Lemma transf_final_states:
   forall S1 S2 r, match_states S1 S2 -> final_state S1 r -> final_state S2 r.
 Proof.
-Admitted. 
+  intros. 
+  inversion H. inversion H0. subst. inversion H3; subst.   
+  inversion MCONT; subst. 
+  simpl. 
+  econstructor; eauto. 
+Qed. 
 
 Theorem transf_program_correct:
   forward_simulation (Ssemantics.semantics prog) (Ssemantics.semantics tprog).
