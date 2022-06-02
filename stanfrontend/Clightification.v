@@ -147,7 +147,7 @@ Fixpoint transf_expression (e: Stanlight.expr) {struct e}: mon (list CStan.state
     do (le, e) <~ transf_expression e;
     do (lel, el) <~ transf_exprlist el;
     do ty <~ transf_type ty;
-    ret (le ++ CStan.Scall (Some t) e el :: nil, (CStan.Etempvar t ty))
+    ret (CStan.Scall (Some t) e el :: nil ++ le ++ lel, (CStan.Etempvar t ty))
   | Eunop o e ty =>
     do o <~ transf_unary_operator o;
     do ty <~ transf_type ty;
