@@ -54,7 +54,7 @@ if [ $? -ne 0 ]; then
 else
     echo "Compilation success: runtime"
 fi
-../../../../ccomp -lm stanlib.o prelude.o Runtime.o code.o -o executable
+../../../../ccomp stanlib.o prelude.o Runtime.o code.o -o executable -lm
 
 # Run
 ./executable $2 data.csv params.csv
