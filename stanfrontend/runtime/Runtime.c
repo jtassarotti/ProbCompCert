@@ -85,7 +85,7 @@ int main(int argc, char* argv[]) {
   printf("\nExecution success\n");
   print_params(state,true);
   printf("\n");
-  printf("Acceptance ratio: %lf\n", counter / n);
+  printf("Acceptance ratio: %lf\n", (float)counter / (float)n);
   return 0;
   
 }
