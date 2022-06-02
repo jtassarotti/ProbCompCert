@@ -17,7 +17,7 @@ int main(int argc, char* argv[]) {
   if (argc == 5) {
     debug = true;
   }
-
+  
   int n = atoi(argv[1]);
 
   struct Data* observations = alloc_data();

@@ -32,9 +32,10 @@ Definition as_fieldp (_Struct:AST.ident) (ref:AST.ident) (var:AST.ident) (fieldT
       (Evar ref (tptr (Tstruct _Struct noattr)))
       (Tstruct _Struct noattr))
     var fieldTy).
-
+(*
 Definition as_field (_Struct:AST.ident) (_ref:AST.ident) (_var:AST.ident) (_fieldTy:Ctypes.type) : CStan.expr :=
   (Efield (Evar _ref (Tstruct _Struct noattr)) _var _fieldTy).
+*)
 
 Fixpoint in_list (ps:list AST.ident) (i:AST.ident) : bool :=
   match ps with
@@ -158,7 +159,7 @@ Definition transf_statement_toplevel (p: program) (f: function): mon (list (AST.
 
   let data_map := {| 
       is_member := in_list (List.map fst p.(prog_data_vars)); 
-      transl := as_field $"Data" dtmp; |} in
+      transl := as_fieldp $"Data" dtmp; |} in
   let cast := fun arg tmp ty => Sassign (Evar tmp ty) (CStan.Ecast arg ty) in
 
   let params_map := {|
