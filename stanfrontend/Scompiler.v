@@ -78,12 +78,12 @@ Proof.
 Qed. 
 
 Lemma transf_stan_program_correct_pre:
-  forall p tp,
+  forall p tp data params,
   match_prog_test p tp ->
   transf_stan_program p = OK tp ->
-  forward_simulation (Ssemantics.semantics p) (Clight.semantics1 tp).
+  forward_simulation (Ssemantics.semantics p data params) (Clight.semantics1 tp).
 Proof.
-  intros p tp M. unfold match_prog_test, pass_match in M; simpl in M.
+  intros p tp data params M. unfold match_prog_test, pass_match in M; simpl in M.
   Ltac DestructM_test :=
     match goal with
       [ H: exists p, _ /\ _ |- _ ] =>
@@ -109,9 +109,9 @@ Proof.
 Qed.
 
 Theorem transf_stan_program_correct:
-  forall p tp,
+  forall p tp data params,
   transf_stan_program p = OK tp ->
-  forward_simulation (Ssemantics.semantics p) (Clight.semantics1 tp).
+  forward_simulation (Ssemantics.semantics p data params) (Clight.semantics1 tp).
 Proof.
   intros. 
   eapply transf_stan_program_correct_pre; try eassumption.
@@ -262,15 +262,16 @@ Definition transf_stan_program_complete(p: Stanlight.program): res Asm.program :
   end.
   
 Theorem transf_stan_program_correct_complete:
-  forall p tp,
+  forall p tp data params,
   transf_stan_program_complete p = OK tp ->
-  forward_simulation (Ssemantics.semantics p) (Asm.semantics tp).
+  forward_simulation (Ssemantics.semantics p data params) (Asm.semantics tp).
 Proof.
   intros.
   unfold transf_stan_program_complete in H.
   case_eq (transf_stan_program p); intros.
   rewrite H0 in H.   
-  apply (@compose_forward_simulations (Ssemantics.semantics p) (Clight.semantics1 p0) (Asm.semantics tp)).
+  apply (@compose_forward_simulations (Ssemantics.semantics p data params)
+                                      (Clight.semantics1 p0) (Asm.semantics tp)).
   apply transf_stan_program_correct; auto.
   apply transf_clight_program_correct; auto.
   apply transf_clight_program_match; auto.

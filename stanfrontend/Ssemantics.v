@@ -4,6 +4,7 @@ Require Import Integers Floats Values AST Memory Builtins Events Globalenvs.
 Require Import Ctypes Cop Stanlight.
 Require Import Smallstep.
 Require Import Linking.
+Require Vector.
 
 Require Import Clightdefs.
 Import Clightdefs.ClightNotations.
@@ -219,15 +220,45 @@ Inductive step: state -> trace -> state -> Prop :=
     step (State f (Starget a) t k e m) E0 (State f Sskip (Floats.Float.add t v) k e m)
 .
 
-(* Need to make assumption about AST -> globvar -> gvar_init *)
-Inductive initial_state (p: program): state -> Prop :=
-  | initial_state_intro: forall b f m0 m1 e,
+Fixpoint type_of_basic (b: basic) : Type :=
+  match b with
+  | Bint => Z
+  | Breal => Floats.float
+  | Barray b z => Vector.t (type_of_basic b) (Z.to_nat z)
+  | _ => unit
+  end.
+
+Fixpoint type_of_basic_list (bs: list basic) : Type :=
+  match bs with
+  | nil => unit
+  | b :: bs => type_of_basic b * type_of_basic_list bs
+  end.
+
+Definition data_signature (p : program) : Type :=
+  type_of_basic_list (map snd (pr_data_vars p)).
+
+Definition parameters_signature (p : program) : Type :=
+  type_of_basic_list (map snd (pr_parameters_vars p)).
+
+Inductive assign_global_locs (ge: genv) : list (ident * basic) -> mem -> list val -> mem -> Prop :=
+  | assign_global_locs_nil : forall m,
+      assign_global_locs ge nil m nil m
+  | assign_global_locs_cons : forall m1 m2 m3 id ty l v bs vs,
+      Genv.find_symbol ge id = Some l ->
+      assign_loc ge ty m1 l Ptrofs.zero v m2 ->
+      assign_global_locs ge bs m2 vs m3 ->
+      assign_global_locs ge ((id, ty) :: bs) m1 (v :: vs) m3.
+
+Inductive initial_state (p: program) (data : list val) (params: list val) : state -> Prop :=
+  | initial_state_intro: forall b f m0 m1 m2 m3 e,
       let ge := globalenv p in
       Genv.init_mem p = Some m0 ->
       Genv.find_symbol ge $"model" = Some b ->
       Genv.find_funct_ptr ge b = Some (Internal f) ->
       alloc_variables empty_env m0 f.(fn_vars) e m1 ->
-      initial_state p (State f f.(fn_body) ((Floats.Float.of_int Integers.Int.zero)) Kstop e m1).
+      assign_global_locs ge p.(pr_data_vars) m1 data m2 ->
+      assign_global_locs ge p.(pr_parameters_vars) m2 params m3 ->
+      initial_state p data params (State f f.(fn_body) ((Floats.Float.of_int Integers.Int.zero)) Kstop e m3).
 
 Inductive final_state: state -> int -> Prop :=
   | final_state_intro: forall f t e m,
@@ -235,9 +266,9 @@ Inductive final_state: state -> int -> Prop :=
 
 End SEMANTICS.
 
-Definition semantics (p: program) :=
+Definition semantics (p: program) (data: list val) (params: list val) :=
   let ge := Genv.globalenv p in
-  Semantics_gen step (initial_state p) final_state ge ge.
+  Semantics_gen step (initial_state p data params) final_state ge ge.
 
 (* Example of what needs to be done: https://compcert.org/doc/html/compcert.cfrontend.Ctypes.html#Linker_program *)
 
@@ -259,5 +290,5 @@ Global Program Instance Linker_program: Linker program := {
 }.
 Next Obligation.
 destruct (program_eq x y); inversion H; subst; auto.
-Defined. 
+Defined.
 

@@ -7,31 +7,38 @@ Require Import Ssemantics.
 Require Import Sampling.
 
 Definition match_prog (p: program) (tp: program) :=
-      match_program (fun ctx f tf => tf = transf_fundef f) eq p tp.  
+  match_program (fun ctx f tf => tf = transf_fundef f) eq p tp /\
+  pr_data_vars p = pr_data_vars tp /\
+  pr_parameters_vars p = pr_parameters_vars tp.
 
 Lemma transf_program_match:
   forall p: program,  match_prog p (transf_program p).
 Proof.
   intros. unfold match_prog.
   unfold transf_program. destruct p; simpl. 
-  eapply match_transform_program; eauto.  
+  repeat split; eauto.
+  eapply match_transform_program; eauto. 
 Qed. 
 
 Section PRESERVATION.
 
 Variable prog: program.
 Variable tprog: program.
+Variable data : list Values.val.
+Variable params : list Values.val.
 Variable TRANSL: match_prog prog tprog.
 Let ge := globalenv prog.
 Let tge := globalenv tprog.
+
+Hint Unfold match_prog : core.
 
 Lemma functions_translated:
   forall v f,
   Genv.find_funct ge v = Some f ->
   Genv.find_funct tge v = Some (transf_fundef f).
 Proof.
-  intros. 
-  eapply Genv.find_funct_transf; eauto.  
+  intros. destruct TRANSL.
+  eapply Genv.find_funct_transf; eauto.
 Qed. 
 
 Lemma function_ptr_translated:
@@ -39,7 +46,7 @@ Lemma function_ptr_translated:
   Genv.find_funct_ptr ge v = Some f ->
   Genv.find_funct_ptr tge v = Some (transf_fundef f).
 Proof.
-  intros. 
+  intros. destruct TRANSL.
   eapply Genv.find_funct_ptr_transf; eauto. 
 Qed. 
 
@@ -47,14 +54,14 @@ Lemma symbols_preserved:
   forall id,
   Genv.find_symbol tge id = Genv.find_symbol ge id.
 Proof.
-  intros. 
+  intros. destruct TRANSL.
   eapply Genv.find_symbol_transf; eauto. 
 Qed. 
 
 Lemma senv_preserved:
   Senv.equiv ge tge.
 Proof.
-  intros. 
+  intros. destruct TRANSL.
   eapply Genv.senv_transf; eauto.  
 Qed. 
 
@@ -154,6 +161,27 @@ Proof.
   eapply evaluation_preserved; eauto.  
 Qed. 
 
+Lemma assign_global_locs_preserved bs m1 vs m2 :
+  assign_global_locs ge bs m1 vs m2 ->
+  assign_global_locs tge bs m1 vs m2.
+Proof.
+  induction 1; econstructor; eauto.
+  - rewrite symbols_preserved; eauto.
+  - inversion H0; eapply assign_loc_value; eauto.
+Qed.
+
+Lemma data_vars_preserved :
+  pr_data_vars tprog = pr_data_vars prog.
+Proof.
+  unfold match_prog in TRANSL. intuition.
+Qed.
+
+Lemma parameters_vars_preserved :
+  pr_parameters_vars tprog = pr_parameters_vars prog.
+Proof.
+  unfold match_prog in TRANSL. intuition.
+Qed.
+
 Inductive match_cont: cont -> cont -> Prop :=
   | match_Kseq: forall s k k',
       match_cont k k' -> 
@@ -206,20 +234,23 @@ Proof.
 Qed.   
 
 Lemma transf_initial_states:
-  forall S1, initial_state prog S1 ->
-  exists S2, initial_state tprog S2 /\ match_states S1 S2.
+  forall S1, initial_state prog data params S1 ->
+  exists S2, initial_state tprog data params S2 /\ match_states S1 S2.
 Proof.
   intros. inversion H. 
-  exists (State (transf_function f) (transf_statement (fn_body f)) (Floats.Float.of_int Integers.Int.zero) Kstop e m1).
+  exists (State (transf_function f) (transf_statement (fn_body f)) (Floats.Float.of_int Integers.Int.zero) Kstop e m3).
   split. 
   econstructor; eauto. 
-  eapply (Genv.init_mem_match TRANSL); eauto.
+  destruct TRANSL as (TRANSL'&_).
+  eapply (Genv.init_mem_match TRANSL'); eauto.
   rewrite symbols_preserved. eauto.
   generalize (function_ptr_translated b (Ctypes.Internal f) H2); intro TR.
-  unfold transf_fundef in TR. eauto.  
+  unfold transf_fundef in TR. eauto. 
+  eapply assign_global_locs_preserved. rewrite data_vars_preserved; eauto.
+  eapply assign_global_locs_preserved; rewrite parameters_vars_preserved. eauto.
   econstructor; eauto.
-  econstructor.  
-Qed. 
+  econstructor.
+Qed.
 
 Lemma transf_final_states:
   forall S1 S2 r, match_states S1 S2 -> final_state S1 r -> final_state S2 r.
@@ -232,7 +263,7 @@ Proof.
 Qed. 
 
 Theorem transf_program_correct:
-  forward_simulation (Ssemantics.semantics prog) (Ssemantics.semantics tprog).
+  forward_simulation (Ssemantics.semantics prog data params) (Ssemantics.semantics tprog data params).
 Proof.
   eapply forward_simulation_step.
   eapply senv_preserved. 

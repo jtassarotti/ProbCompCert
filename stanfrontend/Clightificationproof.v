@@ -20,10 +20,13 @@ Section PRESERVATION.
 
 Variable prog: Stanlight.program.
 Variable tprog: CStan.program.
+Variable data : list Values.val.
+Variable params : list Values.val.
 Variable TRANSL: match_prog prog tprog.
 
+(* TODO: Joe: this doesn't make sense yet, because we ought to load the data/params in tprog as well *)
 Theorem transf_program_correct:
-  forward_simulation (Ssemantics.semantics prog) (CStanSemanticsTarget.semantics tprog).
+  forward_simulation (Ssemantics.semantics prog data params) (CStanSemanticsTarget.semantics tprog).
 Proof.
 Admitted.
 
