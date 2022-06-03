@@ -292,3 +292,29 @@ Next Obligation.
 destruct (program_eq x y); inversion H; subst; auto.
 Defined.
 
+Require ClassicalEpsilon.
+
+Section DENOTATIONAL.
+
+  (* returns_target_value p data params t holds if it is possible for p to go from an
+     initial state with data and params loaded to a final state with t as the target value *)
+  Definition returns_target_value (p: program) (data: list val) (params: list val) (t: float) :=
+    exists s1 tr f e m,
+      Smallstep.initial_state (semantics p data params) s1 /\
+      Star (semantics p data params) s1 tr (State f Sskip t Kstop e m).
+
+  (* Given a predicate P : V -> Prop, pred_to_default_fun P default will return
+     an arbitrary value v such that P v holds, if such a v exists, and otherwise returns default. *)
+  Definition pred_to_default_fun {V: Type} (P: V -> Prop) (default: V) : V :=
+    let s := ClassicalEpsilon.excluded_middle_informative (exists v : V, P v) in
+    match s with
+    | left e => let (x, _) := ClassicalEpsilon.constructive_indefinite_description P e in x
+    | right _ => default
+    end.
+
+  (* Return a final target value if one can be obtained from running the program, otherwise
+     returns Float.zero *)
+  Definition density_of_program (p: program) (data: list val) (params: list val) : float :=
+    pred_to_default_fun (returns_target_value p data params) Float.zero.
+
+End DENOTATIONAL.
