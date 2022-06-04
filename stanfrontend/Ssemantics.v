@@ -314,7 +314,7 @@ Section DENOTATIONAL.
 
   (* Return a final target value if one can be obtained from running the program, otherwise
      returns Float.zero *)
-  Definition density_of_program (p: program) (data: list val) (params: list val) : float :=
+  Definition log_density_of_program (p: program) (data: list val) (params: list val) : float :=
     pred_to_default_fun (returns_target_value p data params) Float.zero.
 
 End DENOTATIONAL.
