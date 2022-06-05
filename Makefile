@@ -166,7 +166,8 @@ STANFRONTEND=Stan.v Stanlight.v Ssemantics.v Sparser.v \
   VariableAllocation.v VariableAllocationproof.v \
   Target.v Targetproof.v \
   Sbackend.v Sbackendproof.v \
-  Scompiler.v
+  Scompiler.v \
+  RealsExt.v ImproperRInt.v
 
 # MenhirLib
 
