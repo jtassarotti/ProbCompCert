@@ -179,3 +179,11 @@ Proof.
     ** rewrite Rabs_right; nra.
     ** rewrite Rabs_left; try nra.
 Qed.
+
+Lemma is_lim_continuity':
+  ∀ (f : R → R) (x : R), continuous f x → is_lim f x (f x).
+Proof.
+  intros f x Hcont.
+  apply (is_lim_comp_continuous (λ x, x) f); auto.
+  apply: is_lim_id.
+Qed.
