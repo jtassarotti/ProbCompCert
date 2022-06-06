@@ -163,18 +163,19 @@ Qed.
 
 Lemma eps_squeeze_between a b (eps : posreal) :
   a < b ->
-  exists (eps': posreal), forall y, abs (minus y b) < eps' -> a <= y <= b + eps.
+  exists (eps': posreal), eps' <= eps ∧ forall y, abs (minus y b) < eps' -> a <= y <= b + eps.
 Proof.
   intros Hlt1.
   assert (Hpos: 0 < b - a).
   { nra. }
   destruct (Rle_dec eps (b - a)).
-  * exists eps. intros y.
+  * exists eps. split; first nra. intros y.
     rewrite /abs/minus/plus/opp//=.
     destruct (Rle_dec 0 (y + -b)).
     ** rewrite Rabs_right; nra.
     ** rewrite Rabs_left; try nra.
-  * exists (mkposreal (b - a) Hpos).
+  * exists (mkposreal (b - a) Hpos). split.
+    { simpl. nra. }
     intros y.
     rewrite /abs/minus/plus/opp//=.
     destruct (Rle_dec 0 (y + -b)).
@@ -525,4 +526,63 @@ Proof.
   by apply LeftLim_correct.
   by apply LeftLim_correct.
   by apply H1.
+Qed.
+
+Lemma is_RInt_upper_bound_left_lim a b f v :
+  Rlt a b ->
+  is_RInt f a b v ->
+  is_left_lim (RInt f a) b (RInt f a b).
+Proof.
+  intros Hlt His.
+  unfold is_left_lim. split; first done.
+  unfold filterlim, filter_le, filtermap, Rbar_at_left, within, Rbar_locally, locally. intros P HP.
+  destruct HP as (eps&Heps).
+  cut (∃ eps' : posreal, ∀ y, ball b eps' y -> Rbar_lt y b -> ball (RInt f a b) eps (RInt f a y)).
+  { intros (eps'&Heps'). exists eps'. intros y Hball Hbar. apply Heps, Heps'; auto. }
+  edestruct (ex_RInt_ub f a b) as (ub&Hub); first (econstructor; eauto).
+  assert (∀ t, a <= t <= b -> Rabs (RInt f t b) <= (b - t) * ub).
+  { intros t Hle. apply abs_RInt_le_const; intuition.
+    { apply: ex_RInt_Chasles_2.
+      { split; eassumption. }
+      econstructor; eauto. }
+    apply Hub. split.
+    { rewrite Rmin_left; nra. }
+    { rewrite Rmax_right; nra. }
+  }
+  assert (0 <= ub).
+  { specialize (Hub a). transitivity (norm (f a)).
+    { apply norm_ge_0. }
+    { apply Hub. rewrite Rmin_left ?Rmax_right; nra. }
+  }
+  assert (Heps': 0 < eps / (ub + 1)).
+  { apply Rdiv_lt_0_compat.
+    { destruct eps; auto. }
+    { nra. }
+  }
+  set (eps' := (mkposreal _ Heps')).
+  edestruct (eps_squeeze_between a b eps') as (eps''&Hsmaller&Heps''); auto.
+  exists eps''.
+  rewrite /ball/=/AbsRing_ball/=/abs/=/minus/plus/opp/=.
+  intros y Hball Hlty.
+  assert (a <= y).
+  { apply Heps''. auto. }
+  rewrite -(RInt_Chasles f a y b); swap 1 3.
+  { eapply ex_RInt_Chasles_2; last first.
+    { econstructor; eauto. }
+    split; nra. }
+  { eapply ex_RInt_Chasles_1; last first.
+    { econstructor; eauto. }
+    split; nra. }
+  eapply (Rle_lt_trans _ (Rabs (RInt f y b))).
+  { right. rewrite -Rabs_Ropp. f_equal. rewrite /plus//=. nra. }
+  eapply (Rle_lt_trans); first (eapply H; nra).
+  rewrite Rabs_left in Hball; last first.
+  { nra. }
+  assert (b - y < eps'' ) by nra.
+  apply (Rle_lt_trans _ (eps' * ub)).
+  { apply Rmult_le_compat_r; nra. }
+  rewrite /eps' /=. rewrite /Rdiv. rewrite Rmult_assoc.
+  apply (Rlt_le_trans _ (eps * 1)); last nra.
+  apply Rmult_lt_compat_l; first by (destruct eps).
+  rewrite Rmult_comm. apply (Rdiv_lt_1 ub (ub + 1)); nra.
 Qed.

@@ -18,50 +18,58 @@ Proof.
 Defined.
 
 Definition is_UIRInt (f: R -> R) (a: R) (b: Rbar) (If: R) :=
-  match is_finite_dec b with
-  | left _ => is_RInt f a (real b) If
-  | _ => (forall t, Rle a t -> Rbar_le t b -> ex_RInt f a t) /\ is_lim (RInt f a) b If
-  end.
+  (forall t, Rle a t -> Rbar_le t b -> ex_RInt f a t) /\ is_left_lim (RInt f a) b If.
 
 Definition ex_UIRInt (f : R -> R) (a: R) (b : Rbar) :=
   exists If : R, is_UIRInt f a b If.
 
 Definition UIRInt (f: R -> R) (a : R) (b : Rbar) : R :=
-  match is_finite_dec b with
-  | left _ => RInt f a (real b)
-  | _ => real (Lim (RInt f a) b)
-  end.
+  real (LeftLim (RInt f a) b).
 
 Lemma UIRInt_correct f a b :
   ex_UIRInt f a b -> is_UIRInt f a b (UIRInt f a b).
 Proof.
   rewrite /ex_UIRInt/is_UIRInt/UIRInt.
-  destruct (is_finite_dec b).
-  - intros. apply: RInt_correct; auto.
-  - intros (v&Hex&Hlim).
-    split; first done.
-    rewrite /UIRInt.
-    apply Lim_correct'. econstructor; eauto.
+  intros (v&Hex&Hlim).
+  split; first done.
+  rewrite /UIRInt.
+  apply LeftLim_correct'. econstructor; eauto.
 Qed.
 
 Lemma is_UIRInt_unique f a b v :
   is_UIRInt f a b v -> UIRInt f a b = v.
 Proof.
   rewrite /ex_UIRInt/is_UIRInt/UIRInt.
-  destruct (is_finite_dec b).
-  - apply: is_RInt_unique.
-  - intros (Hex&His). rewrite /UIRInt.
-    erewrite is_lim_unique; eauto. simpl; done.
+  intros (Hex&His). rewrite /UIRInt.
+  erewrite is_left_lim_unique; eauto. simpl; done.
 Qed.
 
-Lemma is_UIRInt_upper_finite_RInt f a (b: R) v :
+Lemma is_UIRInt_upper_finite_RInt_1 f a (b: R) v :
+  a < b ->
   is_RInt f a b v -> is_UIRInt f a b v.
-Proof. rewrite /is_UIRInt. intros His => /=. auto. Qed.
+Proof.
+  intros Hlt His. split.
+  * intros t Hle1 Hl2. apply: ex_RInt_Chasles_1; eauto.
+    { econstructor; eauto. }
+  * rewrite -(is_RInt_unique _ _ _ _ His).
+    apply: is_RInt_upper_bound_left_lim; eauto.
+Qed.
 
 Lemma is_RInt_upper_finite_UIRInt f a (b: R) v :
+  a < b ->
+  ex_RInt f a b ->
   is_UIRInt f a b v -> is_RInt f a b v.
-Proof. rewrite /is_UIRInt/=//. Qed.
+Proof.
+  intros Hlt (v'&His) Hisu.
+  cut (v = v').
+  { intros ->. auto. }
+  eapply is_UIRInt_upper_finite_RInt_1 in His; auto.
+  apply is_UIRInt_unique in His.
+  apply is_UIRInt_unique in Hisu.
+  congruence.
+Qed.
 
+(*
 Lemma is_UIRInt_comp0 (f : R → R) (g dg : R → R) (a b : R):
   a < b ->
   (∀ x : R, a <= x → continuous f (g x)) ->
@@ -87,7 +95,9 @@ Proof.
   split.
   { intros; eexists; eauto. }
 Abort.
+*)
 
+(*
 Lemma is_UIRInt_comp1 (f : R → R) (g dg : R → R) (a : R) (b : R):
   a < b ->
   (∀ x : R, a <= x ∧ x < b → continuous f (g x)) ->
@@ -112,14 +122,7 @@ Proof.
     }
   }
 Abort.
-
-Lemma continuous_left_is_RInt (f : R -> R) a b v g :
-  a < b ->
-  (∀ t, a <= t <= b -> is_RInt f a t (g t)) ->
-  is_lim (λ x, g (Rmin x b)) b v ->
-  is_RInt f a b v.
-Proof.
-Abort.
+*)
 
 Lemma is_UIRInt_comp1 (f : R → R) (g dg : R → R) (a : R) (b : R) glim :
   a < b ->
