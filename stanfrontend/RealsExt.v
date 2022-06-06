@@ -586,3 +586,25 @@ Proof.
   apply Rmult_lt_compat_l; first by (destruct eps).
   rewrite Rmult_comm. apply (Rdiv_lt_1 ub (ub + 1)); nra.
 Qed.
+
+Lemma is_RInt_comp' : ∀ (f : R → R) (g dg : R → R) (a b : R),
+    a <= b →
+    (∀ x : R, a <= x <= b → continuous f (g x)) →
+    (∀ x : R, a <= x <= b → is_derive g x (dg x) ∧ continuous dg x) →
+    is_RInt (λ y : R, scal (dg y) (f (g y))) a b (RInt f (g a) (g b)).
+Proof.
+  intros f g dg a b Hle Hcont Hdiff. apply: is_RInt_comp.
+  - intros x. rewrite Rmin_left // Rmax_right //. apply Hcont.
+  - intros x. rewrite Rmin_left // Rmax_right //. apply Hdiff.
+Qed.
+
+Lemma RInt_comp' : ∀ (f : R → R) (g dg : R → R) (a b : R),
+    a <= b →
+    (∀ x : R, a <= x <= b → continuous f (g x)) →
+    (∀ x : R, a <= x <= b → is_derive g x (dg x) ∧ continuous dg x) →
+    RInt (λ y : R, scal (dg y) (f (g y))) a b = RInt f (g a) (g b).
+Proof.
+  intros f g dg a b Hle Hcont Hdiff. apply: RInt_comp.
+  - intros x. rewrite Rmin_left // Rmax_right //. apply Hcont.
+  - intros x. rewrite Rmin_left // Rmax_right //. apply Hdiff.
+Qed.
