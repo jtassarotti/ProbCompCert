@@ -18,7 +18,7 @@ Proof.
 Defined.
 
 Definition is_UIRInt (f: R -> R) (a: R) (b: Rbar) (If: R) :=
-  (forall t, Rle a t -> Rbar_le t b -> ex_RInt f a t) /\ is_left_lim (RInt f a) b If.
+  (forall (t : R), Rle a t -> Rbar_lt t b -> ex_RInt f a t) /\ is_left_lim (RInt f a) b If.
 
 Definition ex_UIRInt (f : R -> R) (a: R) (b : Rbar) :=
   exists If : R, is_UIRInt f a b If.
@@ -49,7 +49,8 @@ Lemma is_UIRInt_upper_finite_RInt_1 f a (b: R) v :
   is_RInt f a b v -> is_UIRInt f a b v.
 Proof.
   intros Hlt His. split.
-  * intros t Hle1 Hl2. apply: ex_RInt_Chasles_1; eauto.
+  * intros t Hle1 Hl2. apply: (ex_RInt_Chasles_1 _ _ _ b); eauto.
+    { split; first eauto. simpl in Hl2. nra. }
     { econstructor; eauto. }
   * rewrite -(is_RInt_unique _ _ _ _ His).
     apply: is_RInt_upper_bound_left_lim; eauto.
@@ -124,6 +125,14 @@ Proof.
 Abort.
 *)
 
+Lemma continuous_left_is_RInt (f : R -> R) a b v g :
+  a < b ->
+  (∀ t, a <= t <= b -> is_RInt f a t (g t)) ->
+  is_lim (λ x, g (Rmin x b)) b v ->
+  is_RInt f a b v.
+Proof.
+Abort.
+
 Lemma is_UIRInt_comp1 (f : R → R) (g dg : R → R) (a : R) (b : R) glim :
   a < b ->
   (∀ x : R, a <= x ∧ x < b → continuous f (g x)) ->
@@ -196,26 +205,65 @@ Proof.
        ***
 Abort.
 
-
-
-
-Lemma is_UIRInt_comp (f : R → R) (g dg : R → R) (a : R) (b : Rbar) :
-  (∀ (x : R), Rbar_le (Rbar_min a b) x /\ Rbar_le x (Rbar_max a b) → continuous f (g x)) →
-  (∀ (x : R), Rbar_le (Rbar_min a b) x /\ Rbar_le x (Rbar_max a b) → is_derive g x (dg x) ∧ continuous dg x) →
-  is_UIRInt (fun y => scal (dg y) (f (g y))) a b (UIRInt f (g a) (g b)).
-Proof.
-  intros Hcontinuous Hdiff.
-  rewrite /ex_UIRInt/is_UIRInt/UIRInt.
-  destruct (is_finite_dec b).
-  {
-    * simpl.
-  split.
-  * intros t Hle Hle2.
-    eexists. apply: is_RInt_comp.
-    ** intros x (Hle1'&Hle2'). apply Hcontinuous; split; auto.
-       *** etransitivity; first apply Rbar_min_l. simpl. rewrite Rmin_left in Hle1'; auto.
-       ***
-Abort.
 *)
+
+Lemma Rbar_at_left_interval a b (P: Rbar -> Prop) :
+  Rbar_lt a b ->
+  (∀ x, Rbar_lt a x -> Rbar_lt x b -> P x) ->
+  Rbar_at_left b P.
+Proof.
+  intros Hlt HP. unfold Rbar_at_left, within.
+  apply open_Rbar_gt' in Hlt. move:Hlt. apply filter_imp.
+  intros. apply HP; auto.
+Qed.
+
+Lemma is_UIRInt_comp (f : R → R) (g dg : R → R) (a : R) (b : Rbar) (glim : R) :
+  Rbar_lt a b ->
+  (∀ (x : R), Rbar_le a x /\ Rbar_lt x b → continuous f (g x)) →
+  (∀ (x : R), Rbar_le a x /\ Rbar_lt x b → is_derive g x (dg x) ∧ continuous dg x) →
+  (* This should follow if g is is monotone locally to b *)
+  Rbar_at_left b (λ y : Rbar, Rbar_lt (g y) glim) ->
+  is_left_lim g b glim ->
+  ex_UIRInt f (g a) glim ->
+  is_UIRInt (fun y => scal (dg y) (f (g y))) a b (UIRInt f (g a) glim).
+Proof.
+  intros Hlt Hcontinuous Hdiff Hatlt Hlim Hex.
+  rewrite /ex_UIRInt/is_UIRInt/UIRInt.
+  split.
+  { intros t Hle1 Hlt2. eexists. apply: is_RInt_comp.
+    ** intros x. rewrite Rmin_left; auto. rewrite Rmax_right; auto. intros (Hle1'&Hl2'). apply Hcontinuous.
+       split; auto. simpl in Hlt2. simpl. destruct b; try eauto. nra.
+    ** intros x. rewrite Rmin_left; auto. rewrite Rmax_right; auto. intros (Hle1'&Hl2'). apply Hdiff.
+       split; auto. simpl in Hlt2. simpl. destruct b; try eauto. nra.
+  }
+  eapply (is_left_lim_ext_loc (λ b, RInt f (g a) (g b))).
+  {
+    eapply Rbar_at_left_interval; eauto.
+    intros x Hltx1 Hltx2.
+    symmetry.
+    assert (∃ r, x = Finite r) as (r&->).
+    { destruct x, b; simpl in *; try intuition; try eexists; eauto. }
+    apply: RInt_comp.
+    ** intros y.
+       rewrite Rmin_left; last first.
+       { simpl in *; nra. }
+       rewrite Rmax_right; last first.
+       { simpl in *; nra. }
+       intros (Hle1'&Hl2'). apply Hcontinuous.
+       split; auto.
+       { eapply Rbar_le_lt_trans; eauto. simpl in *; eauto. }
+    ** intros y.
+       rewrite Rmin_left; last first.
+       { simpl in *; nra. }
+       rewrite Rmax_right; last first.
+       { simpl in *; nra. }
+       intros (Hle1'&Hl2'). apply Hdiff.
+       split; auto.
+       { eapply Rbar_le_lt_trans; eauto. simpl in *; eauto. }
+  }
+  apply UIRInt_correct in Hex.
+  destruct Hex as (?&Hlim').
+  eapply (is_left_lim_comp (λ x, RInt f (g a) x) g b); eauto.
+Qed.
 
 End Upper_IRInt.
