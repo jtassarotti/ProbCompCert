@@ -80,7 +80,7 @@ Proof.
   intros. apply HP; auto.
 Qed.
 
-Lemma is_UIRInt_comp (f : R → R) (g dg : R → R) (a : R) (b : Rbar) (glim : R) :
+Lemma is_UIRInt_comp (f : R → R) (g dg : R → R) (a : R) (b : Rbar) (glim : Rbar) :
   Rbar_lt a b ->
   (∀ (x : R), Rbar_le a x /\ Rbar_lt x b → continuous f (g x)) →
   (∀ (x : R), Rbar_le a x /\ Rbar_lt x b → is_derive g x (dg x) ∧ continuous dg x) →
