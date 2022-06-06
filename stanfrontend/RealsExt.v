@@ -249,6 +249,7 @@ Proof.
 Qed.
 
 Definition Rbar_at_left (x: Rbar) := within (λ u : Rbar, Rbar_lt u x) (Rbar_locally x).
+Definition Rbar_at_right (x: Rbar) := within (λ u : Rbar, Rbar_lt x u) (Rbar_locally x).
 
 Lemma filterlim_Rbar_left_loc_seq' :
   forall x, x <> m_infty -> filterlim (Rbar_left_loc_seq x) Hierarchy.eventually (Rbar_at_left x).
@@ -277,8 +278,40 @@ Proof.
   apply tech_Rgt_minus, RinvN_pos.
 Qed.
 
+Lemma filterlim_Rbar_loc_seq' :
+  forall x, x <> p_infty -> filterlim (Rbar_loc_seq x) Hierarchy.eventually (Rbar_at_right x).
+Proof.
+  intros x Hnm. specialize (filterlim_Rbar_loc_seq x).
+  intros Hlim.
+  eapply filterlim_filter_le_2 in Hlim; last first.
+  { apply Rbar_locally'_le. }
+  move: Hlim.
+  unfold filterlim, filter_le, filtermap.
+  intros Hlim P HP.
+  specialize (Hlim (λ y, P y ∨ Rbar_le y x)).
+  destruct Hlim as (N&HN).
+  { unfold Rbar_at_right in HP.
+    unfold within in HP.
+    move: HP.
+    apply: filter_imp. intros r Hy.
+    destruct (Rbar_lt_dec x r).
+    { left. eauto. }
+    { right. apply Rbar_not_lt_le; auto. }
+  }
+  exists N. intros. edestruct (HN n) as [?|Hbad]; eauto.
+  exfalso. destruct x; auto; try congruence.
+  eapply Rbar_lt_not_le; eauto.
+  simpl.
+  cut (0 < / (INR n + 1)).
+  { nra. }
+  apply RinvN_pos.
+Qed.
+
 Definition is_left_lim (f : R -> R) (x l : Rbar) :=
   x ≠ m_infty ∧ filterlim f (Rbar_at_left x) (Rbar_locally l).
+
+Definition is_right_lim (f : R -> R) (x l : Rbar) :=
+  x ≠ p_infty ∧ filterlim f (Rbar_at_right x) (Rbar_locally l).
 
 Definition is_left_lim' (f : R -> R) (x l : Rbar) :=
   x ≠ m_infty ∧
@@ -292,10 +325,58 @@ Definition ex_left_lim (f : R -> R) (x : Rbar) := exists l : Rbar, is_left_lim f
 Definition ex_finite_left_lim (f : R -> R) (x : Rbar) := exists l : R, is_left_lim f x l.
 Definition LeftLim (f : R -> R) (x : Rbar) := Lim_seq (fun n => f (Rbar_left_loc_seq x n)).
 
+Definition is_right_lim' (f : R -> R) (x l : Rbar) :=
+  x ≠ p_infty ∧
+  match l with
+    | Finite l =>
+      forall eps : posreal, Rbar_at_right x (fun y => Rabs (f y - l) < eps)
+    | p_infty => forall M : R, Rbar_at_right x (fun y => M < f y)
+    | m_infty => forall M : R, Rbar_at_right x (fun y => f y < M)
+  end.
+Definition ex_right_lim (f : R -> R) (x : Rbar) := exists l : Rbar, is_right_lim f x l.
+Definition ex_finite_right_lim (f : R -> R) (x : Rbar) := exists l : R, is_right_lim f x l.
+Definition RightLim (f : R -> R) (x : Rbar) := Lim_seq (fun n => f (Rbar_loc_seq x n)).
+
 (* Exactly the same proof script as is_lim_spec from Coquelicot *)
 Lemma is_left_lim_spec :
   forall f x l,
   is_left_lim' f x l <-> is_left_lim f x l.
+Proof.
+destruct l as [l| |] ; split.
+- intros (?&H); split; first done. intros P [eps LP].
+  unfold filtermap.
+  generalize (H eps).
+  apply filter_imp.
+  intros u.
+  apply LP.
+- intros (?&H); split; first done. intros eps.
+  apply (H (fun y => Rabs (y - l) < eps)).
+  now exists eps.
+- intros (?&H); split; first done. intros P [M LP].
+  unfold filtermap.
+  generalize (H M).
+  apply filter_imp.
+  intros u.
+  apply LP.
+- intros (?&H); split; first done.
+  intros M.
+  apply (H (fun y => M < y)).
+  now exists M.
+- intros (?&H); split; first done. intros P [M LP].
+  unfold filtermap.
+  generalize (H M).
+  apply filter_imp.
+  intros u.
+  apply LP.
+- intros (?&H); split; first done.
+  intros M.
+  apply (H (fun y => y < M)).
+  now exists M.
+Qed.
+
+Lemma is_right_lim_spec :
+  forall f x l,
+  is_right_lim' f x l <-> is_right_lim f x l.
 Proof.
 destruct l as [l| |] ; split.
 - intros (?&H); split; first done. intros P [eps LP].
@@ -342,6 +423,19 @@ intros P HP.
 by apply Lf.
 Qed.
 
+Lemma is_right_lim_comp' :
+  forall {T} {F} {FF : @Filter T F} (f : T -> R) (g : R -> R) (x l : Rbar),
+  filterlim f F (Rbar_at_right x) -> is_right_lim g x l ->
+  F (fun y => Rbar_lt x (Finite (f y))) ->
+  filterlim (fun y => g (f y)) F (Rbar_locally l).
+Proof.
+intros T F FF f g x l Lf (?&Lg) Hf.
+revert Lg.
+apply filterlim_comp.
+intros P HP.
+by apply Lf.
+Qed.
+
 Lemma is_left_lim_comp_seq (f : R -> R) (u : nat -> R) (x l : Rbar) :
   is_left_lim f x l ->
   Hierarchy.eventually (fun n => Rbar_lt (Finite (u n)) x) ->
@@ -375,10 +469,47 @@ intros Hlt [|Hle']; auto. exfalso.
 eapply Rbar_lt_not_le; eauto.
 Qed.
 
+Lemma is_right_lim_comp_seq (f : R -> R) (u : nat -> R) (x l : Rbar) :
+  is_right_lim f x l ->
+  Hierarchy.eventually (fun n => Rbar_lt x (Finite (u n))) ->
+  is_lim_seq u x -> is_lim_seq (fun n => f (u n)) l.
+Proof.
+intros Lf Hu Lu.
+eapply is_right_lim_comp'; eauto.
+unfold is_lim_seq in Lu.
+move: Hu Lu. unfold filterlim.
+unfold filter_le.
+unfold filtermap, Hierarchy.eventually.
+intros Heventually Hu P Hleft.
+specialize (Hu (λ y, P y ∨ Rbar_le y x)).
+destruct Hu as (N&HN).
+{ unfold Rbar_at_right in Hleft.
+  unfold within in Hleft.
+  move: Hleft.
+  apply: filter_imp. intros r Hy.
+  destruct (Rbar_lt_dec x r).
+  { left. eauto. }
+  { right. apply Rbar_not_lt_le; auto. }
+}
+destruct (Heventually) as (N'&HN').
+exists (max N N').
+intros n Hle.
+exploit (HN n).
+{ eapply Max.max_lub_l; eauto. }
+exploit (HN' n).
+{ eapply Max.max_lub_r; eauto. }
+intros Hlt [|Hle']; auto. exfalso.
+eapply Rbar_lt_not_le; eauto.
+Qed.
+
 (** Uniqueness *)
 
 Lemma is_left_lim_non_m_infty (f : R -> R) (x l : Rbar):
   is_left_lim f x l -> x ≠ m_infty.
+Proof. destruct 1; auto. Qed.
+
+Lemma is_right_lim_non_p_infty (f : R -> R) (x l : Rbar):
+  is_right_lim f x l -> x ≠ p_infty.
 Proof. destruct 1; auto. Qed.
 
 Lemma is_left_lim_unique (f : R -> R) (x l : Rbar) :
@@ -397,6 +528,21 @@ Proof.
   by apply RinvN_pos.
 Qed.
 
+Lemma is_right_lim_unique (f : R -> R) (x l : Rbar) :
+  is_right_lim f x l -> RightLim f x = l.
+Proof.
+  intros Hlim.
+  specialize (is_right_lim_non_p_infty f x l Hlim) => ?.
+  unfold RightLim.
+  rewrite (is_lim_seq_unique _ l) //.
+  apply (is_right_lim_comp_seq f _ x l Hlim); last first.
+  { apply is_lim_seq_Rbar_loc_seq. }
+  exists 1%nat => n Hn.
+  destruct Hlim as (?&Hlim).
+  destruct x as [x | | ] => //=.
+  specialize (RinvN_pos n). nra.
+Qed.
+
 Lemma LeftLim_correct (f : R -> R) (x : Rbar) :
   ex_left_lim f x -> is_left_lim f x (LeftLim f x).
 Proof.
@@ -404,6 +550,15 @@ Proof.
   replace (LeftLim f x) with l.
     apply H.
   apply sym_eq, is_left_lim_unique, H.
+Qed.
+
+Lemma RightLim_correct (f : R -> R) (x : Rbar) :
+  ex_right_lim f x -> is_right_lim f x (RightLim f x).
+Proof.
+  intros (l,H).
+  replace (RightLim f x) with l.
+    apply H.
+  apply sym_eq, is_right_lim_unique, H.
 Qed.
 
 Lemma ex_finite_left_lim_correct (f : R -> R) (x : Rbar) :
@@ -428,6 +583,30 @@ Proof.
   apply ex_finite_left_lim_correct in Hf.
   rewrite (proj2 Hf).
   by apply LeftLim_correct, Hf.
+Qed.
+
+Lemma ex_finite_right_lim_correct (f : R -> R) (x : Rbar) :
+  ex_finite_right_lim f x <-> ex_right_lim f x /\ is_finite (RightLim f x).
+Proof.
+  split.
+  case => l Hf.
+  move: (is_right_lim_unique f x l Hf) => Hf0.
+  split.
+  by exists l.
+  by rewrite Hf0.
+  case ; case => l Hf Hf0.
+  exists (real l).
+  rewrite -(is_right_lim_unique _ _ _ Hf).
+  rewrite Hf0.
+  by rewrite (is_right_lim_unique _ _ _ Hf).
+Qed.
+Lemma RightLim_correct' (f : R -> R) (x : Rbar) :
+  ex_finite_right_lim f x -> is_right_lim f x (real (RightLim f x)).
+Proof.
+  intro Hf.
+  apply ex_finite_right_lim_correct in Hf.
+  rewrite (proj2 Hf).
+  by apply RightLim_correct, Hf.
 Qed.
 
 (** ** Operations and order *)
@@ -487,6 +666,59 @@ Proof.
   by apply filter_forall.
 Qed.
 
+Lemma is_right_lim_ext_loc (f g : R -> R) (x l : Rbar) :
+  Rbar_at_right x (fun y => f y = g y)
+  -> is_right_lim f x l -> is_right_lim g x l.
+Proof.
+  intros Hatright (?&Hlim).
+  split; first done. move: Hatright Hlim.
+  apply: filterlim_ext_loc.
+Qed.
+Lemma ex_right_lim_ext_loc (f g : R -> R) (x : Rbar) :
+  Rbar_at_right x (fun y => f y = g y)
+  -> ex_right_lim f x -> ex_right_lim g x.
+Proof.
+  move => H [l Hf].
+  exists l.
+  by apply is_right_lim_ext_loc with f.
+Qed.
+Lemma RightLim_ext_loc (f g : R -> R) (x : Rbar) :
+  x <> p_infty ->
+  Rbar_at_right x (fun y => f y = g y)
+  -> RightLim g x = RightLim f x.
+Proof.
+  move => Hneq H.
+  apply sym_eq.
+  apply Lim_seq_ext_loc.
+  eapply (filterlim_Rbar_loc_seq' _ Hneq (λ y, f y = g y) H).
+Qed.
+
+Lemma is_right_lim_ext (f g : R -> R) (x l : Rbar) :
+  (forall y, f y = g y)
+  -> is_right_lim f x l -> is_right_lim g x l.
+Proof.
+  move => H.
+  apply is_right_lim_ext_loc.
+  by apply filter_forall.
+Qed.
+Lemma ex_right_lim_ext (f g : R -> R) (x : Rbar) :
+  (forall y, f y = g y)
+  -> ex_right_lim f x -> ex_right_lim g x.
+Proof.
+  move => H [l Hf].
+  exists l.
+  by apply is_right_lim_ext with f.
+Qed.
+Lemma RightLim_ext (f g : R -> R) (x : Rbar) :
+  (forall y, f y = g y)
+  -> RightLim g x = RightLim f x.
+Proof.
+  move => H.
+  apply sym_eq.
+  apply Lim_seq_ext_loc.
+  by apply filter_forall.
+Qed.
+
 (** Composition *)
 
 Lemma is_left_lim_comp (f g : R -> R) (x k l : Rbar) :
@@ -527,6 +759,47 @@ Proof.
   by apply LeftLim_correct.
   by apply H1.
 Qed.
+
+Lemma is_right_lim_comp (f g : R -> R) (x k l : Rbar) :
+  is_right_lim f l k -> is_right_lim g x l -> Rbar_at_right x (fun y => Rbar_lt l (g y))
+    -> is_right_lim (fun x => f (g x)) x k.
+Proof.
+  intros (?&Lf) (?&Lg) Hg.
+  split; auto.
+  eapply (is_right_lim_comp' g f l k); auto; last first.
+  { split; auto. }
+  move: Lg Hg. unfold filterlim, filter_le, filtermap, Rbar_at_right, within. intros Lg Hg P HP.
+  specialize (Lg _ HP). specialize (filter_and _ _ Lg Hg) as Hand.
+  clear Lg Hg. eapply filter_imp; eauto. simpl. intros x' (HP1&HP2) Hlt.
+  destruct x; try congruence.
+  { destruct l; try congruence; intuition. }
+  { destruct l; try congruence; intuition. }
+Qed.
+
+Lemma ex_right_lim_comp (f g : R -> R) (x : Rbar) :
+  ex_right_lim f (RightLim g x) -> ex_right_lim g x -> Rbar_at_right x (fun y => Rbar_lt (RightLim g x) (g y))
+    -> ex_right_lim (fun x => f (g x)) x.
+Proof.
+  intros.
+  exists (RightLim f (RightLim g x)).
+  apply is_right_lim_comp with (RightLim g x).
+  by apply RightLim_correct.
+  by apply RightLim_correct.
+  by apply H1.
+Qed.
+Lemma RightLim_comp (f g : R -> R) (x : Rbar) :
+  ex_right_lim f (RightLim g x) -> ex_right_lim g x -> Rbar_at_right x (fun y => Rbar_lt (RightLim g x) (g y))
+    -> RightLim (fun x => f (g x)) x = RightLim f (RightLim g x).
+Proof.
+  intros.
+  apply is_right_lim_unique.
+  apply is_right_lim_comp with (RightLim g x).
+  by apply RightLim_correct.
+  by apply RightLim_correct.
+  by apply H1.
+Qed.
+
+(** Left limit of integral boundary *)
 
 Lemma is_RInt_upper_bound_left_lim a b f v :
   Rlt a b ->

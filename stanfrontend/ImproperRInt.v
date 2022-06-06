@@ -267,4 +267,17 @@ Proof.
   eapply (is_left_lim_comp (λ x, RInt f (g a) x) g b); eauto.
 Qed.
 
+Lemma UIRInt_comp (f : R → R) (g dg : R → R) (a : R) (b : Rbar) (glim : Rbar) :
+  Rbar_lt a b ->
+  (∀ (x : R), Rbar_le a x /\ Rbar_lt x b → continuous f (g x)) →
+  (∀ (x : R), Rbar_le a x /\ Rbar_lt x b → is_derive g x (dg x) ∧ continuous dg x) →
+  (* This should follow if g is is monotone locally to b *)
+  Rbar_at_left b (λ y : Rbar, Rbar_lt (g y) glim) ->
+  is_left_lim g b glim ->
+  ex_UIRInt f (g a) glim ->
+  UIRInt (fun y => scal (dg y) (f (g y))) a b = UIRInt f (g a) glim.
+Proof.
+  intros. apply is_UIRInt_unique, is_UIRInt_comp; eauto.
+Qed.
+
 End Upper_IRInt.
