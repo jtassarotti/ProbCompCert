@@ -1149,6 +1149,39 @@ Proof.
     auto.
 Qed.
 
+Lemma not_Rbar_at_right b P :
+  ¬ Rbar_at_right b P →
+  match b with
+  | Finite r => ∀ eps : posreal, ∃ x, r < x < r + eps ∧ ¬ P x
+  | p_infty => True
+  | m_infty =>  ∀ M, ∃ x, x < M ∧ ¬ P x
+  end.
+Proof.
+  intros Hneg.
+  destruct b; auto.
+  - intros eps. unfold Rbar_at_right, within, Rbar_locally, locally in Hneg.
+    specialize (Classical_Pred_Type.not_ex_all_not _ _ Hneg eps) => /= Heps.
+    apply Classical_Pred_Type.not_all_ex_not in Heps.
+    destruct Heps as (x&Hx).
+    assert (Hx': ¬ ((ball r eps x ∧ r < x) → P x)) by intuition.
+    eapply Classical_Prop.not_imply_elim in Hx'.
+    exists x.
+    split; last first.
+    { eapply Classical_Prop.not_imply_elim2 in Hx; eauto. }
+    intuition.
+    apply ball_interval_ub; auto.
+  - intros M. unfold Rbar_at_right, within, Rbar_locally, locally in Hneg.
+    specialize (Classical_Pred_Type.not_ex_all_not _ _ Hneg M) => /= Heps.
+    apply Classical_Pred_Type.not_all_ex_not in Heps.
+    destruct Heps as (x&Hx).
+    assert (Hx': ¬ (x < M → P x)) by intuition.
+    eapply Classical_Prop.not_imply_elim in Hx'.
+    exists x.
+    split; last first.
+    { eapply Classical_Prop.not_imply_elim2 in Hx; eauto. }
+    auto.
+Qed.
+
 Lemma interval_inhabited (x y : R) : x < y -> ∃ z, x < z < y.
 Proof.
   intros.
@@ -1191,4 +1224,151 @@ Proof.
   - apply HM; simpl; auto.
   - apply (Rlt_le_trans _ (M + 1)); first nra.
     apply Rmax_l.
+Qed.
+
+Lemma Rbar_at_left_strict_monotone (t : R) (b : Rbar) g glim :
+  Rbar_lt t b →
+  (∀ x y, t <= x < y → Rbar_lt y b → g x < g y) →
+  is_left_lim g b glim ->
+  Rbar_at_left b (λ y : Rbar, Rbar_lt (g y) glim).
+Proof.
+  unfold is_left_lim.
+  intros Hltb Ht (Hnm&Hlim).
+  apply Classical_Prop.NNPP. intros Hneg%not_Rbar_at_left.
+  destruct b; try congruence.
+  - unfold filterlim, filter_le, filtermap in Hlim.
+    assert (Hpos: 0 < r - t).
+    { simpl in Hltb. nra. }
+    set (eps' := mkposreal _ Hpos).
+    specialize (Hneg eps').
+    assert (∃ x : R, (r - eps' < x ∧ x < r) ∧ Rbar_lt glim (g x)) as (x&Hrange&r0).
+    {
+      destruct Hneg as (x&Hrange&Hnlt).
+      apply Rbar_not_lt_le in Hnlt.
+      apply Rbar_le_lt_or_eq_dec in Hnlt.
+      destruct Hnlt as [Hlt|Heq].
+      { exists x. split; eauto. }
+      destruct (interval_inhabited x r) as (x'&Hx'1&Hx'2); first nra.
+      exists x'.
+      split; first nra.
+      rewrite Heq. simpl. apply Ht; auto; split; try nra.
+      move: Hrange. rewrite /eps' /=. nra.
+    }
+    apply open_Rbar_lt' in r0. apply Hlim in r0.
+    eapply (Rbar_at_left_witness_above r x) in r0; try (intuition eauto; done).
+    destruct r0 as (y&Hrange'&Hlt).
+    simpl in Hlt. apply Rlt_not_le in Hlt.
+    apply Hlt. left. apply Ht; simpl; simpl in Hltb; try nra.
+    split; last by intuition.
+    move: Hrange. rewrite /eps' /=. nra.
+  - unfold filterlim, filter_le, filtermap in Hlim.
+    specialize (Hneg t).
+    assert (∃ x : R, t < x ∧ Rbar_lt glim (g x)) as (x&Hrange&r0).
+    {
+      destruct Hneg as (x&Hrange&Hnlt).
+      apply Rbar_not_lt_le in Hnlt.
+      apply Rbar_le_lt_or_eq_dec in Hnlt.
+      destruct Hnlt as [Hlt|Heq].
+      { exists x. split; eauto. }
+      exists (x + 1).
+      split; first nra.
+      rewrite Heq. simpl. apply Ht; auto; split; try nra.
+    }
+    apply open_Rbar_lt' in r0. apply Hlim in r0.
+    eapply (Rbar_at_left_witness_above_p_infty x) in r0; try (intuition eauto; done).
+    destruct r0 as (y&Hrange'&Hlt).
+    simpl in Hlt. apply Rlt_not_le in Hlt.
+    apply Hlt. left. apply Ht; simpl; simpl in Hltb; try nra.
+Qed.
+
+Lemma Rbar_at_right_witness (r: R) (eps: posreal) P:
+  Rbar_at_right r P -> ∃ x, r < x < r + eps ∧ P x.
+Proof.
+  unfold Rbar_at_right, within, Rbar_locally, locally.
+  intros Hex. destruct Hex as (eps'&Heps').
+  set (lb := r + Rmin eps eps').
+  edestruct (interval_inhabited r lb) as (x&Hin).
+  { rewrite /lb. apply Rmin_case; destruct eps, eps' => /=; nra. }
+  exists x. split.
+  { move: Hin. rewrite /lb. apply Rmin_case_strong; destruct eps, eps' => /=; nra. }
+  apply Heps'; last by intuition.
+  rewrite /ball/=/AbsRing_ball/abs/=/minus/plus/opp//=.
+  { move: Hin. rewrite /lb. apply Rabs_case; apply Rmin_case_strong; destruct eps, eps' => /=; nra. }
+Qed.
+
+Lemma Rbar_at_right_witness_above (r: R) y P:
+  Rbar_at_right r P -> r < y -> ∃ x, r < x < y ∧ P x.
+Proof.
+  intros. assert (Hpos: 0 < y - r) by nra.
+  edestruct (Rbar_at_right_witness r (mkposreal _ Hpos) P) as (x&?&HP); auto.
+  exists x. split; auto.
+  simpl in H1. nra.
+Qed.
+
+Lemma Rbar_at_right_witness_above_m_infty y P:
+  Rbar_at_right m_infty P -> ∃ x, x < y ∧ P x.
+Proof.
+  unfold Rbar_at_right, within, Rbar_locally.
+  intros HM. destruct HM as (M&HM). exists (Rmin (M - 1) (y - 1)).
+  split.
+  - apply (Rle_lt_trans _ (y - 1)); last nra.
+    apply Rmin_r.
+  - apply HM; simpl; auto.
+  - apply (Rle_lt_trans _ (M - 1)); last nra.
+    apply Rmin_l.
+Qed.
+
+Lemma Rbar_at_right_strict_monotone (t : R) (a : Rbar) g glim :
+  Rbar_lt a t →
+  (∀ x y, x < y <= t → Rbar_lt a x → g x < g y) →
+  is_right_lim g a glim ->
+  Rbar_at_right a (λ y : Rbar, Rbar_lt glim (g y)).
+Proof.
+  unfold is_left_lim.
+  intros Hltb Ht (Hnm&Hlim).
+  apply Classical_Prop.NNPP. intros Hneg%not_Rbar_at_right.
+  destruct a; try congruence.
+  - unfold filterlim, filter_le, filtermap in Hlim.
+    assert (Hpos: 0 < t - r).
+    { simpl in Hltb. nra. }
+    set (eps' := mkposreal _ Hpos).
+    specialize (Hneg eps').
+    assert (∃ x : R, (r < x ∧ x < r + eps') ∧ Rbar_lt (g x) glim) as (x&Hrange&r0).
+    {
+      destruct Hneg as (x&Hrange&Hnlt).
+      apply Rbar_not_lt_le in Hnlt.
+      apply Rbar_le_lt_or_eq_dec in Hnlt.
+      destruct Hnlt as [Hlt|Heq].
+      { exists x. split; eauto. }
+      destruct (interval_inhabited r x) as (x'&Hx'1&Hx'2); first nra.
+      exists x'.
+      split; first nra.
+      rewrite -Heq. simpl. apply Ht; auto; simpl; try nra. split; try nra.
+      move: Hrange. rewrite /eps' /=. nra.
+    }
+    apply open_Rbar_gt' in r0. apply Hlim in r0.
+    eapply (Rbar_at_right_witness_above r x) in r0; try (intuition eauto; done).
+    destruct r0 as (y&Hrange'&Hlt).
+    simpl in Hlt. apply Rlt_not_le in Hlt.
+    apply Hlt. left. apply Ht; simpl; simpl in Hltb; try nra.
+    split; first by intuition.
+    move: Hrange. rewrite /eps' /=. nra.
+  - unfold filterlim, filter_le, filtermap in Hlim.
+    specialize (Hneg t).
+    assert (∃ x : R, x < t ∧ Rbar_lt (g x) glim) as (x&Hrange&r0).
+    {
+      destruct Hneg as (x&Hrange&Hnlt).
+      apply Rbar_not_lt_le in Hnlt.
+      apply Rbar_le_lt_or_eq_dec in Hnlt.
+      destruct Hnlt as [Hlt|Heq].
+      { exists x. split; eauto. }
+      exists (x - 1).
+      split; first nra.
+      rewrite -Heq. simpl. apply Ht; auto; split; try nra.
+    }
+    apply open_Rbar_gt' in r0. apply Hlim in r0.
+    eapply (Rbar_at_right_witness_above_m_infty x) in r0; try (intuition eauto; done).
+    destruct r0 as (y&Hrange'&Hlt).
+    simpl in Hlt. apply Rlt_not_le in Hlt.
+    apply Hlt. left. apply Ht; simpl; simpl in Hltb; try nra.
 Qed.
