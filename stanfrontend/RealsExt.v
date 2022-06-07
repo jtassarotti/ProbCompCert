@@ -799,6 +799,134 @@ Proof.
   by apply H1.
 Qed.
 
+Lemma is_left_lim_const (a : R) (x : Rbar) :
+  x <> m_infty ->
+  is_left_lim (fun _ => a) x a.
+Proof.
+  split; auto. intros P HP.
+now apply filterlim_const.
+Qed.
+Lemma ex_left_lim_const (a : R) (x : Rbar) :
+  x <> m_infty ->
+  ex_left_lim (fun _ => a) x.
+Proof.
+  exists a.
+  by apply is_left_lim_const.
+Qed.
+Lemma LeftLim_const (a : R) (x : Rbar) :
+  x <> m_infty ->
+  LeftLim (fun _ => a) x = a.
+Proof.
+  intros. apply is_left_lim_unique.
+  by apply is_left_lim_const.
+Qed.
+
+Lemma is_right_lim_const (a : R) (x : Rbar) :
+  x <> p_infty ->
+  is_right_lim (fun _ => a) x a.
+Proof.
+  split; auto. intros P HP.
+now apply filterlim_const.
+Qed.
+Lemma ex_right_lim_const (a : R) (x : Rbar) :
+  x <> p_infty ->
+  ex_right_lim (fun _ => a) x.
+Proof.
+  exists a.
+  by apply is_right_lim_const.
+Qed.
+Lemma RightLim_const (a : R) (x : Rbar) :
+  x <> p_infty ->
+  RightLim (fun _ => a) x = a.
+Proof.
+  intros. apply is_right_lim_unique.
+  by apply is_right_lim_const.
+Qed.
+
+(** Addition *)
+
+Lemma is_left_lim_plus (f g : R -> R) (x lf lg l : Rbar) :
+  is_left_lim f x lf -> is_left_lim g x lg ->
+  is_Rbar_plus lf lg l ->
+  is_left_lim (fun y => f y + g y) x l.
+Proof.
+intros (?&Cf) (?&Cg) Hp.
+split; auto.
+eapply filterlim_comp_2 ; try eassumption.
+by apply filterlim_Rbar_plus.
+Qed.
+Lemma is_left_lim_plus' (f g : R -> R) (x : Rbar) (lf lg : R) :
+  is_left_lim f x lf -> is_left_lim g x lg ->
+  is_left_lim (fun y => f y + g y) x (lf + lg).
+Proof.
+  intros Hf Hg.
+  eapply is_left_lim_plus.
+  by apply Hf.
+  by apply Hg.
+  by [].
+Qed.
+Lemma ex_left_lim_plus (f g : R -> R) (x : Rbar) :
+  ex_left_lim f x -> ex_left_lim g x ->
+  ex_Rbar_plus (LeftLim f x) (LeftLim g x) ->
+  ex_left_lim (fun y => f y + g y) x.
+Proof.
+  move => /LeftLim_correct Hf /LeftLim_correct Hg Hl.
+  exists (Rbar_plus (LeftLim f x) (LeftLim g x)).
+  eapply is_left_lim_plus ; try eassumption.
+  by apply Rbar_plus_correct.
+Qed.
+Lemma LeftLim_plus (f g : R -> R) (x : Rbar) :
+  ex_left_lim f x -> ex_left_lim g x ->
+  ex_Rbar_plus (LeftLim f x) (LeftLim g x) ->
+  LeftLim (fun y => f y + g y) x = Rbar_plus (LeftLim f x) (LeftLim g x).
+Proof.
+  move => /LeftLim_correct Hf /LeftLim_correct Hg Hl.
+  apply is_left_lim_unique.
+  eapply is_left_lim_plus ; try eassumption.
+  by apply Rbar_plus_correct.
+Qed.
+
+Lemma is_right_lim_plus (f g : R -> R) (x lf lg l : Rbar) :
+  is_right_lim f x lf -> is_right_lim g x lg ->
+  is_Rbar_plus lf lg l ->
+  is_right_lim (fun y => f y + g y) x l.
+Proof.
+intros (?&Cf) (?&Cg) Hp.
+split; auto.
+eapply filterlim_comp_2 ; try eassumption.
+by apply filterlim_Rbar_plus.
+Qed.
+Lemma is_right_lim_plus' (f g : R -> R) (x : Rbar) (lf lg : R) :
+  is_right_lim f x lf -> is_right_lim g x lg ->
+  is_right_lim (fun y => f y + g y) x (lf + lg).
+Proof.
+  intros Hf Hg.
+  eapply is_right_lim_plus.
+  by apply Hf.
+  by apply Hg.
+  by [].
+Qed.
+Lemma ex_right_lim_plus (f g : R -> R) (x : Rbar) :
+  ex_right_lim f x -> ex_right_lim g x ->
+  ex_Rbar_plus (RightLim f x) (RightLim g x) ->
+  ex_right_lim (fun y => f y + g y) x.
+Proof.
+  move => /RightLim_correct Hf /RightLim_correct Hg Hl.
+  exists (Rbar_plus (RightLim f x) (RightLim g x)).
+  eapply is_right_lim_plus ; try eassumption.
+  by apply Rbar_plus_correct.
+Qed.
+Lemma RightLim_plus (f g : R -> R) (x : Rbar) :
+  ex_right_lim f x -> ex_right_lim g x ->
+  ex_Rbar_plus (RightLim f x) (RightLim g x) ->
+  RightLim (fun y => f y + g y) x = Rbar_plus (RightLim f x) (RightLim g x).
+Proof.
+  move => /RightLim_correct Hf /RightLim_correct Hg Hl.
+  apply is_right_lim_unique.
+  eapply is_right_lim_plus ; try eassumption.
+  by apply Rbar_plus_correct.
+Qed.
+
 (** Left limit of integral boundary *)
 
 Lemma is_RInt_upper_bound_left_lim a b f v :
@@ -880,4 +1008,105 @@ Proof.
   intros f g dg a b Hle Hcont Hdiff. apply: RInt_comp.
   - intros x. rewrite Rmin_left // Rmax_right //. apply Hcont.
   - intros x. rewrite Rmin_left // Rmax_right //. apply Hdiff.
+Qed.
+
+Lemma Rbar_at_left_interval a b (P: Rbar -> Prop) :
+  Rbar_lt a b ->
+  (∀ x, Rbar_lt a x -> Rbar_lt x b -> P x) ->
+  Rbar_at_left b P.
+Proof.
+  intros Hlt HP. unfold Rbar_at_left, within.
+  apply open_Rbar_gt' in Hlt. move:Hlt. apply filter_imp.
+  intros. apply HP; auto.
+Qed.
+
+Lemma ball_interval_lb r eps x :
+  ball r eps x ->
+  r - eps < x.
+Proof.
+  rewrite /ball/=/AbsRing_ball/abs/=/minus/plus/opp//=. apply Rabs_case; nra.
+Qed.
+
+Lemma ball_interval_ub r eps x :
+  ball r eps x ->
+  x < r + eps.
+Proof.
+  rewrite /ball/=/AbsRing_ball/abs/=/minus/plus/opp//=. apply Rabs_case; nra.
+Qed.
+
+Lemma not_Rbar_at_left b P :
+  ¬ Rbar_at_left b P →
+  match b with
+  | Finite r => ∀ eps : posreal, ∃ x, r - eps < x < r ∧ ¬ P x
+  | p_infty => ∀ M, ∃ x, M < x ∧ ¬ P x
+  | m_infty => True
+  end.
+Proof.
+  intros Hneg.
+  destruct b; auto.
+  - intros eps. unfold Rbar_at_left, within, Rbar_locally, locally in Hneg.
+    specialize (Classical_Pred_Type.not_ex_all_not _ _ Hneg eps) => /= Heps.
+    apply Classical_Pred_Type.not_all_ex_not in Heps.
+    destruct Heps as (x&Hx).
+    assert (Hx': ¬ ((ball r eps x ∧ x < r) → P x)) by intuition.
+    eapply Classical_Prop.not_imply_elim in Hx'.
+    exists x.
+    split; last first.
+    { eapply Classical_Prop.not_imply_elim2 in Hx; eauto. }
+    intuition.
+    apply ball_interval_lb; auto.
+  - intros M. unfold Rbar_at_left, within, Rbar_locally, locally in Hneg.
+    specialize (Classical_Pred_Type.not_ex_all_not _ _ Hneg M) => /= Heps.
+    apply Classical_Pred_Type.not_all_ex_not in Heps.
+    destruct Heps as (x&Hx).
+    assert (Hx': ¬ (M < x → P x)) by intuition.
+    eapply Classical_Prop.not_imply_elim in Hx'.
+    exists x.
+    split; last first.
+    { eapply Classical_Prop.not_imply_elim2 in Hx; eauto. }
+    auto.
+Qed.
+
+Lemma interval_inhabited (x y : R) : x < y -> ∃ z, x < z < y.
+Proof.
+  intros.
+  edestruct (boule_of_interval x y) as (s&(r&Heq1&Heq2)); auto.
+  exists s. nra.
+Qed.
+
+Lemma Rbar_at_left_witness (r: R) (eps: posreal) P:
+  Rbar_at_left r P -> ∃ x, r - eps < x < r ∧ P x.
+Proof.
+  unfold Rbar_at_left, within, Rbar_locally, locally.
+  intros Hex. destruct Hex as (eps'&Heps').
+  set (lb := r - Rmin eps eps').
+  edestruct (interval_inhabited lb r) as (x&Hin).
+  { rewrite /lb. apply Rmin_case; destruct eps, eps' => /=; nra. }
+  exists x. split.
+  { move: Hin. rewrite /lb. apply Rmin_case_strong; destruct eps, eps' => /=; nra. }
+  apply Heps'; last by intuition.
+  rewrite /ball/=/AbsRing_ball/abs/=/minus/plus/opp//=.
+  { move: Hin. rewrite /lb. apply Rabs_case; apply Rmin_case_strong; destruct eps, eps' => /=; nra. }
+Qed.
+
+Lemma Rbar_at_left_witness_above (r: R) y P:
+  Rbar_at_left r P -> y < r -> ∃ x, y < x < r ∧ P x.
+Proof.
+  intros. assert (Hpos: 0 < r - y) by nra.
+  edestruct (Rbar_at_left_witness r (mkposreal _ Hpos) P) as (x&?&HP); auto.
+  exists x. split; auto.
+  simpl in H1. nra.
+Qed.
+
+Lemma Rbar_at_left_witness_above_p_infty y P:
+  Rbar_at_left p_infty P -> ∃ x, y < x ∧ P x.
+Proof.
+  unfold Rbar_at_left, within, Rbar_locally.
+  intros HM. destruct HM as (M&HM). exists (Rmax (M + 1) (y + 1)).
+  split.
+  - apply (Rlt_le_trans _ (y + 1)); first nra.
+    apply Rmax_r.
+  - apply HM; simpl; auto.
+  - apply (Rlt_le_trans _ (M + 1)); first nra.
+    apply Rmax_l.
 Qed.
