@@ -301,3 +301,47 @@ Proof.
 Qed.
 
 End IRInt.
+
+Require Import Coquelicot.AutoDerive.
+
+Lemma LowerBound_reparam_lb_right_lim a : is_right_lim (λ y : R, exp y + a) m_infty a.
+Proof.
+  replace a with (0 + a) at 1; last nra.
+  apply (is_right_lim_plus' exp (λ _, a)).
+  * apply is_lim_right_lim; first congruence.
+    apply ElemFct.is_lim_exp_m.
+  * apply is_right_lim_const; congruence.
+Qed.
+
+Lemma LowerBound_reparam_ub_left_lim a : is_left_lim (λ y : R, exp y + a) p_infty p_infty.
+Proof.
+  apply (is_left_lim_plus exp (λ _, a) p_infty p_infty a p_infty).
+  { apply is_lim_left_lim; first congruence.
+    apply ElemFct.is_lim_exp_p. }
+  { apply is_left_lim_const; congruence. }
+  constructor.
+Qed.
+
+Lemma LowerBounded_reparam_full f a  :
+  (∀ (x : R), a < x → continuous f x) →
+  ex_IRInt f a p_infty ->
+  is_IRInt (fun y => exp y * f (exp(y) + a)) m_infty p_infty (IRInt f a p_infty).
+Proof.
+  intros Hcont Hex.
+  apply (is_IRInt_comp f (λ x, exp x + a) exp); try (done).
+  - intros x Hrange0. simpl. split; auto. cut (0 < exp x); first nra. apply exp_pos.
+  - intros x Hrange0. simpl. apply Hcont. cut (0 < exp x); first nra. apply exp_pos.
+  - intros x Hrange0. split.
+    { auto_derive; auto; nra. }
+    { apply ElemFct.continuous_exp. }
+  - apply (Rbar_at_right_strict_monotone a m_infty (λ y, exp y + a)); try done.
+    { intros x y (?&?) Hltm. cut (exp x < exp y); first by nra.
+      by apply exp_increasing. }
+    apply LowerBound_reparam_lb_right_lim.
+  - apply (Rbar_at_left_strict_monotone a p_infty (λ y, exp y + a)); try done.
+    { intros x y (?&?) Hltm. cut (exp x < exp y); first by nra.
+      by apply exp_increasing. }
+    apply LowerBound_reparam_ub_left_lim.
+  - apply LowerBound_reparam_lb_right_lim.
+  - apply LowerBound_reparam_ub_left_lim.
+Qed.
