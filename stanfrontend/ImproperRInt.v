@@ -121,61 +121,6 @@ Proof.
   apply is_left_lim_const. intros ->. apply Hle2.
 Qed.
 
-Lemma Rbar_at_left_strict_monotone (t : R) (b : Rbar) g glim :
-  Rbar_lt t b →
-  (∀ x y, t <= x < y → Rbar_lt y b → g x < g y) →
-  is_left_lim g b glim ->
-  Rbar_at_left b (λ y : Rbar, Rbar_lt (g y) glim).
-Proof.
-  unfold is_left_lim.
-  intros Hltb Ht (Hnm&Hlim).
-  apply Classical_Prop.NNPP. intros Hneg%not_Rbar_at_left.
-  destruct b; try congruence.
-  - unfold filterlim, filter_le, filtermap in Hlim.
-    assert (Hpos: 0 < r - t).
-    { simpl in Hltb. nra. }
-    set (eps' := mkposreal _ Hpos).
-    specialize (Hneg eps').
-    assert (∃ x : R, (r - eps' < x ∧ x < r) ∧ Rbar_lt glim (g x)) as (x&Hrange&r0).
-    {
-      destruct Hneg as (x&Hrange&Hnlt).
-      apply Rbar_not_lt_le in Hnlt.
-      apply Rbar_le_lt_or_eq_dec in Hnlt.
-      destruct Hnlt as [Hlt|Heq].
-      { exists x. split; eauto. }
-      destruct (interval_inhabited x r) as (x'&Hx'1&Hx'2); first nra.
-      exists x'.
-      split; first nra.
-      rewrite Heq. simpl. apply Ht; auto; split; try nra.
-      move: Hrange. rewrite /eps' /=. nra.
-    }
-    apply open_Rbar_lt' in r0. apply Hlim in r0.
-    eapply (Rbar_at_left_witness_above r x) in r0; try (intuition eauto; done).
-    destruct r0 as (y&Hrange'&Hlt).
-    simpl in Hlt. apply Rlt_not_le in Hlt.
-    apply Hlt. left. apply Ht; simpl; simpl in Hltb; try nra.
-    split; last by intuition.
-    move: Hrange. rewrite /eps' /=. nra.
-  - unfold filterlim, filter_le, filtermap in Hlim.
-    specialize (Hneg t).
-    assert (∃ x : R, t < x ∧ Rbar_lt glim (g x)) as (x&Hrange&r0).
-    {
-      destruct Hneg as (x&Hrange&Hnlt).
-      apply Rbar_not_lt_le in Hnlt.
-      apply Rbar_le_lt_or_eq_dec in Hnlt.
-      destruct Hnlt as [Hlt|Heq].
-      { exists x. split; eauto. }
-      exists (x + 1).
-      split; first nra.
-      rewrite Heq. simpl. apply Ht; auto; split; try nra.
-    }
-    apply open_Rbar_lt' in r0. apply Hlim in r0.
-    eapply (Rbar_at_left_witness_above_p_infty x) in r0; try (intuition eauto; done).
-    destruct r0 as (y&Hrange'&Hlt).
-    simpl in Hlt. apply Rlt_not_le in Hlt.
-    apply Hlt. left. apply Ht; simpl; simpl in Hltb; try nra.
-Qed.
-
 Lemma is_UIRInt_comp (f : R → R) (g dg : R → R) (a : R) (b : Rbar) (glim : Rbar) :
   Rbar_lt a b ->
   (∀ (x : R), Rbar_le a x /\ Rbar_lt x b → continuous f (g x)) →
