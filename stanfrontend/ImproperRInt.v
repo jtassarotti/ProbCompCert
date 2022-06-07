@@ -73,6 +73,17 @@ Proof.
   congruence.
 Qed.
 
+Lemma RInt_upper_finite_UIRInt f a (b: R) :
+  a < b ->
+  ex_RInt f a b ->
+  RInt f a b = UIRInt f a b.
+Proof.
+  intros. apply is_RInt_unique.
+  apply is_RInt_upper_finite_UIRInt; auto.
+  apply UIRInt_correct.
+  apply ex_UIRInt_upper_finite_RInt; auto.
+Qed.
+
 Lemma ex_UIRInt_Chasles_1
   : ∀ f (a : R) (b c : Rbar), Rbar_lt a b ∧ Rbar_le b c → ex_UIRInt f a c → ex_UIRInt f a b.
 Proof.
@@ -217,6 +228,11 @@ Proof.
   intros. apply is_UIRInt_unique, is_UIRInt_comp; eauto.
 Qed.
 
+Lemma is_UIRInt_lower_bound_right_lim : ∀ (a b : R) (f : R → R) (v : R),
+    a < b → is_UIRInt f a b v → is_right_lim (λ x, UIRInt f x b) a (UIRInt f a b).
+Proof.
+Abort.
+
 End Upper_IRInt.
 
 Section IRInt.
@@ -247,9 +263,9 @@ Proof.
   erewrite is_right_lim_unique; eauto. simpl; done.
 Qed.
 
-Lemma is_IRInt_lower_finite_UIRInt_1 f (a : R) (b: Rbar) v :
+Lemma is_IRInt_finite_RInt_1 f (a b : R) v :
   Rbar_lt a b ->
-  is_UIRInt f a b v -> is_IRInt f a b v.
+  is_RInt f a b v -> is_IRInt f a b v.
 Proof.
   intros Hlt His. split.
   * intros t Hle1 Hl2.
@@ -257,133 +273,86 @@ Proof.
     { split; first eauto.  reflexivity. }
     { eapply (ex_UIRInt_Chasles_2 f a); eauto.
       { split; auto. apply Rbar_lt_le. auto. }
+      eapply ex_UIRInt_upper_finite_RInt; eauto.
       eexists; eauto. }
-  * rewrite -(is_UIRInt_unique _ _ _ _ His).
-Abort.
-(*
-    apply: is_RInt_upper_bound_left_lim; eauto.
+  * rewrite -(is_RInt_unique _ _ _ _ His).
+    eapply is_right_lim_ext_loc; last eapply is_RInt_lower_bound_right_lim; eauto.
+    eapply Rbar_at_right_interval; eauto.
+    unfold Rbar_lt. intros [r| |]; simpl; try intuition. eapply RInt_upper_finite_UIRInt; eauto.
+    eapply ex_RInt_Chasles_2; last by (eexists; eauto).
+    nra.
 Qed.
 
-Lemma is_RInt_upper_finite_UIRInt f a (b: R) v :
+Lemma is_RInt_finite_IRInt f a (b: R) v :
   a < b ->
   ex_RInt f a b ->
-  is_UIRInt f a b v -> is_RInt f a b v.
+  is_IRInt f a b v -> is_RInt f a b v.
 Proof.
   intros Hlt (v'&His) Hisu.
   cut (v = v').
   { intros ->. auto. }
-  eapply is_UIRInt_upper_finite_RInt_1 in His; auto.
-  apply is_UIRInt_unique in His.
-  apply is_UIRInt_unique in Hisu.
+  eapply is_IRInt_finite_RInt_1 in His; auto.
+  apply is_IRInt_unique in His.
+  apply is_IRInt_unique in Hisu.
   congruence.
 Qed.
 
-Lemma Rbar_at_left_strict_monotone (t : R) (b : Rbar) g glim :
-  Rbar_lt t b →
-  (∀ x y, t <= x < y → Rbar_lt y b → g x < g y) →
-  is_left_lim g b glim ->
-  Rbar_at_left b (λ y : Rbar, Rbar_lt (g y) glim).
-Proof.
-  unfold is_left_lim.
-  intros Hltb Ht (Hnm&Hlim).
-  apply Classical_Prop.NNPP. intros Hneg%not_Rbar_at_left.
-  destruct b; try congruence.
-  - unfold filterlim, filter_le, filtermap in Hlim.
-    assert (Hpos: 0 < r - t).
-    { simpl in Hltb. nra. }
-    set (eps' := mkposreal _ Hpos).
-    specialize (Hneg eps').
-    assert (∃ x : R, (r - eps' < x ∧ x < r) ∧ Rbar_lt glim (g x)) as (x&Hrange&r0).
-    {
-      destruct Hneg as (x&Hrange&Hnlt).
-      apply Rbar_not_lt_le in Hnlt.
-      apply Rbar_le_lt_or_eq_dec in Hnlt.
-      destruct Hnlt as [Hlt|Heq].
-      { exists x. split; eauto. }
-      destruct (interval_inhabited x r) as (x'&Hx'1&Hx'2); first nra.
-      exists x'.
-      split; first nra.
-      rewrite Heq. simpl. apply Ht; auto; split; try nra.
-      move: Hrange. rewrite /eps' /=. nra.
-    }
-    apply open_Rbar_lt' in r0. apply Hlim in r0.
-    eapply (Rbar_at_left_witness_above r x) in r0; try (intuition eauto; done).
-    destruct r0 as (y&Hrange'&Hlt).
-    simpl in Hlt. apply Rlt_not_le in Hlt.
-    apply Hlt. left. apply Ht; simpl; simpl in Hltb; try nra.
-    split; last by intuition.
-    move: Hrange. rewrite /eps' /=. nra.
-  - unfold filterlim, filter_le, filtermap in Hlim.
-    specialize (Hneg t).
-    assert (∃ x : R, t < x ∧ Rbar_lt glim (g x)) as (x&Hrange&r0).
-    {
-      destruct Hneg as (x&Hrange&Hnlt).
-      apply Rbar_not_lt_le in Hnlt.
-      apply Rbar_le_lt_or_eq_dec in Hnlt.
-      destruct Hnlt as [Hlt|Heq].
-      { exists x. split; eauto. }
-      exists (x + 1).
-      split; first nra.
-      rewrite Heq. simpl. apply Ht; auto; split; try nra.
-    }
-    apply open_Rbar_lt' in r0. apply Hlim in r0.
-    eapply (Rbar_at_left_witness_above_p_infty x) in r0; try (intuition eauto; done).
-    destruct r0 as (y&Hrange'&Hlt).
-    simpl in Hlt. apply Rlt_not_le in Hlt.
-    apply Hlt. left. apply Ht; simpl; simpl in Hltb; try nra.
-Qed.
-
-Lemma is_UIRInt_comp (f : R → R) (g dg : R → R) (a : R) (b : Rbar) (glim : Rbar) :
+Lemma is_IRInt_comp (f : R → R) (g dg : R → R) (a b : Rbar) (gla glb : Rbar) :
   Rbar_lt a b ->
-  (∀ (x : R), Rbar_le a x /\ Rbar_lt x b → continuous f (g x)) →
-  (∀ (x : R), Rbar_le a x /\ Rbar_lt x b → is_derive g x (dg x) ∧ continuous dg x) →
-  (* This should follow if g is is monotone locally to b *)
-  Rbar_at_left b (λ y : Rbar, Rbar_lt (g y) glim) ->
-  is_left_lim g b glim ->
-  ex_UIRInt f (g a) glim ->
-  is_UIRInt (fun y => scal (dg y) (f (g y))) a b (UIRInt f (g a) glim).
+  (∀ (x : R), Rbar_lt a x /\ Rbar_lt x b → Rbar_lt gla (g x) /\ Rbar_lt (g x) glb) →
+  (∀ (x : R), Rbar_lt a x /\ Rbar_lt x b → continuous f (g x)) →
+  (∀ (x : R), Rbar_lt a x /\ Rbar_lt x b → is_derive g x (dg x) ∧ continuous dg x) →
+  (* This should follow if g is is monotone locally to a and b *)
+  Rbar_at_right a (λ y : Rbar, Rbar_lt gla (g y)) ->
+  Rbar_at_left b (λ y : Rbar, Rbar_lt (g y) glb) ->
+  is_right_lim g a gla ->
+  is_left_lim g b glb ->
+  ex_IRInt f gla glb ->
+  is_IRInt (fun y => scal (dg y) (f (g y))) a b (IRInt f gla glb).
 Proof.
-  intros Hlt Hcontinuous Hdiff Hatlt Hlim Hex.
-  rewrite /ex_UIRInt/is_UIRInt/UIRInt.
+  intros Hlt Hgrange Hcontinuous Hdiff Hata Hatb Hlima Hlimb Hex.
+  rewrite /ex_IRInt/is_IRInt/IRInt.
   split.
-  { intros t Hle1 Hlt2. eexists. apply: is_RInt_comp'; auto.
-    ** intros x (Hle1'&Hl2'). apply Hcontinuous.
-       split; auto. simpl in Hlt2. simpl. destruct b; try eauto. nra.
-    ** intros x. intros (Hle1'&Hl2'). apply Hdiff.
-       split; auto. simpl in Hlt2. simpl. destruct b; try eauto. nra.
+  { intros t Hlt1 Hlt2. eexists. apply: is_UIRInt_comp; eauto.
+    ** intros x (Hle1'&Hlt2'). apply Hcontinuous.
+       split; auto. eapply Rbar_lt_le_trans; eauto.
+    ** intros x. intros (Hle1'&Hlt2'). apply Hdiff.
+       split; auto. eapply Rbar_lt_le_trans; eauto.
+    ** destruct Hex as (?&Hex'&?). eapply Hex'; eauto; eapply Hgrange; eauto.
   }
-  eapply (is_left_lim_ext_loc (λ b, RInt f (g a) (g b))).
+  eapply (is_right_lim_ext_loc (λ r, UIRInt f (g r) glb)).
   {
-    eapply Rbar_at_left_interval; eauto.
+    eapply Rbar_at_right_interval; eauto.
     intros x Hltx1 Hltx2.
     symmetry.
     assert (∃ r, x = Finite r) as (r&->).
-    { destruct x, b; simpl in *; try intuition; try eexists; eauto. }
-    simpl in Hltx1.
-    apply RInt_comp'; auto.
-    { apply Rlt_le. auto. }
+    { destruct x, a, b; simpl in *; try intuition; try eexists; eauto. }
+    erewrite UIRInt_comp; eauto.
     ** intros y (Hle1'&Hl2'). apply Hcontinuous.
-       split; auto. eapply Rbar_le_lt_trans; eauto. simpl in *; eauto.
+       split; auto. eapply Rbar_lt_le_trans; eauto.
     ** intros y (Hle1'&Hl2'). apply Hdiff.
-       split; auto. eapply Rbar_le_lt_trans; eauto. simpl in *; eauto.
+       split; auto. eapply Rbar_lt_le_trans; eauto.
+    ** destruct Hex as (?&Hex'&?). eapply Hex'; eauto; eapply Hgrange; eauto.
   }
-  apply UIRInt_correct in Hex.
+  apply IRInt_correct in Hex.
   destruct Hex as (?&Hlim').
-  eapply (is_left_lim_comp (λ x, RInt f (g a) x) g b); eauto.
+  eapply (is_right_lim_comp (λ x, UIRInt f x glb) g a); eauto.
 Qed.
 
-Lemma UIRInt_comp (f : R → R) (g dg : R → R) (a : R) (b : Rbar) (glim : Rbar) :
+Lemma IRInt_comp (f : R → R) (g dg : R → R) (a b : Rbar) (gla glb : Rbar) :
   Rbar_lt a b ->
-  (∀ (x : R), Rbar_le a x /\ Rbar_lt x b → continuous f (g x)) →
-  (∀ (x : R), Rbar_le a x /\ Rbar_lt x b → is_derive g x (dg x) ∧ continuous dg x) →
-  (* This should follow if g is is monotone locally to b *)
-  Rbar_at_left b (λ y : Rbar, Rbar_lt (g y) glim) ->
-  is_left_lim g b glim ->
-  ex_UIRInt f (g a) glim ->
-  UIRInt (fun y => scal (dg y) (f (g y))) a b = UIRInt f (g a) glim.
+  (∀ (x : R), Rbar_lt a x /\ Rbar_lt x b → Rbar_lt gla (g x) /\ Rbar_lt (g x) glb) →
+  (∀ (x : R), Rbar_lt a x /\ Rbar_lt x b → continuous f (g x)) →
+  (∀ (x : R), Rbar_lt a x /\ Rbar_lt x b → is_derive g x (dg x) ∧ continuous dg x) →
+  (* This should follow if g is is monotone locally to a and b *)
+  Rbar_at_right a (λ y : Rbar, Rbar_lt gla (g y)) ->
+  Rbar_at_left b (λ y : Rbar, Rbar_lt (g y) glb) ->
+  is_right_lim g a gla ->
+  is_left_lim g b glb ->
+  ex_IRInt f gla glb ->
+  IRInt (fun y => scal (dg y) (f (g y))) a b = (IRInt f gla glb).
 Proof.
-  intros. apply is_UIRInt_unique, is_UIRInt_comp; eauto.
+  intros. apply is_IRInt_unique, is_IRInt_comp; eauto.
 Qed.
-*)
 
 End IRInt.

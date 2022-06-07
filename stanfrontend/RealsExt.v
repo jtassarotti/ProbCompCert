@@ -171,16 +171,30 @@ Proof.
   destruct (Rle_dec eps (b - a)).
   * exists eps. split; first nra. intros y.
     rewrite /abs/minus/plus/opp//=.
-    destruct (Rle_dec 0 (y + -b)).
-    ** rewrite Rabs_right; nra.
-    ** rewrite Rabs_left; try nra.
+    apply Rabs_case; nra.
   * exists (mkposreal (b - a) Hpos). split.
     { simpl. nra. }
     intros y.
     rewrite /abs/minus/plus/opp//=.
-    destruct (Rle_dec 0 (y + -b)).
-    ** rewrite Rabs_right; nra.
-    ** rewrite Rabs_left; try nra.
+    apply Rabs_case; nra.
+Qed.
+
+Lemma eps_squeeze_between' a b (eps : posreal) :
+  a < b ->
+  exists (eps': posreal), eps' <= eps ∧ forall y, abs (minus y a) < eps' -> a - eps <= y <= b.
+Proof.
+  intros Hlt1.
+  assert (Hpos: 0 < b - a).
+  { nra. }
+  destruct (Rle_dec eps (b - a)).
+  * exists eps. split; first nra. intros y.
+    rewrite /abs/minus/plus/opp//=.
+    apply Rabs_case; nra.
+  * exists (mkposreal (b - a) Hpos). split.
+    { simpl. nra. }
+    intros y.
+    rewrite /abs/minus/plus/opp//=.
+    apply Rabs_case; nra.
 Qed.
 
 Lemma is_lim_continuity':
@@ -927,7 +941,7 @@ Proof.
   by apply Rbar_plus_correct.
 Qed.
 
-(** Left limit of integral boundary *)
+(** Left/Right limits of integral boundary *)
 
 Lemma is_RInt_upper_bound_left_lim a b f v :
   Rlt a b ->
@@ -988,6 +1002,64 @@ Proof.
   rewrite Rmult_comm. apply (Rdiv_lt_1 ub (ub + 1)); nra.
 Qed.
 
+Lemma is_RInt_lower_bound_right_lim a b f v :
+  Rlt a b ->
+  is_RInt f a b v ->
+  is_right_lim (λ x, RInt f x b) a (RInt f a b).
+Proof.
+  intros Hlt His.
+  unfold is_right_lim. split; first done.
+  unfold filterlim, filter_le, filtermap, Rbar_at_right, within, Rbar_locally, locally. intros P HP.
+  destruct HP as (eps&Heps).
+  cut (∃ eps' : posreal, ∀ y, ball a eps' y -> Rbar_lt a y -> ball (RInt f a b) eps (RInt f y b)).
+  { intros (eps'&Heps'). exists eps'. intros y Hball Hbar. apply Heps, Heps'; auto. }
+  edestruct (ex_RInt_ub f a b) as (ub&Hub); first (econstructor; eauto).
+  assert (∀ t, a <= t <= b -> Rabs (RInt f a t) <= (t - a) * ub).
+  { intros t Hle. apply abs_RInt_le_const; intuition.
+    { apply: ex_RInt_Chasles_1.
+      { split; eassumption. }
+      econstructor; eauto. }
+    apply Hub. split.
+    { rewrite Rmin_left; nra. }
+    { rewrite Rmax_right; nra. }
+  }
+  assert (0 <= ub).
+  { specialize (Hub a). transitivity (norm (f a)).
+    { apply norm_ge_0. }
+    { apply Hub. rewrite Rmin_left ?Rmax_right; nra. }
+  }
+  assert (Heps': 0 < eps / (ub + 1)).
+  { apply Rdiv_lt_0_compat.
+    { destruct eps; auto. }
+    { nra. }
+  }
+  set (eps' := (mkposreal _ Heps')).
+  edestruct (eps_squeeze_between' a b eps') as (eps''&Hsmaller&Heps''); auto.
+  exists eps''.
+  rewrite /ball/=/AbsRing_ball/=/abs/=/minus/plus/opp/=.
+  intros y Hball Hlty.
+  assert (y <= b).
+  { apply Heps''. auto. }
+  rewrite -(RInt_Chasles f a y b); swap 1 3.
+  { eapply ex_RInt_Chasles_2; last first.
+    { econstructor; eauto. }
+    split; nra. }
+  { eapply ex_RInt_Chasles_1; last first.
+    { econstructor; eauto. }
+    split; nra. }
+  eapply (Rle_lt_trans _ (Rabs (RInt f a y))).
+  { right. rewrite -Rabs_Ropp. f_equal. rewrite /plus//=. nra. }
+  eapply (Rle_lt_trans); first (eapply H; nra).
+  rewrite Rabs_right in Hball; last first.
+  { nra. }
+  assert (y - a < eps'' ) by nra.
+  apply (Rle_lt_trans _ (eps' * ub)).
+  { apply Rmult_le_compat_r; nra. }
+  rewrite /eps' /=. rewrite /Rdiv. rewrite Rmult_assoc.
+  apply (Rlt_le_trans _ (eps * 1)); last nra.
+  apply Rmult_lt_compat_l; first by (destruct eps).
+  rewrite Rmult_comm. apply (Rdiv_lt_1 ub (ub + 1)); nra.
+Qed.
 Lemma is_RInt_comp' : ∀ (f : R → R) (g dg : R → R) (a b : R),
     a <= b →
     (∀ x : R, a <= x <= b → continuous f (g x)) →
@@ -1017,6 +1089,16 @@ Lemma Rbar_at_left_interval a b (P: Rbar -> Prop) :
 Proof.
   intros Hlt HP. unfold Rbar_at_left, within.
   apply open_Rbar_gt' in Hlt. move:Hlt. apply filter_imp.
+  intros. apply HP; auto.
+Qed.
+
+Lemma Rbar_at_right_interval a b (P: Rbar -> Prop) :
+  Rbar_lt a b ->
+  (∀ x, Rbar_lt a x -> Rbar_lt x b -> P x) ->
+  Rbar_at_right a P.
+Proof.
+  intros Hlt HP. unfold Rbar_at_right, within.
+  apply open_Rbar_lt' in Hlt. move:Hlt. apply filter_imp.
   intros. apply HP; auto.
 Qed.
 
