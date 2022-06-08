@@ -249,6 +249,7 @@ Inductive assign_global_locs (ge: genv) : list (ident * basic) -> mem -> list va
       assign_global_locs ge bs m2 vs m3 ->
       assign_global_locs ge ((id, ty) :: bs) m1 (v :: vs) m3.
 
+(* Joe: TODO: this initial state loading here does not work correctly for array data/params *)
 Inductive initial_state (p: program) (data : list val) (params: list val) : state -> Prop :=
   | initial_state_intro: forall b f m0 m1 m2 m3 e,
       let ge := globalenv p in
