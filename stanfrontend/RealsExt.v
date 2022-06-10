@@ -2,6 +2,7 @@ Require Export RelationClasses Morphisms Utf8.
 From mathcomp Require Import ssreflect ssrbool eqtype.
 From Coquelicot Require Import Hierarchy Markov Rcomplements Rbar Lub Lim_seq SF_seq Continuity Hierarchy RInt RInt_analysis Derive.
 
+Require ClassicalEpsilon.
 Require Import Reals.
 Require Import Coqlib.
 
@@ -1403,3 +1404,312 @@ Proof.
   {intros (M&HM). exists M. intros. apply HM. auto. }
   { congruence. }
 Qed.
+
+Section comp.
+
+  Lemma R_dist_plus_r1 x y z y':
+    R_dist x (y + z) <= R_dist x (y' + z) + R_dist y y'.
+  Proof.
+    rewrite /R_dist.
+    replace (y + z) with (y' + z + (y - y')) by nra.
+    replace (x - (y' + z + (y - y'))) with ((x - (y' + z)) - (y - y')) by nra.
+    rewrite -(Rabs_Ropp (y - y')).
+    etransitivity; last eapply Rabs_triang.
+    reflexivity.
+  Qed.
+
+  Lemma ex_RInt_bounding (f: R -> R) (a b : R) :
+    a <= b ->
+    ex_RInt f a b ->
+    ∀ eps, ∃ g1 g2, (∀ x, a <= x <= b -> g1 x <= f x <= g2 x) /\
+             (∀ x, a <= x <= b -> continuous g1 x) /\
+             (∀ x, a <= x <= b -> continuous g2 x) /\
+             (RInt (λ x, g2 x - g1 x) a b < eps).
+  Proof.
+    admit.
+  Admitted.
+
+Require Import Program.Basics.
+Instance Rle_trans_proper_left: Proper (Rle ==> eq ==> flip impl) Rle.
+Proof. intros ?? Hle ?? Hle'. rewrite /flip/impl/=. nra. Qed.
+Instance Rle_trans_proper_right: Proper (eq ==> Rle ==> impl) Rle.
+Proof. intros ?? Hle ?? Hle'. rewrite /flip/impl/=. nra. Qed.
+Instance Rlt_trans_proper_left: Proper (Rlt ==> eq ==> flip impl) Rlt.
+Proof. intros ?? Hle ?? Hle'. rewrite /flip/impl/=. nra. Qed.
+Instance Rlt_trans_proper_right: Proper (eq ==> Rlt ==> impl) Rlt.
+Proof. intros ?? Hle ?? Hle'. rewrite /flip/impl/=. nra. Qed.
+Instance Rlt_Rle_trans_proper_left: Proper (Rle ==> eq ==> flip impl) Rlt.
+Proof. intros ?? Hle ?? Hle'. rewrite /flip/impl/=. nra. Qed.
+Instance Rlt_Rle_trans_proper_right: Proper (eq ==> Rle ==> impl) Rlt.
+Proof. intros ?? Hle ?? Hle'. rewrite /flip/impl/=. nra. Qed.
+
+Lemma RiemannInt_SF_proof_irrel a b f (Hpf1 Hpf2 : IsStepFun _ a b) :
+  RiemannInt_SF  {| fe := f; pre := Hpf1 |} =
+  RiemannInt_SF  {| fe := f; pre := Hpf2 |}.
+Proof.
+  destruct (Rle_dec a b).
+  { apply Rle_antisym; apply StepFun_P37; eauto; intros => //=; nra. }
+  rewrite StepFun_P39.
+  symmetry. rewrite StepFun_P39.
+  f_equal.
+  { apply Rle_antisym; apply StepFun_P37; eauto; intros => //=; nra. }
+Qed.
+
+Lemma StepFun_P30':
+  ∀ (a b l : R) (f g : StepFun a b) (Hpf : IsStepFun _ a b),
+    RiemannInt_SF {| fe := λ x : R, f x + l * g x; pre := Hpf |} =
+    RiemannInt_SF f + l * RiemannInt_SF g.
+    Proof.
+      intros. rewrite -StepFun_P30.
+      apply RiemannInt_SF_proof_irrel.
+    Qed.
+
+Lemma RiemannInt_SF_ext :
+  ∀ (a b : R) (f g : StepFun a b), (∀ x : R, Rmin a b <= x <= Rmax a b -> f x = g x) →
+                                   RiemannInt_SF f = RiemannInt_SF g.
+Proof.
+  intros a b f g Heq.
+  destruct (Rle_dec a b).
+  { apply Rle_antisym; apply StepFun_P37; eauto; intros => //=; rewrite ?Heq; try nra;
+    rewrite ?Rmin_left // ?Rmax_right //; nra. }
+  rewrite StepFun_P39.
+  symmetry. rewrite StepFun_P39.
+  f_equal.
+  { apply Rle_antisym; apply StepFun_P37; eauto; intros => //=; rewrite ?Heq; try nra;
+    rewrite ?Rmax_left // ?Rmin_right //; nra. }
+Qed.
+
+Lemma RiemannInt_SF_ext' :
+  ∀ (a b : R) (a' b': R) (f : StepFun a b) (g : StepFun a' b'),
+    a = a' -> b = b' -> (∀ x : R, Rmin a b <= x <= Rmax a b -> f x = g x) → RiemannInt_SF f = RiemannInt_SF g.
+Proof.
+  intros a b a' b' f g ?? Heq.
+  subst. eapply RiemannInt_SF_ext; eauto.
+Qed.
+
+Lemma Riemann_integrable_SF a b (sf: StepFun a b) :
+  Riemann_integrable sf a b.
+Proof.
+  rewrite /Riemann_integrable => eps.
+  exists sf.
+  exists (mkStepFun (StepFun_P4 a b 0)).
+  split.
+  - intros. replace (sf t - sf t) with 0 by nra. rewrite Rabs_right => //=; last nra.
+    rewrite /fct_cte. nra.
+  - rewrite StepFun_P18 Rabs_right => //=; destruct eps => /=; nra.
+Qed.
+
+Lemma seq2Rlist_id l : seq2Rlist l = l.
+Proof. induction l => //=; congruence. Qed.
+
+Lemma size_compat: ∀ s : list R, Datatypes.length s = seq.size s.
+Proof. intros. rewrite -size_compat. rewrite seq2Rlist_id //. Qed.
+
+Lemma SF_seq_StepFun a b (sf: StepFun a b) :
+  a <= b ->
+  ∃ (s : SF_seq) (pr: SF_sorted Rle s),
+    a = SF_h s /\
+    b = seq.last (SF_h s) (seq.unzip1 (SF_t s)) /\
+    ∀ x, a <= x <= b -> (SF_fun (SF_map sf s) zero x = sf x).
+Proof.
+  intros Hle.
+  destruct sf as (fe&(l1&l2&Hadapted)).
+  destruct l1 as [| h l1].
+  { destruct Hadapted as (?&?&?&Hfalse&?). simpl in Hfalse; congruence.  }
+  exists {| SF_h := h ; SF_t := seq.zip l1 l2 |}.
+  assert (ssrnat.leq (seq.size l1) (seq.size l2)).
+  {
+    destruct Hadapted as (?&?&?&?&?).
+    apply SSR_leq; auto.
+    rewrite -?size_compat //. simpl in *. lia.
+  }
+  unshelve (eexists).
+  { rewrite /SF_sorted. rewrite /SF_lx/SF_h/SF_t.
+    destruct Hadapted as (?&?&?&?&?).
+    rewrite seq.unzip1_zip //.
+    apply sorted_compat.
+    rewrite seq2Rlist_id //=.
+  }
+  destruct Hadapted as (Hord&Heq1&Heq2&?&?).
+  split.
+  { simpl in *. rewrite Rmin_left in Heq1; eauto. }
+  split.
+  { simpl.
+    rewrite seq.unzip1_zip //.
+    rewrite -(seq2Rlist_id (h :: l1)) in Heq2.
+    rewrite nth_compat seq2Rlist_id /= in Heq2.
+    rewrite Rmax_right // in Heq2.
+    rewrite (seq.last_nth 0) -size_compat; congruence.
+  }
+  intros x Hrange.
+Admitted.
+
+Lemma is_RInt_SF':
+  ∀ (V : NormedModule R_AbsRing) (f : R → V) (s : SF_seq) a b,
+    SF_sorted Rle s →
+    a = SF_h s ->
+    b = seq.last (SF_h s) (seq.unzip1 (SF_t s)) ->
+    is_RInt (SF_fun (SF_map f s) zero) a b (Riemann_sum f s).
+Proof. intros ????? ? -> ->. by eapply is_RInt_SF. Qed.
+
+Lemma is_RInt_of_SF a b (sf: StepFun a b) :
+  a <= b ->
+  is_RInt sf a b (RiemannInt_SF sf).
+Proof.
+  intros Hle. edestruct (SF_seq_StepFun a b sf) as (s&pr&?&?&Hs); auto.
+  assert (RiemannInt_SF sf = RiemannInt_SF (SF_compat_le (SF_map sf s) (SF_map_sort sf _ Rle pr))) as ->.
+  {
+    subst.
+    eapply RiemannInt_SF_ext'; eauto.
+    simpl. f_equal. rewrite /seq.unzip1.
+    rewrite -?seq.map_comp //=.
+    intros x. rewrite Rmin_left // Rmax_right //.  symmetry. eapply Hs; auto.
+  }
+  rewrite -Riemann_sum_compat.
+  eapply is_RInt_ext; last first.
+  { eapply is_RInt_SF'; eauto. }
+  { intros x. rewrite Rmin_left // Rmax_right //. intros. eapply Hs; nra. }
+Qed.
+
+Lemma is_pos_div_4: ∀ eps : posreal, 0 < eps / 4.
+Proof.
+  intros. specialize (is_pos_div_2 (mkposreal (eps /2) (is_pos_div_2 _))) => //=.
+  nra.
+Qed.
+
+  Lemma bounding_ex_RInt (f : R -> R) (a b : R) :
+    a <= b ->
+    (∀ eps, ∃ g1 g2, (∀ x, a <= x <= b -> g1 x <= f x <= g2 x) /\
+             (∀ x, a <= x <= b -> continuous g1 x) /\
+             (∀ x, a <= x <= b -> continuous g2 x) /\
+             (RInt (λ x, g2 x - g1 x) a b < eps)) ->
+    ex_RInt f a b.
+  Proof.
+    intros Hle Heps.
+    apply ex_RInt_Reals_1.
+    unfold Riemann_integrable. intros eps.
+    specialize (Heps eps).
+    apply ClassicalEpsilon.constructive_indefinite_description in Heps as (g1&Heps).
+    apply ClassicalEpsilon.constructive_indefinite_description in Heps as (g2&Heps).
+    destruct Heps as (Hsandwich&Hg1cont&Hg2cont&Hdiff).
+    assert (Hexg1: ex_RInt g1 a b).
+    { apply: ex_RInt_continuous; rewrite Rmin_left // Rmax_right //. }
+    assert (Hexg2: ex_RInt g2 a b).
+    { apply: ex_RInt_continuous; rewrite Rmin_left // Rmax_right //. }
+    assert (Hexdiff: ex_RInt (λ x, g2 x - g1 x) a b).
+    { apply: ex_RInt_minus; eauto. }
+    apply ex_RInt_Reals_0 in Hexg1.
+    apply ex_RInt_Reals_0 in Hexg2.
+    apply ex_RInt_Reals_0 in Hexdiff.
+    set (eps' := mkposreal (eps/4) (is_pos_div_4 _)).
+    destruct (Hexg1 eps') as (phi1&psi1&Hex1).
+    destruct (Hexg2 eps') as (phi2&psi2&Hex2).
+    destruct (Hexdiff eps') as (phid&psid&Hexd).
+    set (phi := λ x, phi1 x + 1 * phid x).
+    assert (Hisphi: IsStepFun phi a b).
+    { apply StepFun_P28. }
+    set (psi_a := λ x, (mkStepFun (StepFun_P32 phid) x) + 1 * psi1 x).
+    assert (Hispsi_a: IsStepFun psi_a a b).
+    { apply StepFun_P28. }
+    set (psi := λ x, mkStepFun Hispsi_a x + 2 * psid x).
+    assert (Hispsi: IsStepFun psi a b).
+    { apply StepFun_P28. }
+    exists (mkStepFun Hisphi).
+    exists (mkStepFun Hispsi).
+    split.
+    {
+      intros t Hrange.
+      rewrite /psi/=/psi_a/=.
+      setoid_rewrite (R_dist_tri _ _ (g2 t)).
+      rewrite /phi/=.
+      setoid_rewrite (R_dist_plus_r1 (g2 t) _ _ (g1 t)).
+      rewrite Rmult_1_l. rewrite {2}/R_dist.
+      replace (g2 t - (g1 t + phid t)) with (g2 t - g1 t - phid t) by nra.
+      destruct Hexd as (Hexd1&Hexd2).
+      setoid_rewrite (Hexd1); auto.
+      destruct Hex1 as (Hex11&Hex12).
+      rewrite (R_dist_sym (phi1 t)).
+      rewrite {2}/R_dist.
+      setoid_rewrite Hex11; auto.
+      assert (R_dist (f t) (g2 t) <= R_dist (g2 t) (g1 t)) as ->.
+      { rewrite R_dist_sym. rewrite /R_dist. rewrite Rmin_left // Rmax_right // in Hrange.
+        specialize (Hsandwich _ Hrange).
+        rewrite ?Rabs_right; nra. }
+      assert (R_dist (g2 t) (g1 t) <= Rabs (phid t) + psid t) as ->.
+      { specialize (Hexd1 _ Hrange).
+        rewrite /R_dist.
+        cut (Rabs (g2 t - g1 t) - Rabs (phid t) <= psid t); first by nra.
+        setoid_rewrite Rabs_triang_inv. auto.
+      }
+      nra.
+    }
+    rewrite /psi.
+    rewrite (StepFun_P30').
+    rewrite /psi_a.
+    rewrite (StepFun_P30').
+    setoid_rewrite Rabs_triang.
+    setoid_rewrite Rabs_triang.
+    rewrite ?Rabs_mult.
+    destruct (Hex1) as (_&Hr1).
+    destruct (Hex2) as (_&Hr2).
+    destruct (Hexd) as (_&Hrd).
+    replace (Rabs 1) with 1 by (rewrite Rabs_right; nra).
+    rewrite Rmult_1_l.
+    replace (Rabs 2) with 2 by (rewrite Rabs_right; nra).
+    rewrite /eps'.
+    cut (Rabs (RiemannInt_SF {| fe := λ x : R, Rabs (phid x); pre := StepFun_P32 phid |}) < eps').
+    { move: Hr1 Hr2 Hrd. rewrite /eps'//=. intros. nra. }
+Abort.
+
+(*
+Lemma is_RInt_comp_noncont (f : R -> V) (g dg : R -> R) (a b : R) :
+  (ex_RInt f (g a) (g b)) ->
+  (forall x, Rmin a b <= x <= Rmax a b -> is_derive g x (dg x) /\ continuous dg x) ->
+  is_RInt (fun y => scal (dg y) (f (g y))) a b (RInt f (g a) (g b)).
+Proof.
+  wlog: a b / (a < b) => [Hw|Hab].
+    case: (total_order_T a b) => [[Hab'|Hab']|Hab'] Hf Hg.
+    - exact: Hw.
+    - rewrite Hab'.
+      by rewrite RInt_point; apply: is_RInt_point.
+    - rewrite <- (opp_opp (RInt f _ _)).
+      apply: is_RInt_swap.
+      rewrite opp_RInt_swap //.
+        apply Hw => // .
+        { by apply ex_RInt_swap. }
+        by rewrite Rmin_comm Rmax_comm.
+      rewrite -> Rmin_left by now apply Rlt_le.
+      rewrite -> Rmax_right by now apply Rlt_le.
+
+  wlog: g dg / (forall x : R, is_derive g x (dg x) /\ continuous dg x) => [Hw Hf Hg | Hg Hf _].
+    rewrite -?(extension_C1_ext g dg a b) ; try by [left | right].
+    set g0 := extension_C1 g dg a b.
+    set dg0 := extension_C0 dg a b.
+    apply is_RInt_ext with (fun y : R => scal (dg0 y) (f (g0 y))).
+    + rewrite /Rmin /Rmax /g0 ; case: Rle_dec (Rlt_le _ _ Hab) => // _ _ x Hx.
+      apply f_equal2.
+        by apply extension_C0_ext ; by apply Rlt_le, Hx.
+      by apply f_equal, extension_C1_ext ; by apply Rlt_le, Hx.
+    + apply Hw.
+      * intros x ; split.
+        apply extension_C1_is_derive.
+          by apply Rlt_le.
+            by intros ; apply Hg ; by split.
+      * apply @extension_C0_continuous.
+          by apply Rlt_le.
+        intros ; apply Hg ; by split.
+      * intros ; rewrite /g0 ?extension_C1_ext; auto; simpl; try nra.
+    intros ; split.
+      apply extension_C1_is_derive.
+        by apply Rlt_le.
+      intros ; apply Hg ; by split.
+    apply @extension_C0_continuous.
+      by apply Rlt_le.
+    by intros ; apply Hg ; by split.
+
+    have cg : forall x, continuous g x.
+      move => t Ht; apply: ex_derive_continuous.
+      by exists (dg t); apply Hg.
+*)
+
+  End comp.

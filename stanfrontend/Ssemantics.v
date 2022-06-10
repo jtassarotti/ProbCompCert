@@ -4,6 +4,7 @@ Require Import Integers Floats Values AST Memory Builtins Events Globalenvs.
 Require Import Ctypes Cop Stanlight.
 Require Import Smallstep.
 Require Import Linking.
+Require Import ImproperRInt.
 Require Vector.
 
 Require Import Clightdefs.
@@ -13,7 +14,7 @@ Local Open Scope clight_scope.
 Definition genv := Genv.t fundef variable.
 
 (* Neither used nor right... *)
-Definition globalenv (p: program) := Genv.globalenv p. 
+Definition globalenv (p: program) := Genv.globalenv p.
 
 Definition env := PTree.t (block * basic).
 
@@ -294,6 +295,7 @@ destruct (program_eq x y); inversion H; subst; auto.
 Defined.
 
 Require ClassicalEpsilon.
+Require Import Reals.
 
 Section DENOTATIONAL.
 
@@ -317,5 +319,21 @@ Section DENOTATIONAL.
      returns Float.zero *)
   Definition log_density_of_program (p: program) (data: list val) (params: list val) : float :=
     pred_to_default_fun (returns_target_value p data params) Float.zero.
+
+  Record interval := mk_interval { interval_lb : Rbar; interval_ub : Rbar}.
+
+  Definition interval_subset (i1 i2: interval) :=
+    Rbar_le (interval_lb i2) (interval_lb i1) /\ Rbar_le (interval_ub i1) (interval_ub i2).
+
+  (* IFR -> inject float into real, named in analogy to INR : nat -> R, IZR: Z -> R *)
+  Axiom IFR : float -> R.
+
+  Fixpoint constraint_to_interval (c: constraint) :=
+    match c with
+    | Cidentity => mk_interval m_infty p_infty
+    | Clower f  => mk_interval (IFR f) p_infty
+    | Cupper f  => mk_interval m_infty (IFR f)
+    | Clower_upper f1 f2 => mk_interval (IFR f1) (IFR f2)
+    end.
 
 End DENOTATIONAL.
