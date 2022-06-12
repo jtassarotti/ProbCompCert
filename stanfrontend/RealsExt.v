@@ -1061,6 +1061,7 @@ Proof.
   apply Rmult_lt_compat_l; first by (destruct eps).
   rewrite Rmult_comm. apply (Rdiv_lt_1 ub (ub + 1)); nra.
 Qed.
+
 Lemma is_RInt_comp' : ∀ (f : R → R) (g dg : R → R) (a b : R),
     a <= b →
     (∀ x : R, a <= x <= b → continuous f (g x)) →
@@ -1070,6 +1071,15 @@ Proof.
   intros f g dg a b Hle Hcont Hdiff. apply: is_RInt_comp.
   - intros x. rewrite Rmin_left // Rmax_right //. apply Hcont.
   - intros x. rewrite Rmin_left // Rmax_right //. apply Hdiff.
+Qed.
+
+Lemma ex_RInt_comp' : ∀ (f : R → R) (g dg : R → R) (a b : R),
+    a <= b →
+    (∀ x : R, a <= x <= b → continuous f (g x)) →
+    (∀ x : R, a <= x <= b → is_derive g x (dg x) ∧ continuous dg x) →
+    ex_RInt (λ y : R, scal (dg y) (f (g y))) a b.
+Proof.
+  intros f g dg a b Hle Hcont Hdiff. eexists; apply: is_RInt_comp'; auto.
 Qed.
 
 Lemma RInt_comp' : ∀ (f : R → R) (g dg : R → R) (a b : R),
@@ -1418,10 +1428,10 @@ Section comp.
     reflexivity.
   Qed.
 
-  Lemma ex_RInt_bounding (f: R -> R) (a b : R) :
+  Lemma ex_RInt_bounding (f: R -> R) (a b : R) eps :
     a <= b ->
     ex_RInt f a b ->
-    ∀ eps, ∃ g1 g2, (∀ x, a <= x <= b -> g1 x <= f x <= g2 x) /\
+    ∃ g1 g2, (∀ x, a <= x <= b -> g1 x <= f x <= g2 x) /\
              (∀ x, a <= x <= b -> continuous g1 x) /\
              (∀ x, a <= x <= b -> continuous g2 x) /\
              (RInt (λ x, g2 x - g1 x) a b < eps).
@@ -1702,14 +1712,137 @@ Qed.
       specialize (Hsandwich x). nra.
   Qed.
 
-(*
-Lemma is_RInt_comp_noncont (f : R -> V) (g dg : R -> R) (a b : R) :
+Definition logit u := ln (u / (1 - u)).
+Definition logit_inv u := 1 / (1 + exp(-u)).
+Definition unconstrain_lb_ub a b x :=
+  logit ((x - a) / (b - a)).
+Definition constrain_lb_ub a b x :=
+  a + (b - a) * logit_inv x.
+Definition deriv_constrain_lb_ub a b x :=
+  (b - a) * logit_inv x * (1 - logit_inv x).
+
+
+Require Import Coquelicot.AutoDerive.
+
+Lemma deriv_constrain_lb_ub_correct a b x:
+  is_derive (constrain_lb_ub a b) x (deriv_constrain_lb_ub a b x).
+Proof.
+  rewrite /constrain_lb_ub/deriv_constrain_lb_ub/logit_inv.
+  assert (1 + exp (- x) ≠ 0).
+  { specialize (exp_pos (- x)). nra. }
+  auto_derive; auto. field; auto.
+Qed.
+
+Lemma logit_inv_range x :
+   0 < logit_inv x < 1.
+Proof.
+  rewrite /logit_inv; specialize (exp_pos (-x)); intros; split.
+  - apply Rdiv_lt_0_compat; nra.
+  - apply Rlt_div_l; nra.
+Qed.
+
+Lemma deriv_constrain_lb_ub_pos a b x:
+  a < b ->
+  0 < deriv_constrain_lb_ub a b x.
+Proof.
+  rewrite /deriv_constrain_lb_ub.
+  specialize (logit_inv_range x) => ??.
+  apply Rmult_lt_0_compat; last by nra.
+  apply Rmult_lt_0_compat; nra.
+Qed.
+
+Lemma constrain_lb_ub_increasing a b :
+  a <= b ->
+  increasing (constrain_lb_ub a b).
+Proof.
+  rewrite /constrain_lb_ub.
+  intros Hrange x y Hle. rewrite /logit_inv.
+  apply Rplus_le_compat_l.
+  apply Rmult_le_compat_l; first nra.
+  apply Rmult_le_compat_l; first nra.
+  apply Rinv_le_contravar.
+  { specialize (exp_pos (- y)). nra. }
+  apply Rplus_le_compat_l.
+  destruct Hle; last by (subst; nra).
+  left.
+  apply exp_increasing; nra.
+Qed.
+
+Lemma logit_inv_spec x :
+  0 < x < 1 -> logit_inv (logit x) = x.
+Proof.
+  intros.
+  rewrite /logit_inv/logit. rewrite exp_Ropp. rewrite exp_ln.
+  { field; nra. }
+  { apply Rdiv_lt_0_compat; nra. }
+Qed.
+
+Lemma constrain_lb_ub_inv :
+  forall a b x, a < x < b -> constrain_lb_ub a b (unconstrain_lb_ub a b x) = x.
+Proof.
+  intros a b x Hrange. rewrite /constrain_lb_ub/unconstrain_lb_ub.
+  rewrite logit_inv_spec.
+  { field. nra. }
+  split.
+  { apply Rdiv_lt_0_compat; nra. }
+  { apply Rlt_div_l; nra. }
+Qed.
+
+
+Lemma constrain_lb_ub_spec a b x :
+  a <= b ->
+  a <= constrain_lb_ub a b x <= b.
+Proof.
+  rewrite /constrain_lb_ub. specialize (logit_inv_range x); nra.
+Qed.
+
+Lemma nonneg_derivative_interval_0 (g : R → R) dg a b:
+  (∀ x, is_derive g x (dg x)) ->
+  (∀ x y, a <= x /\ x <= y /\ y <= b -> g x <= g y) ->
+  ∀ x : R, a < x < b -> 0 <= dg x.
+Proof.
+  intros Hderiv Hincr.
+  intros x Hrange.
+  set (h := λ x, g (constrain_lb_ub a b x)).
+  set (dh := λ x, deriv_constrain_lb_ub a b x * dg (constrain_lb_ub a b x)).
+  assert (Hderiv': ∀ x, is_derive h x (dh x)).
+  { intros y. rewrite /h/dh.
+    apply: is_derive_comp; last auto using deriv_constrain_lb_ub_correct.
+    apply Hderiv.
+  }
+  cut (∀ x, 0 <= dh x).
+  { intros Hnn. rewrite /dh in Hnn.
+    specialize (Hnn (unconstrain_lb_ub a b x)).
+    { rewrite constrain_lb_ub_inv in Hnn; last nra.
+      exploit (deriv_constrain_lb_ub_pos a b (unconstrain_lb_ub a b x)); intros; nra.
+    }
+  }
+  intros y.
+  rewrite -(is_derive_unique _ _ _ (Hderiv' y)).
+  assert (pr: derivable h).
+  { intros z. apply ex_derive_Reals_0. eexists; eauto; eapply Hg; eauto. }
+  rewrite -(Derive_Reals _ _ (pr y)).
+  apply nonneg_derivative_0.
+  rewrite /h.
+  rewrite /increasing => r s Hle.
+  apply Hincr.
+  { split.
+    apply constrain_lb_ub_spec; nra.
+    split; last by (apply constrain_lb_ub_spec; nra).
+    apply constrain_lb_ub_increasing; auto. nra.
+  }
+Qed.
+
+
+Lemma is_RInt_comp_noncont (f : R -> R) (g dg : R -> R) (a b : R) :
   (ex_RInt f (g a) (g b)) ->
+  (forall x y, Rmin a b <= x /\ x <= y /\ y <= Rmax a b -> g x <= g y) ->
   (forall x, Rmin a b <= x <= Rmax a b -> is_derive g x (dg x) /\ continuous dg x) ->
   is_RInt (fun y => scal (dg y) (f (g y))) a b (RInt f (g a) (g b)).
 Proof.
+  (* We start off the same way is is_RInt_comp proof from Coquelicot *)
   wlog: a b / (a < b) => [Hw|Hab].
-    case: (total_order_T a b) => [[Hab'|Hab']|Hab'] Hf Hg.
+    case: (total_order_T a b) => [[Hab'|Hab']|Hab'] Hf Hmono Hg.
     - exact: Hw.
     - rewrite Hab'.
       by rewrite RInt_point; apply: is_RInt_point.
@@ -1719,10 +1852,11 @@ Proof.
         apply Hw => // .
         { by apply ex_RInt_swap. }
         by rewrite Rmin_comm Rmax_comm.
+        by rewrite Rmin_comm Rmax_comm.
       rewrite -> Rmin_left by now apply Rlt_le.
       rewrite -> Rmax_right by now apply Rlt_le.
 
-  wlog: g dg / (forall x : R, is_derive g x (dg x) /\ continuous dg x) => [Hw Hf Hg | Hg Hf _].
+  wlog: g dg / (forall x : R, is_derive g x (dg x) /\ continuous dg x) => [Hw Hf Hmono Hg | Hg Hf Hmono _].
     rewrite -?(extension_C1_ext g dg a b) ; try by [left | right].
     set g0 := extension_C1 g dg a b.
     set dg0 := extension_C0 dg a b.
@@ -1740,6 +1874,7 @@ Proof.
           by apply Rlt_le.
         intros ; apply Hg ; by split.
       * intros ; rewrite /g0 ?extension_C1_ext; auto; simpl; try nra.
+      * intros ; rewrite /g0 ?extension_C1_ext; auto; simpl; try nra.
     intros ; split.
       apply extension_C1_is_derive.
         by apply Rlt_le.
@@ -1751,6 +1886,68 @@ Proof.
     have cg : forall x, continuous g x.
       move => t Ht; apply: ex_derive_continuous.
       by exists (dg t); apply Hg.
-*)
+
+
+    assert (g a <= g b).
+    { apply (Hmono a b); nra. }
+
+    assert (ex_RInt (λ y : R, scal (dg y) (f (g y))) a b ).
+    {
+      eapply bounding_ex_RInt; first nra.
+      intros eps.
+      edestruct (ex_RInt_bounding f (g a) (g b) eps) as (h1&h2&Hhspec); eauto.
+
+      destruct Hhspec as (Hsandwich&Hh1cont&Hh2cont&Hint_diff).
+
+      exists (λ x, scal (dg x) (h1 (g x))).
+      exists (λ x, scal (dg x) (h2 (g x))).
+
+      split.
+      intros x Hrange.
+      {  cut (0 <= dg x).
+         { exploit (Hsandwich (g x)).
+           { split; eapply Hmono; eauto; try nra. }
+           rewrite /scal//=/mult//=. nra. }
+
+
+
+
+         assert (pr: derivable g).
+         { intros y. apply ex_derive_Reals_0. eexists; eauto; eapply Hg; eauto. }
+         destruct (Hg x) as (Hderiv&_).
+         rewrite -(is_derive_unique _ _ _ Hderiv).
+         rewrite -(Derive_Reals _ _ (pr x)).
+         rewrite /increasing. intros.
+         admit.
+      }
+      split.
+      { intros x Hrange.
+        apply: continuous_scal.
+        { eapply Hg. }
+        { eapply continuous_comp; eauto. apply Hh1cont; eauto.
+          split; eapply Hmono; eauto; try nra. }
+      }
+      split.
+      { intros x Hrange.
+        apply: continuous_scal.
+        { eapply Hg. }
+        { eapply continuous_comp; eauto. apply Hh2cont; eauto.
+          split; eapply Hmono; eauto; try nra. }
+      }
+      rewrite RInt_minus.
+      { rewrite ?RInt_comp'; try intros x; try nra.
+        { rewrite -RInt_minus; auto; apply ex_RInt_continuous; rewrite ?Rmin_left ?Rmax_right //. }
+        *  intros; apply Hh1cont. split; eapply Hmono; eauto; try nra.
+        *  intros; apply Hg.
+        *  intros; apply Hh2cont. split; eapply Hmono; eauto; try nra.
+        *  intros; apply Hg.
+      }
+      * apply: ex_RInt_comp'; eauto; try nra.
+        { intros; apply Hh2cont. split; eapply Hmono; eauto; try nra. }
+      * apply: ex_RInt_comp'; eauto; try nra.
+        { intros; apply Hh1cont. split; eapply Hmono; eauto; try nra. }
+    }
+
+Abort.
 
 End comp.
