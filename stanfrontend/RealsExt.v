@@ -1481,6 +1481,44 @@ Section comp.
     admit.
   Admitted.
 
+  Lemma is_RInt_bounding (f: R -> R) (a b : R) v eps :
+    a <= b ->
+    is_RInt f a b v ->
+    ∃ g1 g2 v1 v2, (∀ x, a <= x <= b -> g1 x <= f x <= g2 x) /\
+             (∀ x, a <= x <= b -> continuous g1 x) /\
+             (∀ x, a <= x <= b -> continuous g2 x) /\
+             is_RInt g1 a b v1 /\
+             is_RInt g2 a b v2 /\
+             (RInt (λ x, g2 x - g1 x) a b < eps) /\
+             v1 <= v <= v2.
+  Proof.
+    intros.
+    destruct (ex_RInt_bounding f a b eps) as (g1&g2&Hrange&Hcont1&Hcont2&Hdiff); auto.
+    { eexists; eauto. }
+    exists g1, g2, (RInt g1 a b), (RInt g2 a b).
+    split; eauto.
+    split; eauto.
+    split; eauto.
+    assert (ex_RInt g1 a b).
+    { apply: ex_RInt_continuous; eauto.
+      rewrite Rmin_left // Rmax_right //. }
+    assert (ex_RInt g2 a b).
+    { apply: ex_RInt_continuous; eauto.
+      rewrite Rmin_left // Rmax_right //. }
+    split. { apply: RInt_correct; auto. }
+    split. { apply: RInt_correct; auto. }
+    split; auto.
+    split.
+    { erewrite <-(is_RInt_unique); eauto. apply RInt_le; eauto.
+      { eexists; eauto. }
+      { intros. eapply Hrange; nra. }
+    }
+    { erewrite <-(is_RInt_unique f a b v); eauto. apply RInt_le; eauto.
+      { eexists; eauto. }
+      { intros. eapply Hrange; nra. }
+    }
+  Qed.
+
 Require Import Program.Basics.
 Instance Rle_trans_proper_left: Proper (Rle ==> eq ==> flip impl) Rle.
 Proof. intros ?? Hle ?? Hle'. rewrite /flip/impl/=. nra. Qed.
@@ -1818,6 +1856,36 @@ Qed.
       destruct (Req_appart_dec); try nra.
   Qed.
 
+  Lemma bounding_is_RInt_lt (f : R -> R) (a b : R) v :
+    a <= b ->
+    (∀ eps, ∃ g1 g2, (∀ x, a < x < b -> g1 x <= f x <= g2 x) /\
+             (ex_RInt g1 a b) /\
+             (ex_RInt g2 a b) /\
+             (RInt (λ x, g2 x - g1 x) a b < eps) /\
+             RInt g1 a b <= v <= RInt g2 a b) ->
+    is_RInt f a b v.
+  Proof.
+    intros Hle Heps.
+    cut (ex_RInt f a b /\ RInt f a b = v).
+    { intros (?&<-). apply: RInt_correct; auto. }
+    assert (ex_RInt f a b).
+    { eapply bounding_ex_RInt_lt; eauto.
+      intros eps.
+      edestruct (Heps eps) as (g1&g2&Hsandwich&Hex1&Hex2&Hdiff&?).
+      exists g1, g2; intuition.
+    }
+    split; auto.
+    apply R_dist_lt_all_eps.
+    intros eps.
+    edestruct (Heps eps) as (g1&g2&Hsandwich&Hex1&Hex2&Hdiff&?).
+    rewrite RInt_minus/minus/plus/opp/= in Hdiff; auto.
+    assert (RInt g1 a b <= RInt f a b).
+    { apply RInt_le; auto. intros. eapply Hsandwich. nra. }
+    assert (RInt f a b <= RInt g2 a b).
+    { apply RInt_le; auto. intros. eapply Hsandwich. nra. }
+    rewrite /R_dist. apply Rabs_case; nra.
+  Qed.
+
 
 Definition logit u := ln (u / (1 - u)).
 Definition logit_inv u := 1 / (1 + exp(-u)).
@@ -1997,13 +2065,12 @@ Proof.
     assert (g a <= g b).
     { apply (Hmono a b); nra. }
 
-    assert (ex_RInt (λ y : R, scal (dg y) (f (g y))) a b ).
-    {
-      eapply bounding_ex_RInt_lt; first nra.
+    apply bounding_is_RInt_lt; first nra.
       intros eps.
-      edestruct (ex_RInt_bounding f (g a) (g b) eps) as (h1&h2&Hhspec); eauto.
+      edestruct (is_RInt_bounding f (g a) (g b) (RInt f (g a) (g b)) eps) as (h1&h2&v1&v2&Hhspec); eauto.
+      { apply: RInt_correct; auto. }
 
-      destruct Hhspec as (Hsandwich&Hh1cont&Hh2cont&Hint_diff).
+      destruct Hhspec as (Hsandwich&Hh1cont&Hh2cont&His1&His2&Hint_diff&Hint_sandwich).
 
       exists (λ x, scal (dg x) (h1 (g x))).
       exists (λ x, scal (dg x) (h2 (g x))).
@@ -2038,21 +2105,30 @@ Proof.
         { eapply continuous_comp; eauto. apply Hh2cont; eauto.
           split; eapply Hmono; eauto; try nra. }
       }
-      rewrite /scal/=/mult/=.
-      rewrite RInt_minus.
-      { rewrite ?RInt_comp'; try intros x; try nra.
-        { rewrite -RInt_minus; auto; apply ex_RInt_continuous; rewrite ?Rmin_left ?Rmax_right //. }
-        *  intros; apply Hh1cont. split; eapply Hmono; eauto; try nra.
-        *  intros; apply Hg.
-        *  intros; apply Hh2cont. split; eapply Hmono; eauto; try nra.
-        *  intros; apply Hg.
+      split.
+      {
+        rewrite /scal/=/mult/=.
+        rewrite RInt_minus.
+        { rewrite ?RInt_comp'; try intros x; try nra.
+          { rewrite -RInt_minus; auto; apply ex_RInt_continuous; rewrite ?Rmin_left ?Rmax_right //. }
+          *  intros; apply Hh1cont. split; eapply Hmono; eauto; try nra.
+          *  intros; apply Hg.
+          *  intros; apply Hh2cont. split; eapply Hmono; eauto; try nra.
+          *  intros; apply Hg.
+        }
+        * apply: ex_RInt_comp'; eauto; try nra.
+          { intros; apply Hh2cont. split; eapply Hmono; eauto; try nra. }
+        * apply: ex_RInt_comp'; eauto; try nra.
+          { intros; apply Hh1cont. split; eapply Hmono; eauto; try nra. }
       }
-      * apply: ex_RInt_comp'; eauto; try nra.
-        { intros; apply Hh2cont. split; eapply Hmono; eauto; try nra. }
-      * apply: ex_RInt_comp'; eauto; try nra.
-        { intros; apply Hh1cont. split; eapply Hmono; eauto; try nra. }
-    }
-
-Abort.
+      rewrite ?RInt_comp'; eauto; try nra.
+      {
+        rewrite (is_RInt_unique _ _ _ _ His1).
+        rewrite (is_RInt_unique _ _ _ _ His2).
+        nra.
+      }
+      { intros. apply Hh2cont. split; eapply Hmono; eauto; try nra. }
+      { intros. apply Hh1cont. split; eapply Hmono; eauto; try nra. }
+Qed.
 
 End comp.
