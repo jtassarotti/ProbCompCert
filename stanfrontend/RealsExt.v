@@ -1629,8 +1629,8 @@ Qed.
   Lemma bounding_ex_RInt (f : R -> R) (a b : R) :
     a <= b ->
     (∀ eps, ∃ g1 g2, (∀ x, a <= x <= b -> g1 x <= f x <= g2 x) /\
-             (∀ x, a <= x <= b -> continuous g1 x) /\
-             (∀ x, a <= x <= b -> continuous g2 x) /\
+             ex_RInt g1 a b /\
+             ex_RInt g2 a b /\
              (RInt (λ x, g2 x - g1 x) a b < eps)) ->
     ex_RInt f a b.
   Proof.
@@ -1642,11 +1642,7 @@ Qed.
     specialize (Heps eps'').
     apply ClassicalEpsilon.constructive_indefinite_description in Heps as (g1&Heps).
     apply ClassicalEpsilon.constructive_indefinite_description in Heps as (g2&Heps).
-    destruct Heps as (Hsandwich&Hg1cont&Hg2cont&Hdiff).
-    assert (Hexg1: ex_RInt g1 a b).
-    { apply: ex_RInt_continuous; rewrite Rmin_left // Rmax_right //. }
-    assert (Hexg2: ex_RInt g2 a b).
-    { apply: ex_RInt_continuous; rewrite Rmin_left // Rmax_right //. }
+    destruct Heps as (Hsandwich&Hexg1&Hexg2&Hdiff).
     assert (Hexdiff: ex_RInt (λ x, g2 x - g1 x) a b).
     { apply: ex_RInt_minus; eauto. }
     apply ex_RInt_Reals_0 in Hexg1.
@@ -1765,51 +1761,63 @@ Proof.
   apply Rmax_case_strong; apply Rabs_case; nra.
 Qed.
 
-  Lemma bounding_ex_RInt' (f : R -> R) (a b : R) :
+  Lemma bounding_ex_RInt_lt (f : R -> R) (a b : R) :
     a <= b ->
-    (∀ eps, ∃ g1 g2, (∀ x, a <= x <= b -> (g1 x <= f x <= g2 x) ∨ (g2 x <= f x <= g1 x)) /\
-             (∀ x, a <= x <= b -> continuous g1 x) /\
-             (∀ x, a <= x <= b -> continuous g2 x) /\
-             (RInt (λ x, Rabs (g2 x - g1 x)) a b < eps)) ->
+    (∀ eps, ∃ g1 g2, (∀ x, a < x < b -> g1 x <= f x <= g2 x) /\
+             (ex_RInt g1 a b) /\
+             (ex_RInt g2 a b) /\
+             (RInt (λ x, g2 x - g1 x) a b < eps)) ->
     ex_RInt f a b.
   Proof.
     intros Hle Heps.
     eapply bounding_ex_RInt; eauto.
     intros eps.
     edestruct (Heps eps) as (g1&g2&Hrange&Hcont1&Hcont2&Hint).
-    set (g1' := λ x, Rmin (g1 x) (g2 x)).
-    set (g2' := λ x, Rmax (g1 x) (g2 x)).
+    set (g1' := λ x,
+                match Req_appart_dec x a with
+                | left _ => f x
+                | right _ =>
+                  match Req_appart_dec x b with
+                  | left _ => f x
+                  | right _ => g1 x
+                  end
+                end).
+    set (g2' := λ x,
+                match Req_appart_dec x a with
+                | left _ => f x
+                | right _ =>
+                  match Req_appart_dec x b with
+                  | left _ => f x
+                  | right _ => g2 x
+                  end
+                end).
     exists g1', g2'.
     split; [| split; [| split]].
-    * intros x Hrange'. specialize (Hrange x Hrange').
-      rewrite /g1'/g2'. destruct Hrange; apply Rmin_case_strong; apply Rmax_case_strong; nra.
-    * intros. rewrite /g1'. eapply continuous_ext.
-      { intros. symmetry. eapply Rmin_diff_eq. }
-      { apply: continuous_minus. apply: continuous_scal.
-        apply: continuous_plus; auto.
-        apply: continuous_const.
-        apply: continuous_scal; try apply continuous_const.
-        apply continuous_comp.
-        { apply: continuous_minus; auto. }
-        { eapply continuous_continuity_pt.
-          apply Rcontinuity_abs. }
-      }
-    * intros. rewrite /g2'. eapply continuous_ext.
-      { intros. symmetry. eapply Rmax_diff_eq. }
-      { apply: continuous_plus. apply: continuous_scal.
-        apply: continuous_plus; auto.
-        apply: continuous_const.
-        apply: continuous_scal; try apply continuous_const.
-        apply continuous_comp.
-        { apply: continuous_minus; auto. }
-        { eapply continuous_continuity_pt.
-          apply Rcontinuity_abs. }
-      }
-    * eapply Rle_lt_trans; last eassumption.
-      right. eapply RInt_ext.
-      intros. rewrite /g2'/g1'.
-      apply Rmax_case_strong; apply Rmin_case_strong; apply Rabs_case; try nra.
+    - intros x (Hr1&Hr2).
+      rewrite /g1'/g2'.
+      destruct (Req_appart_dec); try nra.
+      destruct (Req_appart_dec); try nra.
+      eapply Hrange; nra.
+    - eapply ex_RInt_ext; last eapply Hcont1.
+      rewrite Rmin_left // Rmax_right //.
+      intros.
+      rewrite /g1'/g2'.
+      destruct (Req_appart_dec); try nra.
+      destruct (Req_appart_dec); try nra.
+    - eapply ex_RInt_ext; last eapply Hcont2.
+      rewrite Rmin_left // Rmax_right //.
+      intros.
+      rewrite /g1'/g2'.
+      destruct (Req_appart_dec); try nra.
+      destruct (Req_appart_dec); try nra.
+    - eapply Rle_lt_trans; last eassumption. right. eapply RInt_ext.
+      rewrite Rmin_left // Rmax_right //.
+      intros.
+      rewrite /g1'/g2'.
+      destruct (Req_appart_dec); try nra.
+      destruct (Req_appart_dec); try nra.
   Qed.
+
 
 Definition logit u := ln (u / (1 - u)).
 Definition logit_inv u := 1 / (1 + exp(-u)).
@@ -1893,105 +1901,6 @@ Lemma constrain_lb_ub_spec a b x :
 Proof.
   rewrite /constrain_lb_ub. specialize (logit_inv_range x); nra.
 Qed.
-
-(* A Darboux function has the IVT property: *)
-(*
-Definition is_Darboux a b f :=
-  (∀ x y v, a <= Rmin x y /\ Rmax x y <= b -> f(x) <= v <= f(y) -> ∃ z, Rmin x y <= z <= Rmax x y /\ f(z) = v).
-
-Lemma is_derive_Darboux a b f df:
-  (∀ x, a <= x <= b -> is_derive f x (df x)) ->
-  is_Darboux a b df.
-Proof.
-  set (f' := extension_C1 f df a b).
-  set (df' := extension_C0 df a b).
-  intros Hderiv.
-  intros x y v Hrange Hv.
-  set (c := (Rmin x y + Rmax x y)/2).
-  set (alpha :=
-         λ t, match Rle_dec t c with
-              | left _ => Rmin x y
-              | right _ => 2 * t - Rmax x y
-              end).
-  set (beta :=
-         λ t, match Rle_dec t c with
-              | left _ => Rmax x y
-              | right _ => 2 * t - Rmin x y
-              end).
-  set (g := λ t, (f' (beta t) - f' (alpha t)) / (beta t - alpha t)).
-  destruct (Req_dec (Rmin x y) (Rmax x y)) as [Heq|Hneq].
-  {
-    specialize (Rmin_Rmax_r x y).
-    specialize (Rmin_Rmax_l x y).
-    intros. assert (x = y) by nra. subst. exists y. nra.
-  }
-  exists (Rmin x y).  subst. idtac. subst.
-  assert (∀ z, continuity_pt alpha z).
-  {
-    eapply (piecewise_continuity c alpha (λ t, Rmin x y) (λ t, 2 * t - Rmax x y)).
-    { intros. rewrite /alpha. destruct Rle_dec; nra. }
-    { intros x'. rewrite /alpha. destruct Rle_dec; try nra.
-      intros. assert (c = x') as <- by nra. rewrite /c. nra. }
-    { apply continuity_const. intros ?? => //=. }
-    { apply continuity_minus.
-      { apply continuity_scal. intros ?. apply continuity_pt_id. }
-      { apply continuity_const. intros ?? => //=. }
-    }
-  }
-  assert (∀ z, continuity_pt beta z).
-  {
-    eapply (piecewise_continuity c beta (λ t, Rmax x y) (λ t, 2 * t - Rmin x y)).
-    { intros. rewrite /beta. destruct Rle_dec; nra. }
-    { intros x'. rewrite /beta. destruct Rle_dec; try nra.
-      intros. assert (c = x') as <- by nra. rewrite /c. nra. }
-    { apply continuity_const. intros ?? => //=. }
-    { apply continuity_minus.
-      { apply continuity_scal. intros ?. apply continuity_pt_id. }
-      { apply continuity_const. intros ?? => //=. }
-    }
-  }
- auto with *.
-  assert (∀ t, Rmin x y <= t <= Rmax x y -> continuity_pt g t).
-  {
-    intros. rewrite /g.
-    apply continuity_pt_div; last first.
-    { rewrite /beta/alpha. destruct Rle_dec => //=; nra. }
-    { apply continuity_pt_minus; auto. }
-    apply continuity_pt_minus.
-    { apply: (continuity_pt_comp beta f'); auto.
-      apply continuous_continuity_pt.
-      apply: ex_derive_continuous.
-      eexists; eapply extension_C1_is_derive; eauto.
-      move: Hrange. simpl. apply Rmin_case_strong; apply Rmax_case_strong; nra.
-    }
-    { apply: (continuity_pt_comp alpha f'); auto.
-      apply continuous_continuity_pt.
-      apply: ex_derive_continuous.
-      eexists; eapply extension_C1_is_derive; eauto.
-      move: Hrange. simpl. apply Rmin_case_strong; apply Rmax_case_strong; nra.
-    }
-  }
-
-Lemma is_derive_Darboux a b g dg:
-  (∀ x, a <= x <= b -> is_derive g x (dg x)) ->
-  is_Darboux a b dg.
-Proof.
-  intros Hderiv.
-  intros x y v Hrange Hv.
-  Search continuity_pt.
-  Check continuity_ab_maj.
-  set (phi := λ z, g z  - y * z).
-  destruct Hv as (Hv1&Hv2).
-  destruct Hv1 as [Hv1|Heq]; last first.
-  { exists x; split; eauto. apply Rmin_Rmax_l. }
-  destruct Hv2 as [Hv2|Heq]; last first.
-  { exists y; split; eauto. apply Rmin_Rmax_r. }
-  rewrite /is_derive in Hderiv.
-
-  destruct (continuity_ab_maj phi (Rmin x y) (Rmax x y)) as (Mx&HMx&HMx_lb&HMx_ub).
-  { admit. }
-  { admit. }
-*)
 
 Lemma nonneg_derivative_interval_0 (g : R → R) dg a b:
   (∀ x, is_derive g x (dg x)) ->
@@ -2090,7 +1999,7 @@ Proof.
 
     assert (ex_RInt (λ y : R, scal (dg y) (f (g y))) a b ).
     {
-      eapply bounding_ex_RInt'; first nra.
+      eapply bounding_ex_RInt_lt; first nra.
       intros eps.
       edestruct (ex_RInt_bounding f (g a) (g b) eps) as (h1&h2&Hhspec); eauto.
 
@@ -2098,40 +2007,38 @@ Proof.
 
       exists (λ x, scal (dg x) (h1 (g x))).
       exists (λ x, scal (dg x) (h2 (g x))).
+      assert (Hnndg: ∀ x, a < x < b -> 0 <= dg x).
+      intros.
+      eapply nonneg_derivative_interval_0; eauto.
+      eapply Hg.
 
       split.
-      intros x Hrange.
       {
-         exploit (Hsandwich (g x)).
-           { split; eapply Hmono; eauto; try nra. }
-           rewrite /scal//=/mult//=.
-           destruct (Rle_dec 0 (dg x)); nra.
+        intros x Hrange.
+        exploit (Hsandwich (g x)).
+        { split; eapply Hmono; eauto; try nra. }
+        intros. specialize (Hnndg _ Hrange).
+        rewrite /scal//=/mult//=; nra.
       }
       split.
-      { intros x Hrange.
+      { apply: ex_RInt_continuous.
+        rewrite ?Rmin_left ?Rmax_right; try nra.
+        intros x Hrange.
         apply: continuous_scal.
         { eapply Hg. }
         { eapply continuous_comp; eauto. apply Hh1cont; eauto.
           split; eapply Hmono; eauto; try nra. }
       }
       split.
-      { intros x Hrange.
+      { apply: ex_RInt_continuous.
+        rewrite ?Rmin_left ?Rmax_right; try nra.
+        intros x Hrange.
         apply: continuous_scal.
         { eapply Hg. }
         { eapply continuous_comp; eauto. apply Hh2cont; eauto.
           split; eapply Hmono; eauto; try nra. }
       }
       rewrite /scal/=/mult/=.
-      eapply (Rle_lt_trans _ (RInt (λ x, (dg x * h2 (g x) - dg x * h1 (g x))) a b)).
-      { right. eapply RInt_ext.
-        intros x. rewrite Rmin_left ?Rmax_right; try nra.
-        intros. apply Rabs_right.
-        assert (h1 (g x) <= f (g x) <= h2 (g x)).
-        { eapply Hsandwich. split; try apply Hmono; nra. }
-        cut (0 <= dg x); first nra.
-        eapply nonneg_derivative_interval_0; eauto.
-        eapply Hg.
-      }
       rewrite RInt_minus.
       { rewrite ?RInt_comp'; try intros x; try nra.
         { rewrite -RInt_minus; auto; apply ex_RInt_continuous; rewrite ?Rmin_left ?Rmax_right //. }
