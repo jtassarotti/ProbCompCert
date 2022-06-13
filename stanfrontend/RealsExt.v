@@ -1,10 +1,13 @@
 Require Export RelationClasses Morphisms Utf8.
 From mathcomp Require Import ssreflect ssrbool eqtype.
-From Coquelicot Require Import Hierarchy Markov Rcomplements Rbar Lub Lim_seq SF_seq Continuity Hierarchy RInt RInt_analysis Derive.
+From Coquelicot Require Import Hierarchy Markov Rcomplements Rbar Lub Lim_seq SF_seq Continuity Hierarchy RInt RInt_analysis Derive AutoDerive.
 
 Require ClassicalEpsilon.
 Require Import Reals.
 Require Import Coqlib.
+Require Import Psatz.
+Require Import Program.Basics.
+Import Rbar.
 
 Instance Rge_Transitive: Transitive Rge.
 Proof. intros ???. eapply Rge_trans. Qed.
@@ -19,7 +22,6 @@ Proof. intros ???. eapply Rgt_trans. Qed.
 Instance Rlt_Transitive: Transitive Rlt.
 Proof. intros ???. eapply Rlt_trans. Qed.
 
-Import Rbar.
 Instance Rbar_le_Transitive: Transitive Rbar_le.
 Proof. intros ???. eapply Rbar_le_trans. Qed.
 Instance Rbar_le_Reflexive: Reflexive Rbar_le.
@@ -49,7 +51,6 @@ Proof. move => x y. apply sumboolP. Qed.
 Canonical R_eqMixin := EqMixin R_eqP.
 Canonical R_eqType := Eval hnf in EqType R R_eqMixin.
 
-Require Import Psatz.
 Instance Rlt_plus_proper: Proper (Rlt ==> Rlt ==> Rlt) Rplus.
 Proof.
   intros ?? Hle ?? Hle'. apply Rplus_lt_compat; auto.
@@ -1519,7 +1520,6 @@ Section comp.
     }
   Qed.
 
-Require Import Program.Basics.
 Instance Rle_trans_proper_left: Proper (Rle ==> eq ==> flip impl) Rle.
 Proof. intros ?? Hle ?? Hle'. rewrite /flip/impl/=. nra. Qed.
 Instance Rle_trans_proper_right: Proper (eq ==> Rle ==> impl) Rle.
@@ -1897,7 +1897,6 @@ Definition deriv_constrain_lb_ub a b x :=
   (b - a) * logit_inv x * (1 - logit_inv x).
 
 
-Require Import Coquelicot.AutoDerive.
 
 Lemma deriv_constrain_lb_ub_correct a b x:
   is_derive (constrain_lb_ub a b) x (deriv_constrain_lb_ub a b x).
