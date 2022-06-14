@@ -2006,7 +2006,6 @@ Proof.
   }
 Qed.
 
-
 Lemma is_RInt_comp_noncont (f : R -> R) (g dg : R -> R) (a b : R) :
   (ex_RInt f (g a) (g b)) ->
   (forall x y, Rmin a b <= x /\ x <= y /\ y <= Rmax a b -> g x <= g y) ->
@@ -2128,6 +2127,20 @@ Proof.
       }
       { intros. apply Hh2cont. split; eapply Hmono; eauto; try nra. }
       { intros. apply Hh1cont. split; eapply Hmono; eauto; try nra. }
+Qed.
+
+Lemma RInt_comp'_noncont  (f g dg : R → R) (a b : R):
+  a <= b ->
+  (ex_RInt f (g a) (g b)) ->
+  (forall x y, a <= x /\ x <= y /\ y <= b -> g x <= g y) ->
+  (∀ x : R, a <= x <= b → is_derive g x (dg x) ∧ continuous dg x) →
+  RInt (λ y : R, scal (dg y) (f (g y))) a b = RInt f (g a) (g b).
+Proof.
+  intros.
+  apply is_RInt_unique.
+  apply is_RInt_comp_noncont; auto.
+  { rewrite Rmin_left // Rmax_right //. }
+  { rewrite Rmin_left // Rmax_right //. }
 Qed.
 
 End comp.
