@@ -63,6 +63,14 @@ Instance Rlt_plus_proper'': Proper (Rlt ==> Rle ==> Rlt) Rplus.
 Proof.
   intros ?? Hle ?? Hle'. subst. nra.
 Qed.
+Instance Rlt_plus_proper'_l: Proper (eq ==> Rlt ==> Rlt) Rplus.
+Proof.
+  intros ?? Hle ?? Hle'. subst. nra.
+Qed.
+Instance Rlt_plus_proper''_l: Proper (Rle ==> Rlt ==> Rlt) Rplus.
+Proof.
+  intros ?? Hle ?? Hle'. subst. nra.
+Qed.
 
 Instance Rle_plus_proper_left: Proper (Rle ==> eq ==> Rle) Rplus.
 Proof. intros ?? Hle ?? Hle'. nra. Qed.
@@ -1801,6 +1809,26 @@ Section comp.
     }
   Qed.
 
+
+Lemma Riemann_integrable_SF_aux a b sf (eps: posreal) :
+  (∀ t : R, Rmin a b <= t <= Rmax a b → Rabs (sf t - sf t) <= {| fe := fct_cte 0; pre := StepFun_P4 a b 0 |} t)
+  ∧ Rabs (RiemannInt_SF {| fe := fct_cte 0; pre := StepFun_P4 a b 0 |}) < eps.
+Proof.
+  split.
+  - intros; replace (sf t - sf t) with 0 by nra; rewrite Rabs_right => //=; last nra; rewrite /fct_cte; nra.
+  - simpl. rewrite StepFun_P18 Rabs_right => //=; destruct eps => /=; nra.
+Qed.
+
+Lemma Riemann_integrable_SF a b (sf: StepFun a b) :
+  Riemann_integrable sf a b.
+Proof.
+  rewrite /Riemann_integrable => eps.
+  exists sf.
+  exists (mkStepFun (StepFun_P4 a b 0)).
+  apply Riemann_integrable_SF_aux.
+Defined.
+
+
   Lemma StepFun_ub (f: R -> R) (a b : R) :
     a <= b ->
     IsStepFun f a b ->
@@ -2004,7 +2032,7 @@ Section comp.
     eapply StepFun_P27; eauto.
   Qed.
 
-  Lemma StepFun_lb_fun_cont (f: R -> R) (a b : R) (startv : R) (eps : posreal) :
+  Lemma StepFun_lb_fun_cont (f: R -> R) (a b : R) (eps : posreal) :
     a <= b ->
     IsStepFun f a b ->
     ∃ g : R -> R, (∀ x, continuous g x) /\ (∀ x, a <= x <= b -> g x <= f x) /\
@@ -2029,54 +2057,6 @@ Section comp.
     { erewrite RInt_ext; eauto. intros. rewrite /=/fct_cte. field. }
   Qed.
 
-  Lemma ex_RInt_bounding (f: R -> R) (a b : R) eps :
-    a <= b ->
-    ex_RInt f a b ->
-    ∃ g1 g2, (∀ x, a <= x <= b -> g1 x <= f x <= g2 x) /\
-             (∀ x, a <= x <= b -> continuous g1 x) /\
-             (∀ x, a <= x <= b -> continuous g2 x) /\
-             (RInt (λ x, g2 x - g1 x) a b < eps).
-  Proof.
-    admit.
-  Admitted.
-
-  Lemma is_RInt_bounding (f: R -> R) (a b : R) v eps :
-    a <= b ->
-    is_RInt f a b v ->
-    ∃ g1 g2 v1 v2, (∀ x, a <= x <= b -> g1 x <= f x <= g2 x) /\
-             (∀ x, a <= x <= b -> continuous g1 x) /\
-             (∀ x, a <= x <= b -> continuous g2 x) /\
-             is_RInt g1 a b v1 /\
-             is_RInt g2 a b v2 /\
-             (RInt (λ x, g2 x - g1 x) a b < eps) /\
-             v1 <= v <= v2.
-  Proof.
-    intros.
-    destruct (ex_RInt_bounding f a b eps) as (g1&g2&Hrange&Hcont1&Hcont2&Hdiff); auto.
-    { eexists; eauto. }
-    exists g1, g2, (RInt g1 a b), (RInt g2 a b).
-    split; eauto.
-    split; eauto.
-    split; eauto.
-    assert (ex_RInt g1 a b).
-    { apply: ex_RInt_continuous; eauto.
-      rewrite Rmin_left // Rmax_right //. }
-    assert (ex_RInt g2 a b).
-    { apply: ex_RInt_continuous; eauto.
-      rewrite Rmin_left // Rmax_right //. }
-    split. { apply: RInt_correct; auto. }
-    split. { apply: RInt_correct; auto. }
-    split; auto.
-    split.
-    { erewrite <-(is_RInt_unique); eauto. apply RInt_le; eauto.
-      { eexists; eauto. }
-      { intros. eapply Hrange; nra. }
-    }
-    { erewrite <-(is_RInt_unique f a b v); eauto. apply RInt_le; eauto.
-      { eexists; eauto. }
-      { intros. eapply Hrange; nra. }
-    }
-  Qed.
 
 Instance Rle_trans_proper_left: Proper (Rle ==> eq ==> flip impl) Rle.
 Proof. intros ?? Hle ?? Hle'. rewrite /flip/impl/=. nra. Qed.
@@ -2134,25 +2114,6 @@ Proof.
   intros a b a' b' f g ?? Heq.
   subst. eapply RiemannInt_SF_ext; eauto.
 Qed.
-
-Lemma Riemann_integrable_SF_aux a b sf (eps: posreal) :
-  (∀ t : R, Rmin a b <= t <= Rmax a b → Rabs (sf t - sf t) <= {| fe := fct_cte 0; pre := StepFun_P4 a b 0 |} t)
-  ∧ Rabs (RiemannInt_SF {| fe := fct_cte 0; pre := StepFun_P4 a b 0 |}) < eps.
-Proof.
-  split.
-  - intros; replace (sf t - sf t) with 0 by nra; rewrite Rabs_right => //=; last nra; rewrite /fct_cte; nra.
-  - simpl. rewrite StepFun_P18 Rabs_right => //=; destruct eps => /=; nra.
-Qed.
-
-Lemma Riemann_integrable_SF a b (sf: StepFun a b) :
-  Riemann_integrable sf a b.
-Proof.
-  rewrite /Riemann_integrable => eps.
-  exists sf.
-  exists (mkStepFun (StepFun_P4 a b 0)).
-  apply Riemann_integrable_SF_aux.
-Defined.
-
 Lemma seq2Rlist_id l : seq2Rlist l = l.
 Proof. induction l => //=; congruence. Qed.
 
@@ -2221,10 +2182,174 @@ Proof.
   destruct eps => //=. nra.
 Qed.
 
+  Lemma ex_RInt_ub_StepFun (f: R -> R) (a b : R) (eps : posreal) :
+    a <= b ->
+    ex_RInt f a b ->
+    ∃ g : StepFun a b, (∀ x, a <= x <= b -> f x <= g x) /\
+                       ex_RInt (λ x, g x - f x) a b /\
+                       RInt (λ x, g x - f x) a b < eps.
+  Proof.
+    intros Hle Hex.
+    assert (Hex': Riemann_integrable f a b) by auto using ex_RInt_Reals_0.
+    destruct (Hex' (mkposreal _ (is_pos_div_2 eps))) as (phi&psi&Hphi&Hpsi).
+    assert (X: IsStepFun (λ x, phi x + 1 * psi x) a b).
+    { apply StepFun_P28; auto. }
+    exists (mkStepFun X).
+    split.
+    { simpl. intros x Hrange. exploit (Hphi x). rewrite Rmin_left // Rmax_right //.
+      apply Rabs_case; nra. }
+    assert (ex_RInt (λ y : R, phi y + 1 * psi y) a b).
+    {
+      { apply: ex_RInt_plus.
+        { apply ex_RInt_Reals_1. apply Riemann_integrable_SF. }
+        { apply: ex_RInt_scal. apply ex_RInt_Reals_1. apply Riemann_integrable_SF. }
+      }
+    }
+    assert (ex_RInt (λ x : R, phi x + 1 * psi x - f x) a b).
+    { simpl. apply: ex_RInt_minus; auto. }
+    split; simpl; auto.
+    assert (ex_RInt psi a b).
+    { apply ex_RInt_Reals_1. apply Riemann_integrable_SF. }
+    eapply (Rle_lt_trans _ (RInt (λ t, 2 * psi t) a b)); last first.
+    { rewrite RInt_scal //. rewrite /scal/=/mult/=.
+      rewrite RInt_of_SF //. simpl in Hpsi. move: Hpsi. apply Rabs_case; nra.
+    }
+    simpl. eapply RInt_le; eauto.
+    { apply: ex_RInt_scal; auto. }
+    rewrite Rmin_left // Rmax_right // in Hphi.
+    intros x Hrange.
+    exploit (Hphi x); first nra. apply Rabs_case; nra.
+  Qed.
+
+  Lemma ex_RInt_lb_StepFun (f: R -> R) (a b : R) (eps : posreal) :
+    a <= b ->
+    ex_RInt f a b ->
+    ∃ g : StepFun a b, (∀ x, a <= x <= b -> g x <= f x) /\
+                       ex_RInt (λ x, f x - g x) a b /\
+                       RInt (λ x, f x - g x) a b < eps.
+  Proof.
+    intros Hle Hex.
+    assert (Hex': Riemann_integrable f a b) by auto using ex_RInt_Reals_0.
+    destruct (Hex' (mkposreal _ (is_pos_div_2 eps))) as (phi&psi&Hphi&Hpsi).
+    assert (X: IsStepFun (λ x, phi x + - 1 * psi x) a b).
+    { apply StepFun_P28; auto. }
+    exists (mkStepFun X).
+    split.
+    { simpl. intros x Hrange. exploit (Hphi x). rewrite Rmin_left // Rmax_right //.
+      apply Rabs_case; nra. }
+    assert (ex_RInt (λ y : R, phi y + - 1 * psi y) a b).
+    {
+      { apply: ex_RInt_plus.
+        { apply ex_RInt_Reals_1. apply Riemann_integrable_SF. }
+        { apply: ex_RInt_scal. apply ex_RInt_Reals_1. apply Riemann_integrable_SF. }
+      }
+    }
+    assert (ex_RInt (λ x : R, f x - (phi x + - 1 * psi x)) a b).
+    { simpl. apply: ex_RInt_minus; auto. }
+    split; simpl; auto.
+    assert (ex_RInt psi a b).
+    { apply ex_RInt_Reals_1. apply Riemann_integrable_SF. }
+    eapply (Rle_lt_trans _ (RInt (λ t, 2 * psi t) a b)); last first.
+    { rewrite RInt_scal //. rewrite /scal/=/mult/=.
+      rewrite RInt_of_SF //. simpl in Hpsi. move: Hpsi. apply Rabs_case; nra.
+    }
+    simpl. eapply RInt_le; eauto.
+    { apply: ex_RInt_scal; auto. }
+    rewrite Rmin_left // Rmax_right // in Hphi.
+    intros x Hrange.
+    exploit (Hphi x); first nra. apply Rabs_case; nra.
+  Qed.
+
+  Lemma ex_RInt_bounding (f: R -> R) (a b : R) (eps : posreal) :
+    a <= b ->
+    ex_RInt f a b ->
+    ∃ g1 g2, (∀ x, a <= x <= b -> g1 x <= f x <= g2 x) /\
+             (∀ x, a <= x <= b -> continuous g1 x) /\
+             (∀ x, a <= x <= b -> continuous g2 x) /\
+             (RInt (λ x, g2 x - g1 x) a b < eps).
+  Proof.
+    intros Hle Hex.
+    set (eps' := mkposreal _ (is_pos_div_4 eps)).
+    edestruct (ex_RInt_ub_StepFun f a b eps') as ((g2'&Hisg2')&Hg2'); eauto.
+    edestruct (ex_RInt_lb_StepFun f a b eps') as ((g1'&Hisg1')&Hg1'); eauto.
+    edestruct (StepFun_ub_fun_cont g2' a b eps') as (g2&Hg2); eauto.
+    edestruct (StepFun_lb_fun_cont g1' a b eps') as (g1&Hg1); eauto.
+    exists g1, g2.
+    destruct Hg1' as (Hg1lb'&Hg1ex'&Hg1RInt').
+    destruct Hg2' as (Hg2lb'&Hg2ex'&Hg2RInt').
+    destruct Hg1 as (Hg1cont&Hg1lb&Hg1ex&Hg1RInt).
+    destruct Hg2 as (Hg2cont&Hg2lb&Hg2ex&Hg2RInt).
+    split.
+    { intros x Hrange.
+      specialize (Hg1lb _ Hrange).
+      specialize (Hg2lb _ Hrange).
+      specialize (Hg1lb' _ Hrange).
+      specialize (Hg2lb' _ Hrange).
+      simpl in Hg2lb'. simpl in Hg1lb'.
+      nra.
+    }
+    split; eauto.
+    split; eauto.
+    simpl in Hg2RInt'.
+    simpl in Hg1RInt'.
+    simpl in Hg1ex'.
+    simpl in Hg2ex'.
+    eapply (Rle_lt_trans _ (RInt (λ x, (g2 x - g2' x) + (g2' x - f x) + (f x - g1' x) + (g1' x - g1 x)) a b)).
+    { right. eapply RInt_ext. intros. ring_simplify. reflexivity. }
+    rewrite RInt_plus; eauto; last first.
+    { repeat (apply: ex_RInt_plus; eauto). }
+    rewrite RInt_plus; eauto; last first.
+    { repeat (apply: ex_RInt_plus; eauto). }
+    rewrite RInt_plus; eauto; last first.
+    rewrite /plus/=.
+    eapply (Rlt_le_trans _ (eps/4 + eps/4 + eps/4 + eps/4)).
+    {
+      repeat (apply Rplus_lt_compat; auto).
+    }
+    nra.
+  Qed.
+
+  Lemma is_RInt_bounding (f: R -> R) (a b : R) v (eps : posreal) :
+    a <= b ->
+    is_RInt f a b v ->
+    ∃ g1 g2 v1 v2, (∀ x, a <= x <= b -> g1 x <= f x <= g2 x) /\
+             (∀ x, a <= x <= b -> continuous g1 x) /\
+             (∀ x, a <= x <= b -> continuous g2 x) /\
+             is_RInt g1 a b v1 /\
+             is_RInt g2 a b v2 /\
+             (RInt (λ x, g2 x - g1 x) a b < eps) /\
+             v1 <= v <= v2.
+  Proof.
+    intros.
+    destruct (ex_RInt_bounding f a b eps) as (g1&g2&Hrange&Hcont1&Hcont2&Hdiff); auto.
+    { eexists; eauto. }
+    exists g1, g2, (RInt g1 a b), (RInt g2 a b).
+    split; eauto.
+    split; eauto.
+    split; eauto.
+    assert (ex_RInt g1 a b).
+    { apply: ex_RInt_continuous; eauto.
+      rewrite Rmin_left // Rmax_right //. }
+    assert (ex_RInt g2 a b).
+    { apply: ex_RInt_continuous; eauto.
+      rewrite Rmin_left // Rmax_right //. }
+    split. { apply: RInt_correct; auto. }
+    split. { apply: RInt_correct; auto. }
+    split; auto.
+    split.
+    { erewrite <-(is_RInt_unique); eauto. apply RInt_le; eauto.
+      { eexists; eauto. }
+      { intros. eapply Hrange; nra. }
+    }
+    { erewrite <-(is_RInt_unique f a b v); eauto. apply RInt_le; eauto.
+      { eexists; eauto. }
+      { intros. eapply Hrange; nra. }
+    }
+  Qed.
 
   Lemma bounding_ex_RInt (f : R -> R) (a b : R) :
     a <= b ->
-    (∀ eps, ∃ g1 g2, (∀ x, a <= x <= b -> g1 x <= f x <= g2 x) /\
+    (∀ eps : posreal, ∃ g1 g2, (∀ x, a <= x <= b -> g1 x <= f x <= g2 x) /\
              ex_RInt g1 a b /\
              ex_RInt g2 a b /\
              (RInt (λ x, g2 x - g1 x) a b < eps)) ->
@@ -2359,7 +2484,7 @@ Qed.
 
   Lemma bounding_ex_RInt_lt (f : R -> R) (a b : R) :
     a <= b ->
-    (∀ eps, ∃ g1 g2, (∀ x, a < x < b -> g1 x <= f x <= g2 x) /\
+    (∀ eps : posreal, ∃ g1 g2, (∀ x, a < x < b -> g1 x <= f x <= g2 x) /\
              (ex_RInt g1 a b) /\
              (ex_RInt g2 a b) /\
              (RInt (λ x, g2 x - g1 x) a b < eps)) ->
@@ -2416,7 +2541,7 @@ Qed.
 
   Lemma bounding_is_RInt_lt (f : R -> R) (a b : R) v :
     a <= b ->
-    (∀ eps, ∃ g1 g2, (∀ x, a < x < b -> g1 x <= f x <= g2 x) /\
+    (∀ eps : posreal, ∃ g1 g2, (∀ x, a < x < b -> g1 x <= f x <= g2 x) /\
              (ex_RInt g1 a b) /\
              (ex_RInt g2 a b) /\
              (RInt (λ x, g2 x - g1 x) a b < eps) /\
