@@ -1801,10 +1801,62 @@ Section comp.
     }
   Qed.
 
-
-  Lemma StepFun_ub_cont (f: R -> R) (a b : R) (startv : R) (eps : posreal) :
+  Lemma StepFun_ub (f: R -> R) (a b : R) :
     a <= b ->
-    f a <= startv ->
+    IsStepFun f a b ->
+    ∃ M, (∀ x, a <= x <= b -> f x <= M).
+  Proof.
+    rewrite /IsStepFun. intros Hle (l&Hsub).
+    revert a Hle Hsub.
+    induction l as [| x1 l IHl].
+    { intros. destruct Hsub as (l'&Hadapted).
+      destruct Hadapted as (?&Hmin&?&Hfalse&_).
+      inversion Hfalse. }
+    { intros a Hle Hsub.
+      destruct Hsub as (l'&Hadapted).
+      destruct l as [| x2 l].
+      { destruct Hadapted as (?&Hmin&Hmax&Hlen&?).
+        destruct l' as [|]; last first.
+        { simpl in Hlen. congruence. }
+        assert (a = b) as <-.
+        { simpl in Hmin, Hmax. move: Hmin Hmax. apply Rmin_case_strong; apply Rmax_case_strong; nra. }
+        exists (f a). intros x ?. assert (x = a) by nra. subst; reflexivity. }
+      destruct l' as [|y l'].
+      { destruct Hadapted as (?&Hmin&Hmax&Hlen&?).
+        simpl in Hlen. congruence. }
+      specialize (StepFun_P7 Hle Hadapted) => Hadapted_tl.
+      assert (Hlex2: x2 <= b).
+      { destruct Hadapted as (Hordered&Hmin&Hmax&Hlen&?).
+        replace x2 with (RList.pos_Rl (x1 :: x2 :: l) 1) by auto.
+        rewrite Rmax_right // in Hmax. rewrite -Hmax.
+        apply RList.RList_P6; auto.
+        simpl. lia.
+      }
+      edestruct (IHl x2) as (M'&HM').
+      { auto. }
+      { eexists. eauto. }
+      destruct Hadapted as (HOrdered&Hmin&Hmax&Hlen&Hval).
+      assert (a = x1).
+      { rewrite Rmin_left // in Hmin. }
+      exists (Rmax (f a) (Rmax y M')).
+      assert (Hconst: constant_D_eq f (open_interval x1 x2) y).
+      { apply (Hval O). simpl. lia. }
+      intros z Hrange.
+      destruct (Rle_dec x2 z).
+      { etransitivity; first eapply HM'; first by nra. 
+        do 2 setoid_rewrite <-Rmax_r. reflexivity.
+      }
+      destruct (Req_appart_dec a z).
+      { subst. apply Rmax_l. }
+      setoid_rewrite <-Rmax_r.
+      rewrite Hconst; first apply Rmax_l.
+      split; nra.
+    }
+  Qed.
+
+  Lemma StepFun_ub_fun_cont_aux (f: R -> R) (a b : R) (startv : R) (eps : posreal) :
+    a <= b ->
+    (∀ x, a <= x <= b -> f x <= startv) ->
     IsStepFun f a b ->
     ∃ g : R -> R, (∀ x, continuous g x) /\ (∀ x, a <= x <= b -> f x <= g x) /\
                   ex_RInt (λ x, g x - f x) a b /\
@@ -1830,7 +1882,7 @@ Section comp.
         split.
         { intros; apply continuous_continuity_pt. apply derivable_continuous, derivable_const. }
         split.
-        { intros x' ?. assert (x' = a) as -> by nra. rewrite /fct_cte//=. }
+        { intros x' ?. assert (x' = a) as -> by nra. rewrite /fct_cte//=. apply Hstartv; eauto. }
         split.
         { apply ex_RInt_point. }
         split.
@@ -1854,13 +1906,7 @@ Section comp.
         destruct Hadapted as (HOrdered&Hmin&Hmax&Hlen&Hval).
         rewrite Rmin_left // in Hmin. simpl in Hmin.  subst. eauto.
       }
-      edestruct (IHl x2 (Rmax y (f x2)) (mkposreal _ (is_pos_div_2 eps))) as (g&Hgcont&Hgub&Hex&Hint&?).
-      { auto. }
-      { apply Rmax_r. }
-      { eexists. eauto. }
       destruct Hadapted as (HOrdered&Hmin&Hmax&Hlen&Hval).
-      assert (constant_D_eq f (open_interval x1 x2) y).
-      { apply (Hval O). simpl. lia. }
       assert (a = x1).
       { rewrite Rmin_left // in Hmin. }
       assert (a <= x2).
@@ -1870,16 +1916,25 @@ Section comp.
         rewrite RList.RList_P6 in HOrdered * => HOrdered. eapply HOrdered; eauto.
         simpl. lia.
       }
+      edestruct (IHl x2 startv (mkposreal _ (is_pos_div_2 eps))) as (g&Hgcont&Hgub&Hex&Hint&?).
+      { auto. }
+      { intros. apply Hstartv; nra. }
+      { eexists. eauto. }
+      assert (Hconst: constant_D_eq f (open_interval x1 x2) y).
+      { apply (Hval O). simpl. lia. }
+      assert (y <= startv).
+      { rewrite -(Hconst ((x1 + x2)/2)); first by (eapply Hstartv; nra).
+        split; nra. }
       edestruct (constant_open_segment_ub_function f a x2 y (mkposreal _ (is_pos_div_2 eps))
-                                                   (Rmax startv y)
-                                                   (Rmax y (f x2))) as (g'&Hg1'&Hg2'&Hgex'&Hg3'&Hg4'&?).
+                                                   startv
+                                                   startv) as (g'&Hg1'&Hg2'&Hgex'&Hg3'&Hg4'&?).
       { auto. }
       { subst. eauto. }
-      { setoid_rewrite <-Rmax_l.  eauto. }
-      { apply Rmax_r. }
-      { apply Rmax_l. }
-      { apply Rmax_r. }
-      { intros. congruence. }
+      { eapply Hstartv; nra. }
+      { auto. }
+      { auto. }
+      { eapply Hstartv; nra. }
+      { trivial. }
       exists (λ x, match Rle_dec x x2 with
                    | left _ => g' x
                    | _ => g x
@@ -1921,7 +1976,58 @@ Section comp.
           rewrite Rmin_left // Rmax_right //; intros. destruct Rle_dec; try nra. }
       }
       destruct Rle_dec; try nra.
-  Abort.
+    }
+  Qed.
+
+  Lemma StepFun_ub_fun_cont (f: R -> R) (a b : R) (eps : posreal) :
+    a <= b ->
+    IsStepFun f a b ->
+    ∃ g : R -> R, (∀ x, continuous g x) /\ (∀ x, a <= x <= b -> f x <= g x) /\
+                  ex_RInt (λ x, g x - f x) a b /\
+                  RInt (λ x, g x - f x) a b < eps.
+  Proof.
+    intros.
+    edestruct (StepFun_ub f a b) as (M&HM); eauto.
+    edestruct (StepFun_ub_fun_cont_aux f a b M eps) as (g&?); eauto.
+    exists g. intuition.
+  Qed.
+
+  Lemma StepFun_P28' : ∀ (a b l : R) f g,
+      IsStepFun f a b ->
+      IsStepFun g a b->
+      IsStepFun (λ x : R, f x + l * g x) a b.
+  Proof.
+    intros a b l f g Hstep1 Hstep2.
+    destruct Hstep1 as (?&?).
+    destruct Hstep2 as (?&?).
+    eexists.
+    eapply StepFun_P27; eauto.
+  Qed.
+
+  Lemma StepFun_lb_fun_cont (f: R -> R) (a b : R) (startv : R) (eps : posreal) :
+    a <= b ->
+    IsStepFun f a b ->
+    ∃ g : R -> R, (∀ x, continuous g x) /\ (∀ x, a <= x <= b -> g x <= f x) /\
+                  ex_RInt (λ x, f x - g x) a b /\
+                  RInt (λ x, f x - g x) a b < eps.
+  Proof.
+    intros Hle Hstep.
+    edestruct (StepFun_ub_fun_cont (λ x, fct_cte 0 x + -1 * (f x)) a b eps) as (gopp&Hgopp); auto.
+    {
+      eapply StepFun_P28'.
+      { apply StepFun_P4. }
+      { eauto. }
+    }
+    destruct Hgopp as (Hg1&Hg2&Hg3&Hg4).
+    exists (λ x, Ropp (gopp x)).
+    split.
+    { intros. apply: continuous_opp; intuition eauto. }
+    split.
+    { intros x Hrange. specialize (Hg2 x Hrange). rewrite /fct_cte in Hg2. nra. }
+    split.
+    { eapply ex_RInt_ext; eauto. intros. rewrite /=/fct_cte. field. }
+    { erewrite RInt_ext; eauto. intros. rewrite /=/fct_cte. field. }
+  Qed.
 
   Lemma ex_RInt_bounding (f: R -> R) (a b : R) eps :
     a <= b ->
