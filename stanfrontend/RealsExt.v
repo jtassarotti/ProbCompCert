@@ -244,6 +244,20 @@ Proof.
   nra.
 Qed.
 
+ Lemma piecewise_continuity' b f1 f2 :
+   continuity f1 ->
+   continuity f2 ->
+   f1 b = f2 b ->
+   continuity (λ x, match Rle_dec x b with
+                    | left _ => f1 x
+                    | _ => f2 x
+                    end).
+Proof.
+  intros. eapply (piecewise_continuity b _ f1 f2); eauto.
+  { intros. destruct Rle_dec; eauto. nra. }
+  { intros. destruct Rle_dec; eauto. assert (x = b) as -> by nra. auto. }
+Qed.
+
 Lemma continuous_continuity_pt f x :
   continuous f x <-> continuity_pt f x.
 Proof. rewrite /continuous continuity_pt_filterlim //. Qed.
@@ -1470,6 +1484,357 @@ Section comp.
     etransitivity; last eapply Rabs_triang.
     reflexivity.
   Qed.
+
+  Lemma linear_interp_bound startv endv a b x :
+    a < b ->
+    a <= x <= b -> 
+    Rmin startv endv <= startv + (endv - startv) * ((x -a)/(b-a)) <= Rmax startv endv.
+  Proof.
+    intros Hlt Hrange.
+    destruct (Rle_dec startv endv).
+    {
+      rewrite Rmin_left //. rewrite Rmax_right; last by nra.
+      split.
+      { transitivity (startv + 0); first nra.
+        apply Rplus_le_compat_l.
+        apply Rmult_le_pos; first nra.
+        apply Rdiv_le_0_compat; nra.
+      }
+      { transitivity (startv + (endv - startv) * 1); last nra.
+        apply Rplus_le_compat_l.
+        apply Rmult_le_compat_l; first nra.
+        apply Rle_div_l; nra.
+      }
+    }
+    {
+      rewrite Rmin_right; last nra. rewrite Rmax_left; last by nra.
+      split.
+      { transitivity (startv + (endv - startv) * 1); first nra.
+        apply Rplus_le_compat_l.
+        apply Rmult_le_compat_neg_l; first nra.
+        apply Rle_div_l; nra.
+      }
+      { transitivity (startv + 0); last nra.
+        apply Rplus_le_compat_l.
+        apply Rmult_le_0_r; first nra.
+        apply Rdiv_le_0_compat; nra.
+      }
+    }
+  Qed.
+
+  Lemma linear_interp_bound_abs startv endv a b x :
+    a < b ->
+    a <= x <= b -> 
+    Rabs (startv + (endv - startv) * ((x -a)/(b-a))) <= Rmax (Rabs startv) (Rabs endv).
+  Proof.
+    intros Hlt Hrange.
+    specialize (linear_interp_bound startv endv a b x Hlt Hrange).
+    remember ((startv + (endv - startv) * ((x -a)/(b-a)))) as y.
+    clear Heqy.
+    apply Rmin_case_strong; repeat apply Rmax_case_strong; repeat (apply Rabs_case); try nra.
+  Qed.
+
+  Lemma continuity_linear_interp startv endv a b :
+    a < b ->
+    continuity (λ x0 : R, startv + (endv - startv) * ((x0 - a) * / (b - a))).
+  Proof.
+    intros Hlt.
+    apply continuity_plus.
+    { apply continuity_const => ? //=. }
+    apply continuity_mult.
+    { apply continuity_const => ? //=. }
+    apply continuity_mult.
+    { rewrite /Rminus.
+      apply continuity_plus.
+      { intros x. rewrite -continuous_continuity_pt. apply continuous_id. }
+      apply continuity_opp.
+      { apply continuity_const => ? //=. }
+    }
+    { apply continuity_const => ? //=. }
+  Qed.
+
+  Lemma constant_open_segment_ub_function_aux1 f a b v endv δ :
+    constant_D_eq f (open_interval a b) v ->
+    (v <= endv) ->
+    (f b <= endv) ->
+    (0 < δ) ->
+    (a + δ < b - δ) ->
+    ∃ g, (∀ x, a <= x <= b -> f x <= g x) /\
+         (∀ x, continuous g x) /\
+         (∀ x, a <= x <= b -> Rabs (g x) <= Rmax (Rmax (Rabs (f a)) (Rabs (f b)))
+                                                 (Rmax (Rabs v) (Rabs endv))) /\
+         (∀ x, a + δ < x <= b - δ -> f x = g x) /\
+         g b = endv.
+  Proof.
+    intros Hconst Hle1 Hle2 Hdelt_nn Hdelt_range.
+    set (startv := Rmax (f a) v).
+    exists (λ x, match Rle_dec x (a + δ) with
+                 | left _ => startv + (v - startv) * ((x - a) * / ((a + δ) - a))
+                 | _ =>
+                   match Rle_dec x (b - δ) with
+                   | left _ => v
+                   | _ =>
+                     v + (endv - v) * ((x - (b - δ)) * / (b - (b - δ)))
+                   end
+                 end).
+    split.
+    { intros x Hrange. destruct Rle_dec as [Hle|Hnle].
+      {
+        assert (x = a \/ a < x) as Hcases.
+        { nra. }
+        destruct Hcases as [-> | Hstrict ].
+        { rewrite /startv. field_simplify; last nra.
+          transitivity (Rmax (f a) v); last first.
+          { right. field. nra. }
+          apply Rmax_case_strong; nra.
+        }
+        assert (f x = v) as ->.
+        { apply Hconst. split; nra. }
+        transitivity (startv + (v - startv) * 1).
+        { right. field. }
+        apply Rplus_le_compat_l. apply Rmult_le_compat_neg_l.
+        { rewrite /startv; apply Rmax_case_strong; nra. }
+        rewrite -Rdiv_le_1; first nra.
+        nra.
+      }
+      destruct Rle_dec.
+      { right. apply Hconst. split; nra. }
+      assert (x = b \/ x < b) as [->|Hlt].
+      { nra. }
+      { field_simplify; nra. }
+      assert (f x = v) as ->.
+      { apply Hconst. split; nra. }
+      transitivity (v + 0).
+      { nra. }
+      apply Rplus_le_compat_l.
+      apply Rmult_le_pos; first nra.
+      apply Rdiv_le_0_compat; nra.
+    }
+    split.
+    {
+      intros x.
+      apply continuous_continuity_pt.
+      eapply piecewise_continuity'.
+      {
+        eapply continuity_linear_interp. nra.
+      }
+      { eapply piecewise_continuity'.
+        { apply continuity_const => ? //=. }
+        { apply continuity_linear_interp. nra. }
+        nra.
+      }
+      destruct (Rle_dec _ _); try nra.
+      field. nra.
+    }
+    split.
+    {
+      intros x Hrange. destruct Rle_dec as [Hle|Hnle].
+      { etransitivity; first eapply linear_interp_bound_abs; try nra.
+
+        rewrite /startv.
+        { repeat (apply Rmax_case_strong); nra. }
+      }
+      destruct Rle_dec as [Hle'|Hnle'].
+      { repeat (apply Rmax_case_strong); nra. }
+      { etransitivity; first eapply linear_interp_bound_abs; try nra.
+        repeat (apply Rmax_case_strong); nra. }
+    }
+    split.
+    {
+      intros x Hrange.
+      destruct Rle_dec; first nra.
+      destruct Rle_dec; last nra.
+      apply Hconst. rewrite /open_interval. split; nra.
+    }
+    {
+      destruct Rle_dec; first nra.
+      destruct Rle_dec; first nra.
+      field. nra.
+    }
+  Qed.
+
+  Lemma constant_open_segment_ub_function f a b v (eps : posreal) endv :
+    a <= b ->
+    constant_D_eq f (open_interval a b) v ->
+    (v <= endv) ->
+    (f b <= endv) ->
+    ∃ g, (∀ x, a <= x <= b -> f x <= g x) /\
+         (∀ x, continuous g x) /\
+         (RInt (λ x, g x - f x) a b < eps) /\
+         g b = endv.
+  Proof.
+    intros Hle0 Hconst Hle1 Hle2.
+    assert (Hintegrablef: ∀ x y, a <= x /\ x <= y /\ y <= b -> ex_RInt f x y).
+    {
+      intros x y Hle.
+      apply: (ex_RInt_Chasles_2 _ a); first nra.
+      apply: (ex_RInt_Chasles_1 _ _ _ b); first nra.
+      eapply (ex_RInt_ext (λ x, v)).
+      { rewrite Rmin_left // Rmax_right //. intros; symmetry; apply Hconst; split; nra. }
+      eapply ex_RInt_const.
+    }
+    destruct Hle0 as [Hlt|Heq]; last first.
+    { subst. exists (λ x, endv).
+      split.
+      { intros x ?. assert (x = b) by nra. subst. eauto. }
+      split.
+      { intros x ?. apply continuous_const. }
+      { rewrite RInt_point /zero/=. destruct eps => /=; nra. }
+    }
+    set (M := Rmax (Rmax (Rabs (f a)) (Rabs (f b)))
+                   (Rmax (Rabs v) (Rabs endv))).
+    assert (Hfabs: ∀ x, a <= x <= b -> Rabs (f x) <= M).
+    { intros ? Hrange. rewrite /M.
+      assert (f x = v \/ f x = f a \/ f x = f b) as [->|[-> | ->]].
+      { destruct Hrange as ([?|?]&[?|?]); subst; try nra;
+        try (left; apply Hconst; split; nra).
+      }
+      { repeat apply Rmax_case_strong; try nra. }
+      { repeat apply Rmax_case_strong; try nra. }
+      { repeat apply Rmax_case_strong; try nra. }
+    }
+    assert (M = 0 ∨ 0 < M) as [HM0|HMnz].
+    { rewrite /M.
+      repeat (apply Rmin_case_strong || apply Rmax_case_strong || apply Rabs_case); try nra.
+    }
+    { assert (f a = 0 /\ f b = 0 /\ v = 0 /\ endv = 0) as (?&?&?&?).
+      { move: HM0. rewrite /M.
+      repeat (apply Rmin_case_strong || apply Rmax_case_strong || apply Rabs_case); try nra. }
+      exists (λ x, 0).
+      assert (Hf0: ∀ x, a <= x <= b → f x = 0).
+      { intros y (Hle1'&Hle2'). destruct Hle1'; last first.
+        { subst. nra. }
+        destruct Hle2'; last first.
+        { subst. nra. }
+        transitivity v; last done. apply Hconst. rewrite /open_interval; nra.
+      }
+      split.
+      { intros. rewrite Hf0 //. nra. }
+      split.
+      { apply continuous_const. }
+      split; last by congruence.
+      eapply (Rle_lt_trans _ 0); last by (destruct eps => /=; nra).
+      right.
+      erewrite (RInt_ext _ (λ _, 0)).
+      { rewrite RInt_const /scal/=/mult/=. nra. }
+      intros x. apply Rmin_case_strong; apply Rmax_case_strong; intros; rewrite Hf0 //; nra.
+    }
+    set (δ := Rmin ((b - a)/3) ((eps / (8 * M)))).
+    assert (0 < δ).
+    { rewrite /δ.
+      apply Rmin_case_strong; first by nra.
+      intros _. apply Rdiv_lt_0_compat; destruct eps => /=; nra.
+    }
+    assert ((a + δ < b - δ)).
+    { rewrite /δ. apply Rmin_case_strong; nra. }
+    edestruct (constant_open_segment_ub_function_aux1 f a b v endv δ) as (g&Hg1&Hg2&Hg3&Hg4&Hg5); eauto.
+    exists g.
+    repeat (split; auto).
+    assert (Hintegrableh: ∀ x y, a <= x /\ x <= y /\ y <= b -> ex_RInt (λ x, g x - f x) x y).
+    {
+      intros.
+      apply: (ex_RInt_Chasles_2 _ a); first nra.
+      apply: (ex_RInt_Chasles_1 _ _ _ b); first nra.
+      apply: ex_RInt_minus; last eapply Hintegrablef; try nra.
+      eapply ex_RInt_continuous; auto.
+    }
+    eapply (Rle_lt_trans _ (RInt (λ x, g x - f x) a (a + δ) +
+                            RInt (λ x, g x - f x) (a+δ) (b - δ) +
+                            RInt (λ x, g x - f x) (b - δ) b)).
+    {
+      rewrite -(RInt_Chasles (λ x, g x - f x) a (a + δ)); try (eapply Hintegrableh; nra).
+      rewrite -(RInt_Chasles (λ x, g x - f x) (a + δ) (b - δ)); try (eapply Hintegrableh; nra).
+      rewrite /plus/=. right. field.
+    }
+    eapply (Rlt_le_trans _ (eps/2 + 0 + eps/2)); last first.
+    { right. field. }
+    apply Rplus_lt_compat.
+    assert (RInt (λ x, g x - f x) (a + δ) (b - δ) = 0) as ->.
+    { rewrite (RInt_ext _ (λ x, 0)); last first.
+      { rewrite Rmin_left // ?Rmax_right //; try nra. intros. rewrite Hg4; try nra.  }
+      rewrite RInt_const. rewrite /scal/=/mult/=. nra. }
+    apply Rplus_lt_compat_r.
+    { eapply Rle_lt_trans; first eapply (RInt_le _ (λ x, 2 * M)); try nra.
+      { apply Hintegrableh. nra. }
+      { apply ex_RInt_const. }
+      { intros.
+        transitivity (Rabs (g x) + Rabs (f x)).
+        { repeat apply Rabs_case; nra. }
+        { setoid_rewrite Hfabs; last nra. setoid_rewrite Hg3; last nra. right. rewrite /M. field. }
+      }
+      rewrite RInt_const. replace (a + δ -a) with δ by nra. rewrite /scal/=/mult/=.
+      eapply (Rle_lt_trans _ ((eps / (8 * M)) * (2 * M))).
+      { apply Rmult_le_compat_r; first nra.
+        apply Rmin_r. }
+      field_simplify; last nra. assert (2 * eps / 8 = eps / 4) as -> by field. 
+      rewrite /Rdiv. apply Rmult_lt_compat_l; first by (destruct eps => /=; nra).
+      nra.
+    }
+    { eapply Rle_lt_trans; first eapply (RInt_le _ (λ x, 2 * M)); try nra.
+      { apply Hintegrableh. nra. }
+      { apply ex_RInt_const. }
+      { intros.
+        transitivity (Rabs (g x) + Rabs (f x)).
+        { repeat apply Rabs_case; nra. }
+        { setoid_rewrite Hfabs; last nra. setoid_rewrite Hg3; last nra. right. rewrite /M. field. }
+      }
+      rewrite RInt_const. replace (b - (b - δ)) with δ by nra. rewrite /scal/=/mult/=.
+      eapply (Rle_lt_trans _ ((eps / (8 * M)) * (2 * M))).
+      { apply Rmult_le_compat_r; first nra.
+        apply Rmin_r. }
+      field_simplify; last nra. assert (2 * eps / 8 = eps / 4) as -> by field.
+      rewrite /Rdiv. apply Rmult_lt_compat_l; first by (destruct eps => /=; nra).
+      nra.
+    }
+  Qed.
+
+
+  Lemma StepFun_ub_cont (f: R -> R) (a b : R) (eps : posreal) :
+    a <= b ->
+    IsStepFun f a b ->
+    ∃ g : R -> R, (∀ x, continuous g x) /\ (∀ x, a <= x <= b -> f x <= g x) /\
+                  RInt (λ x, g x - f x) a b < eps.
+  Proof.
+    rewrite /IsStepFun. intros Hle (l&Hsub).
+    revert a eps Hle Hsub.
+    induction l as [| x1 l IHl].
+    { intros. destruct Hsub as (l'&Hadapted).
+      destruct Hadapted as (?&Hmin&?&Hfalse&_).
+      inversion Hfalse. }
+    { intros a eps Hle Hsub.
+      destruct Hsub as (l'&Hadapted).
+      destruct l as [| x2 l].
+      { destruct Hadapted as (?&Hmin&Hmax&Hlen&?).
+        destruct l' as [|]; last first.
+        { simpl in Hlen. congruence. }
+        assert (a = b) as <-.
+        { simpl in Hmin, Hmax. move: Hmin Hmax. apply Rmin_case_strong; apply Rmax_case_strong; nra. }
+        subst.
+        exists (fct_cte (f a)).
+        split.
+        { intros; apply continuous_continuity_pt. apply derivable_continuous, derivable_const. }
+        split.
+        { intros x' ?. assert (x' = a) as -> by nra. rewrite /fct_cte//=. reflexivity. }
+        rewrite RInt_point /zero/=. destruct eps; auto.
+      }
+      destruct l' as [|y l'].
+      { destruct Hadapted as (?&Hmin&Hmax&Hlen&?).
+        simpl in Hlen. congruence. }
+      specialize (StepFun_P7 Hle Hadapted) => Hadapted_tl.
+      assert (Hlex2: x2 <= b).
+      { destruct Hadapted as (Hordered&Hmin&Hmax&Hlen&?).
+        replace x2 with (RList.pos_Rl (x1 :: x2 :: l) 1) by auto.
+        rewrite Rmax_right // in Hmax. rewrite -Hmax.
+        apply RList.RList_P6; auto.
+        simpl. lia.
+      }
+      edestruct (IHl x2 (mkposreal _ (is_pos_div_2 eps))) as (g&Hgcont&Hgub&Hint).
+      { auto. }
+      { eexists. eauto. }
+      { destruct Hadapted as (?&?&?&?&Hval).
+        assert (constant_D_eq f (open_interval x1 x2) y).
+        { apply (Hval O). simpl. lia. }
+  Abort.
 
   Lemma ex_RInt_bounding (f: R -> R) (a b : R) eps :
     a <= b ->
