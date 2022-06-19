@@ -122,6 +122,43 @@ Proof.
   apply is_left_lim_const. intros ->. apply Hle2.
 Qed.
 
+Lemma is_UIRInt_scal:
+  ∀ (f : R → R) (a : R) (b: Rbar) (k : R) (If : R),
+    Rbar_lt a b ->
+    is_UIRInt f a b If → is_UIRInt (λ y : R, scal k (f y)) a b (scal k If).
+Proof.
+  intros f a b k If Hle (Hex&His).
+  split.
+  { intros. apply: ex_RInt_scal; auto. }
+  eapply (is_left_lim_ext_loc (λ y, scal k (RInt f a y))).
+  { apply (Rbar_at_left_interval a); auto.
+    intros x Hlt1 Hlt2.
+    destruct x as [x' | |]; simpl in *; try (inversion Hltt; done); try (destruct b; inversion Hlt1; done).
+    intros; auto. rewrite RInt_scal //. eapply Hex; eauto.
+    nra.
+  }
+  by apply (is_left_lim_scal_l (λ x, RInt f a x) k b If).
+Qed.
+
+Lemma ex_UIRInt_scal:
+  ∀ (f : R → R) (a : R) (b: Rbar) (k : R),
+    Rbar_lt a b ->
+    ex_UIRInt f a b → ex_UIRInt (λ y : R, scal k (f y)) a b.
+Proof.
+  intros f a b k Hlt (v&Hex). eexists. apply is_UIRInt_scal; eauto.
+Qed.
+
+Lemma UIRInt_scal:
+  ∀ (f : R → R) (a : R) (b: Rbar) (k : R),
+    Rbar_lt a b ->
+    ex_UIRInt f a b ->
+    UIRInt (λ y : R, scal k (f y)) a b = (scal k (UIRInt f a b)).
+Proof.
+  intros f a b k Hlt Hex.
+  apply is_UIRInt_unique, is_UIRInt_scal; auto.
+  apply UIRInt_correct; auto.
+Qed.
+
 Lemma is_UIRInt_comp (f : R → R) (g dg : R → R) (a : R) (b : Rbar) (glim : Rbar) :
   Rbar_lt a b ->
   (∀ (x : R), Rbar_le a x /\ Rbar_lt x b → continuous f (g x)) →
@@ -309,6 +346,47 @@ Proof.
   apply is_IRInt_unique in His.
   apply is_IRInt_unique in Hisu.
   congruence.
+Qed.
+
+Lemma is_IRInt_scal:
+  ∀ (f : R → R) (a : Rbar) (b: Rbar) (k : R) (If : R),
+    Rbar_lt a b ->
+    is_IRInt f a b If → is_IRInt (λ y : R, scal k (f y)) a b (scal k If).
+Proof.
+  intros f a b k If Hle (Hex&His).
+  split.
+  { intros. apply: ex_UIRInt_scal; auto. }
+  eapply (is_right_lim_ext_loc (λ y, scal k (UIRInt f y b))).
+  {
+    edestruct (Rbar_interval_inhabited) as (y&?&?); eauto.
+    apply (Rbar_at_right_interval a y); auto.
+    intros x Hlt1 Hlt2.
+    assert (∃ r', x = Finite r') as (x'&->).
+    { destruct x; eauto. inversion Hlt2. destruct a; inversion Hlt1. }
+    intros; auto. rewrite UIRInt_scal //; eauto.
+    { eapply Rbar_lt_trans; eauto. }
+    { eapply Hex; eauto. eapply Rbar_lt_trans; eauto. }
+  }
+  by apply (is_right_lim_scal_l (λ x, UIRInt f x b) k a If).
+Qed.
+
+Lemma ex_IRInt_scal:
+  ∀ (f : R → R) (a : Rbar) (b: Rbar) (k : R),
+    Rbar_lt a b ->
+    ex_IRInt f a b → ex_IRInt (λ y : R, scal k (f y)) a b.
+Proof.
+  intros f a b k Hlt (v&Hex). eexists. apply is_IRInt_scal; eauto.
+Qed.
+
+Lemma IRInt_scal:
+  ∀ (f : R → R) (a : Rbar) (b: Rbar) (k : R),
+    Rbar_lt a b ->
+    ex_IRInt f a b ->
+    IRInt (λ y : R, scal k (f y)) a b = (scal k (IRInt f a b)).
+Proof.
+  intros f a b k Hlt Hex.
+  apply is_IRInt_unique, is_IRInt_scal; auto.
+  apply IRInt_correct; auto.
 Qed.
 
 Lemma is_IRInt_comp (f : R → R) (g dg : R → R) (a b : Rbar) (gla glb : Rbar) :

@@ -1588,6 +1588,21 @@ Proof.
   exists s. nra.
 Qed.
 
+Lemma Rbar_interval_inhabited (a b : Rbar) :
+  Rbar_lt a b -> ∃ (c : R), Rbar_lt a c /\ Rbar_lt c b.
+Proof.
+  destruct a as [r | | ].
+  - destruct b as [ r' | |].
+    * simpl. apply interval_inhabited.
+    * intros _. exists (r + 1). simpl; split; auto; first nra.
+    * simpl; intuition.
+  - inversion 1.
+  - destruct b as [ r' | | ].
+    * intros _. exists (r' - 1). simpl; split; auto; last nra.
+    * intros _. exists 0; simpl; done.
+    * inversion 1.
+Qed.
+
 Lemma Rbar_at_left_witness (r: R) (eps: posreal) P:
   Rbar_at_left r P -> ∃ x, r - eps < x < r ∧ P x.
 Proof.
