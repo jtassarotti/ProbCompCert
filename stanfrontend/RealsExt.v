@@ -923,6 +923,54 @@ Proof.
   by apply is_right_lim_const.
 Qed.
 
+(** Opposite *)
+
+Lemma is_left_lim_opp (f : R -> R) (x l : Rbar) :
+  is_left_lim f x l -> is_left_lim (fun y => - f y) x (Rbar_opp l).
+Proof.
+intros (?&Cf).
+split; auto.
+eapply filterlim_comp.
+apply Cf.
+apply filterlim_Rbar_opp.
+Qed.
+Lemma ex_left_lim_opp (f : R -> R) (x : Rbar) :
+  ex_left_lim f x -> ex_left_lim (fun y => - f y) x.
+Proof.
+  case => l Hf.
+  exists (Rbar_opp l).
+  by apply is_left_lim_opp.
+Qed.
+Lemma LeftLim_opp (f : R -> R) (x : Rbar) :
+  LeftLim (fun y => - f y) x = Rbar_opp (LeftLim f x).
+Proof.
+  rewrite -Lim_seq_opp.
+  by apply Lim_seq_ext.
+Qed.
+
+Lemma is_right_lim_opp (f : R -> R) (x l : Rbar) :
+  is_right_lim f x l -> is_right_lim (fun y => - f y) x (Rbar_opp l).
+Proof.
+intros (?&Cf).
+split; auto.
+eapply filterlim_comp.
+apply Cf.
+apply filterlim_Rbar_opp.
+Qed.
+Lemma ex_right_lim_opp (f : R -> R) (x : Rbar) :
+  ex_right_lim f x -> ex_right_lim (fun y => - f y) x.
+Proof.
+  case => l Hf.
+  exists (Rbar_opp l).
+  by apply is_right_lim_opp.
+Qed.
+Lemma RightLim_opp (f : R -> R) (x : Rbar) :
+  RightLim (fun y => - f y) x = Rbar_opp (RightLim f x).
+Proof.
+  rewrite -Lim_seq_opp.
+  by apply Lim_seq_ext.
+Qed.
+
 (** Addition *)
 
 Lemma is_left_lim_plus (f g : R -> R) (x lf lg l : Rbar) :
@@ -1005,6 +1053,281 @@ Proof.
   apply is_right_lim_unique.
   eapply is_right_lim_plus ; try eassumption.
   by apply Rbar_plus_correct.
+Qed.
+
+(** ** Multiplicative operators *)
+(** Multiplicative inverse *)
+
+Lemma is_left_lim_inv (f : R -> R) (x l : Rbar) :
+  is_left_lim f x l -> l <> 0 -> is_left_lim (fun y => / f y) x (Rbar_inv l).
+Proof.
+  intros (?&Hf) Hl.
+  split; first done.
+  apply filterlim_comp with (1 := Hf).
+  now apply filterlim_Rbar_inv.
+Qed.
+Lemma ex_left_lim_inv (f : R -> R) (x : Rbar) :
+  ex_left_lim f x -> LeftLim f x <> 0 -> ex_left_lim (fun y => / f y) x.
+Proof.
+  move => /LeftLim_correct [? Hf] Hlf.
+  exists (Rbar_inv (LeftLim f x)).
+  split; first done.
+  by apply is_left_lim_inv.
+Qed.
+Lemma LeftLim_inv (f : R -> R) (x : Rbar) :
+  ex_left_lim f x -> LeftLim f x <> 0 -> LeftLim (fun y => / f y) x = Rbar_inv (LeftLim f x).
+Proof.
+  move => /LeftLim_correct [? Hf] Hlf.
+  apply is_left_lim_unique.
+  by apply is_left_lim_inv.
+Qed.
+Lemma is_right_lim_inv (f : R -> R) (x l : Rbar) :
+  is_right_lim f x l -> l <> 0 -> is_right_lim (fun y => / f y) x (Rbar_inv l).
+Proof.
+  intros (?&Hf) Hl.
+  split; first done.
+  apply filterlim_comp with (1 := Hf).
+  now apply filterlim_Rbar_inv.
+Qed.
+Lemma ex_right_lim_inv (f : R -> R) (x : Rbar) :
+  ex_right_lim f x -> RightLim f x <> 0 -> ex_right_lim (fun y => / f y) x.
+Proof.
+  move => /RightLim_correct [? Hf] Hlf.
+  exists (Rbar_inv (RightLim f x)).
+  split; first done.
+  by apply is_right_lim_inv.
+Qed.
+Lemma RightLim_inv (f : R -> R) (x : Rbar) :
+  ex_right_lim f x -> RightLim f x <> 0 -> RightLim (fun y => / f y) x = Rbar_inv (RightLim f x).
+Proof.
+  move => /RightLim_correct [? Hf] Hlf.
+  apply is_right_lim_unique.
+  by apply is_right_lim_inv.
+Qed.
+
+(** Multiplication *)
+
+Lemma is_left_lim_mult (f g : R -> R) (x lf lg : Rbar) :
+  is_left_lim f x lf -> is_left_lim g x lg ->
+  ex_Rbar_mult lf lg ->
+  is_left_lim (fun y => f y * g y) x (Rbar_mult lf lg).
+Proof.
+intros [? Cf] [? Cg] Hp.
+split; first done.
+eapply filterlim_comp_2 ; try eassumption.
+by apply filterlim_Rbar_mult, Rbar_mult_correct.
+Qed.
+Lemma ex_left_lim_mult (f g : R -> R) (x : Rbar) :
+  ex_left_lim f x -> ex_left_lim g x ->
+  ex_Rbar_mult (LeftLim f x) (LeftLim g x) ->
+  ex_left_lim (fun y => f y * g y) x.
+Proof.
+  move => /LeftLim_correct [? Hf] /LeftLim_correct [? Hg] Hl.
+  exists (Rbar_mult (LeftLim f x) (LeftLim g x)).
+  now apply is_left_lim_mult.
+Qed.
+Lemma LeftLim_mult (f g : R -> R) (x : Rbar) :
+  ex_left_lim f x -> ex_left_lim g x ->
+  ex_Rbar_mult (LeftLim f x) (LeftLim g x) ->
+  LeftLim (fun y => f y * g y) x = Rbar_mult (LeftLim f x) (LeftLim g x).
+Proof.
+  move => /LeftLim_correct [? Hf] /LeftLim_correct [? Hg] Hl.
+  apply is_left_lim_unique.
+  now apply is_left_lim_mult.
+Qed.
+Lemma is_right_lim_mult (f g : R -> R) (x lf lg : Rbar) :
+  is_right_lim f x lf -> is_right_lim g x lg ->
+  ex_Rbar_mult lf lg ->
+  is_right_lim (fun y => f y * g y) x (Rbar_mult lf lg).
+Proof.
+intros [? Cf] [? Cg] Hp.
+split; first done.
+eapply filterlim_comp_2 ; try eassumption.
+by apply filterlim_Rbar_mult, Rbar_mult_correct.
+Qed.
+Lemma ex_right_lim_mult (f g : R -> R) (x : Rbar) :
+  ex_right_lim f x -> ex_right_lim g x ->
+  ex_Rbar_mult (RightLim f x) (RightLim g x) ->
+  ex_right_lim (fun y => f y * g y) x.
+Proof.
+  move => /RightLim_correct [? Hf] /RightLim_correct [? Hg] Hl.
+  exists (Rbar_mult (RightLim f x) (RightLim g x)).
+  now apply is_right_lim_mult.
+Qed.
+Lemma RightLim_mult (f g : R -> R) (x : Rbar) :
+  ex_right_lim f x -> ex_right_lim g x ->
+  ex_Rbar_mult (RightLim f x) (RightLim g x) ->
+  RightLim (fun y => f y * g y) x = Rbar_mult (RightLim f x) (RightLim g x).
+Proof.
+  move => /RightLim_correct [? Hf] /RightLim_correct [? Hg] Hl.
+  apply is_right_lim_unique.
+  now apply is_right_lim_mult.
+Qed.
+
+(** Scalar multiplication *)
+
+Lemma is_left_lim_scal_l (f : R -> R) (a : R) (x l : Rbar) :
+  is_left_lim f x l -> is_left_lim (fun y => a * f y) x (Rbar_mult a l).
+Proof.
+  move => [Hfm Hf].
+  case: (Req_dec 0 a) => [<- {a} | Ha].
+  rewrite Rbar_mult_0_l.
+  apply is_left_lim_ext with (fun _ => 0).
+  move => y ; by rewrite Rmult_0_l.
+  by apply is_left_lim_const.
+
+  apply is_left_lim_mult.
+  by apply is_left_lim_const.
+  split; auto.
+  apply sym_not_eq in Ha.
+  case: l {Hf} => [l | | ] //=.
+Qed.
+Lemma ex_left_lim_scal_l (f : R -> R) (a : R) (x : Rbar) :
+  ex_left_lim f x -> ex_left_lim (fun y => a * f y) x.
+Proof.
+  case => l [? Hf].
+  exists (Rbar_mult a l).
+  by apply is_left_lim_scal_l.
+Qed.
+Lemma LeftLim_scal_l (f : R -> R) (a : R) (x : Rbar) :
+  LeftLim (fun y => a * f y) x = Rbar_mult a (LeftLim f x).
+Proof.
+  apply Lim_seq_scal_l.
+Qed.
+
+Lemma is_left_lim_scal_r (f : R -> R) (a : R) (x l : Rbar) :
+  is_left_lim f x l -> is_left_lim (fun y => f y * a) x (Rbar_mult l a).
+Proof.
+  move => Hf.
+  rewrite Rbar_mult_comm.
+  apply is_left_lim_ext with (fun y => a * f y).
+  move => y ; by apply Rmult_comm.
+  by apply is_left_lim_scal_l.
+Qed.
+Lemma ex_left_lim_scal_r (f : R -> R) (a : R) (x : Rbar) :
+  ex_left_lim f x -> ex_left_lim (fun y => f y * a) x.
+Proof.
+  case => l Hf.
+  exists (Rbar_mult l a).
+  by apply is_left_lim_scal_r.
+Qed.
+Lemma LeftLim_scal_r (f : R -> R) (a : R) (x : Rbar) :
+  LeftLim (fun y => f y * a) x = Rbar_mult (LeftLim f x) a.
+Proof.
+  rewrite Rbar_mult_comm -Lim_seq_scal_l.
+  apply Lim_seq_ext.
+  move => y ; by apply Rmult_comm.
+Qed.
+Lemma is_right_lim_scal_l (f : R -> R) (a : R) (x l : Rbar) :
+  is_right_lim f x l -> is_right_lim (fun y => a * f y) x (Rbar_mult a l).
+Proof.
+  move => [Hfm Hf].
+  case: (Req_dec 0 a) => [<- {a} | Ha].
+  rewrite Rbar_mult_0_l.
+  apply is_right_lim_ext with (fun _ => 0).
+  move => y ; by rewrite Rmult_0_l.
+  by apply is_right_lim_const.
+
+  apply is_right_lim_mult.
+  by apply is_right_lim_const.
+  split; auto.
+  apply sym_not_eq in Ha.
+  case: l {Hf} => [l | | ] //=.
+Qed.
+Lemma ex_right_lim_scal_l (f : R -> R) (a : R) (x : Rbar) :
+  ex_right_lim f x -> ex_right_lim (fun y => a * f y) x.
+Proof.
+  case => l [? Hf].
+  exists (Rbar_mult a l).
+  by apply is_right_lim_scal_l.
+Qed.
+Lemma RightLim_scal_l (f : R -> R) (a : R) (x : Rbar) :
+  RightLim (fun y => a * f y) x = Rbar_mult a (RightLim f x).
+Proof.
+  apply Lim_seq_scal_l.
+Qed.
+
+Lemma is_right_lim_scal_r (f : R -> R) (a : R) (x l : Rbar) :
+  is_right_lim f x l -> is_right_lim (fun y => f y * a) x (Rbar_mult l a).
+Proof.
+  move => Hf.
+  rewrite Rbar_mult_comm.
+  apply is_right_lim_ext with (fun y => a * f y).
+  move => y ; by apply Rmult_comm.
+  by apply is_right_lim_scal_l.
+Qed.
+Lemma ex_right_lim_scal_r (f : R -> R) (a : R) (x : Rbar) :
+  ex_right_lim f x -> ex_right_lim (fun y => f y * a) x.
+Proof.
+  case => l Hf.
+  exists (Rbar_mult l a).
+  by apply is_right_lim_scal_r.
+Qed.
+Lemma RightLim_scal_r (f : R -> R) (a : R) (x : Rbar) :
+  RightLim (fun y => f y * a) x = Rbar_mult (RightLim f x) a.
+Proof.
+  rewrite Rbar_mult_comm -Lim_seq_scal_l.
+  apply Lim_seq_ext.
+  move => y ; by apply Rmult_comm.
+Qed.
+
+(** Division *)
+
+Lemma is_left_lim_div (f g : R -> R) (x lf lg : Rbar) :
+  is_left_lim f x lf -> is_left_lim g x lg -> lg <> 0 ->
+  ex_Rbar_div lf lg ->
+  is_left_lim (fun y => f y / g y) x (Rbar_div lf lg).
+Proof.
+  move => Hf Hg Hlg Hl.
+  apply is_left_lim_mult ; try assumption.
+  now apply is_left_lim_inv.
+Qed.
+Lemma ex_left_lim_div (f g : R -> R) (x : Rbar) :
+  ex_left_lim f x -> ex_left_lim g x -> LeftLim g x <> 0 ->
+  ex_Rbar_div (LeftLim f x) (LeftLim g x) ->
+  ex_left_lim (fun y => f y / g y) x.
+Proof.
+  move => Hf Hg Hlg Hl.
+  apply ex_left_lim_mult ; try assumption.
+  now apply ex_left_lim_inv.
+  now rewrite LeftLim_inv.
+Qed.
+Lemma LeftLim_div (f g : R -> R) (x : Rbar) :
+  ex_left_lim f x -> ex_left_lim g x -> LeftLim g x <> 0 ->
+  ex_Rbar_div (LeftLim f x) (LeftLim g x) ->
+  LeftLim (fun y => f y / g y) x = Rbar_div (LeftLim f x) (LeftLim g x).
+Proof.
+  move => Hf Hg Hlg Hl.
+  apply is_left_lim_unique.
+  apply is_left_lim_div ; try apply LeftLim_correct ; assumption.
+Qed.
+Lemma is_right_lim_div (f g : R -> R) (x lf lg : Rbar) :
+  is_right_lim f x lf -> is_right_lim g x lg -> lg <> 0 ->
+  ex_Rbar_div lf lg ->
+  is_right_lim (fun y => f y / g y) x (Rbar_div lf lg).
+Proof.
+  move => Hf Hg Hlg Hl.
+  apply is_right_lim_mult ; try assumption.
+  now apply is_right_lim_inv.
+Qed.
+Lemma ex_right_lim_div (f g : R -> R) (x : Rbar) :
+  ex_right_lim f x -> ex_right_lim g x -> RightLim g x <> 0 ->
+  ex_Rbar_div (RightLim f x) (RightLim g x) ->
+  ex_right_lim (fun y => f y / g y) x.
+Proof.
+  move => Hf Hg Hlg Hl.
+  apply ex_right_lim_mult ; try assumption.
+  now apply ex_right_lim_inv.
+  now rewrite RightLim_inv.
+Qed.
+Lemma RightLim_div (f g : R -> R) (x : Rbar) :
+  ex_right_lim f x -> ex_right_lim g x -> RightLim g x <> 0 ->
+  ex_Rbar_div (RightLim f x) (RightLim g x) ->
+  RightLim (fun y => f y / g y) x = Rbar_div (RightLim f x) (RightLim g x).
+Proof.
+  move => Hf Hg Hlg Hl.
+  apply is_right_lim_unique.
+  apply is_right_lim_div ; try apply RightLim_correct ; assumption.
 Qed.
 
 (** Left/Right limits of integral boundary *)
