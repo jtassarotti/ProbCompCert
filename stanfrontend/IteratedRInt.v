@@ -19,6 +19,11 @@ Definition vsingle {A: Type} (a: A) :=
 Definition in_interval (x: R) (i: interval) :=
   Rbar_le (interval_lb i) x /\ Rbar_le x (interval_ub i).
 
+Definition wf_interval (i: interval) :=
+  Rbar_lt (interval_lb i) (interval_ub i).
+Definition wf_rectangle (n: nat) (v: rectangle n) :=
+  VectorDef.Forall wf_interval v.
+
 Definition IIRInt (n: nat) (f: Vector.t R n -> R) (r: rectangle n) : R.
 Proof.
   destruct n as [| n].
@@ -95,6 +100,52 @@ Proof.
     apply Classical_Prop.EqdepTheory.inj_pair2 in H0; subst.
     apply Classical_Prop.EqdepTheory.inj_pair2 in H1; subst.
     rewrite IIRInt_unfold_cons. apply is_IRInt_unique; auto.
+Qed.
+
+
+Lemma is_IIRInt_scal:
+  ∀ n f r k (v : R),
+    wf_rectangle n r →
+    is_IIRInt n f r v → is_IIRInt n (λ y, scal k (f y)) r (scal k v).
+Proof.
+  intros n f r k v Hwf His.
+  destruct n.
+  { inversion His. }
+
+  revert v His.
+  induction n as [| n' IH] => v His.
+  - inversion His; subst.
+    apply Classical_Prop.EqdepTheory.inj_pair2 in H; subst.
+    apply Classical_Prop.EqdepTheory.inj_pair2 in H0; subst.
+    econstructor. eapply is_IRInt_scal; auto.
+    rewrite /wf_rectangle in Hwf. inversion Hwf. subst.
+    apply Classical_Prop.EqdepTheory.inj_pair2 in H2; subst.
+    eauto.
+  - inversion His; subst.
+    apply Classical_Prop.EqdepTheory.inj_pair2 in H0; subst.
+    apply Classical_Prop.EqdepTheory.inj_pair2 in H1; subst.
+    econstructor.
+    { intros y Hin. edestruct (H2 y) as (v'&Hv'); eauto. eexists.
+      eapply IH; eauto.
+      { inversion Hwf; eauto; subst. eauto.
+        apply Classical_Prop.EqdepTheory.inj_pair2 in H1; subst.
+        eauto.
+      }
+    }
+    eapply (is_IRInt_ext (λ x, scal k (IIRInt _ (λ xbar, f (cons R x (S n') xbar)) _))).
+    { inversion Hwf; eauto. }
+    { intros. symmetry. apply is_IIRInt_unique.
+      eapply IH.
+      { inversion Hwf; eauto; subst. eauto.
+        apply Classical_Prop.EqdepTheory.inj_pair2 in H4; subst.
+        eauto.
+      }
+      eapply IIRInt_correct. edestruct (H2 x); eauto.
+      { split; apply Rbar_lt_le; intuition. }
+      eexists; eauto.
+    }
+    eapply is_IRInt_scal; eauto.
+    { inversion Hwf; eauto. }
 Qed.
 
 Section marginal.

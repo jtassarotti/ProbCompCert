@@ -43,6 +43,70 @@ Proof.
   erewrite is_left_lim_unique; eauto. simpl; done.
 Qed.
 
+Lemma Rbar_lt_interval_finite a b x :
+    Rbar_lt a x ->
+    Rbar_lt x b ->
+    ∃ r, x = Finite r.
+Proof.
+  destruct a, x, b => //=; eauto.
+Qed.
+
+Lemma is_UIRInt_ext (f g : R → R) (a : R) (b : Rbar) (l: R) :
+  Rbar_lt a b ->
+  (∀ x, a < x /\ Rbar_lt x b -> f x = g x) ->
+  is_UIRInt f a b l ->
+  is_UIRInt g a b l.
+Proof.
+  intros Hlt Hext (Hex&His).
+  split.
+  { intros. eapply ex_RInt_ext; last eapply Hex; eauto.
+    { rewrite Rmin_left //. rewrite Rmax_right //. intros. apply Hext. split; first nra.
+      eapply (Rbar_le_lt_trans _ t); auto. simpl; nra.
+    }
+  }
+  eapply is_left_lim_ext_loc; last eassumption.
+  eapply Rbar_at_left_interval; eauto.
+  intros x Hlt1 Hlt2.
+  edestruct (Rbar_lt_interval_finite a b x) as (r&->); eauto.
+  eapply RInt_ext; eauto.
+  simpl.
+  simpl in Hlt1.
+  rewrite Rmin_left //.
+  rewrite Rmax_right //.
+  intros. apply Hext.
+  { split; first nra. eapply Rbar_lt_trans; eauto. simpl. nra. }
+  { nra. }
+  { nra. }
+Qed.
+
+Lemma ex_UIRInt_ext (f g : R → R) (a : R) (b : Rbar) (l: R) :
+  Rbar_lt a b ->
+  (∀ x, a < x /\ Rbar_lt x b -> f x = g x) ->
+  ex_UIRInt f a b ->
+  ex_UIRInt g a b.
+Proof.
+  intros Hlt Hext (Hex&His).
+  eexists. eapply is_UIRInt_ext; eauto.
+Qed.
+
+Lemma UIRInt_ext (f g : R → R) (a : R) (b : Rbar) :
+  Rbar_lt a b ->
+  (∀ x, a < x /\ Rbar_lt x b -> f x = g x) ->
+  UIRInt f a b = UIRInt g a b.
+Proof.
+  intros Hlt Hext. rewrite /UIRInt.
+  f_equal.
+  apply LeftLim_ext_loc.
+  { destruct b; try congruence; try inversion Hlt. }
+  apply (Rbar_at_left_interval a b); auto.
+  simpl. intros.
+  edestruct (Rbar_lt_interval_finite a b x) as (r&->); eauto.
+  eapply RInt_ext. rewrite /=. rewrite Rmin_left; last nra.
+  rewrite Rmax_right; last nra. intros.
+  symmetry. apply Hext; split; first nra.
+  eapply (Rbar_lt_trans x r); simpl; intuition eauto.
+Qed.
+
 Lemma is_UIRInt_upper_finite_RInt_1 f a (b: R) v :
   a < b ->
   is_RInt f a b v -> is_UIRInt f a b v.
@@ -312,6 +376,56 @@ Proof.
   rewrite /ex_IRInt/is_IRInt/IRInt.
   intros (Hex&His).
   erewrite is_right_lim_unique; eauto. simpl; done.
+Qed.
+
+Lemma is_IRInt_ext (f g : R → R) (a : Rbar) (b : Rbar) (l: R) :
+  Rbar_lt a b ->
+  (∀ x : R, Rbar_lt a x /\ Rbar_lt x b -> f x = g x) ->
+  is_IRInt f a b l ->
+  is_IRInt g a b l.
+Proof.
+  intros Hlt Hext (Hex&His).
+  split.
+  { intros. eapply ex_UIRInt_ext; last eapply Hex; eauto.
+    { intros. apply Hext. split; intuition auto.
+      eapply (Rbar_lt_trans _ t); auto. }
+  }
+  eapply is_right_lim_ext_loc; last eassumption.
+  eapply Rbar_at_right_interval; eauto.
+  intros x Hlt1 Hlt2.
+  edestruct (Rbar_lt_interval_finite a b x) as (r&->); eauto.
+  eapply UIRInt_ext; eauto.
+  simpl in Hlt1.
+  intros. apply Hext.
+  { split; intuition auto. eapply Rbar_lt_trans; eauto. }
+Qed.
+
+Lemma ex_IRInt_ext (f g : R → R) (a : Rbar) (b : Rbar) (l: R) :
+  Rbar_lt a b ->
+  (∀ x : R, Rbar_lt a x /\ Rbar_lt x b -> f x = g x) ->
+  ex_IRInt f a b ->
+  ex_IRInt g a b.
+Proof.
+  intros Hlt Hext (Hex&His).
+  eexists. eapply is_IRInt_ext; try eassumption.
+Qed.
+
+Lemma IRInt_ext (f g : R → R) (a : Rbar) (b : Rbar) :
+  Rbar_lt a b ->
+  (∀ x : R, Rbar_lt a x /\ Rbar_lt x b -> f x = g x) ->
+  IRInt f a b = IRInt g a b.
+Proof.
+  intros Hlt Hext. rewrite /IRInt.
+  f_equal.
+  apply RightLim_ext_loc.
+  { destruct a; try congruence; try inversion Hlt. }
+  apply (Rbar_at_right_interval a b); auto.
+  simpl. intros.
+  edestruct (Rbar_lt_interval_finite a b x) as (r&->); eauto.
+  eapply UIRInt_ext; auto. intros.
+  symmetry. eapply Hext; split.
+  { eapply (Rbar_lt_trans a r x); intuition. }
+  { intuition. }
 Qed.
 
 Lemma is_IRInt_finite_RInt_1 f (a b : R) v :
