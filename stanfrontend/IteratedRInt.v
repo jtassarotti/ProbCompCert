@@ -8,6 +8,12 @@ Require Import RealsExt ImproperRInt.
 Set Bullet Behavior "Strict Subproofs".
 Set Default Goal Selector "!".
 
+Ltac sigT_inj :=
+  repeat match goal with
+  | [ H: existT _ _ _ = existT _ _ _ |- _ ] =>
+    apply Classical_Prop.EqdepTheory.inj_pair2 in H; subst
+  end.
+
 Record interval := mk_interval { interval_lb : Rbar; interval_ub : Rbar}.
 
 Definition interval_subset (i1 i2: interval) :=
@@ -71,16 +77,10 @@ Proof.
   destruct n.
   { inversion His. }
 
-  induction n as [| n' IH].
-  - inversion His; subst.
-    apply Classical_Prop.EqdepTheory.inj_pair2 in H; subst.
-    apply Classical_Prop.EqdepTheory.inj_pair2 in H0; subst.
-    rewrite IIRInt_unfold_vsingle. econstructor.
+  induction n as [| n' IH]; inversion His; subst; sigT_inj.
+  - rewrite IIRInt_unfold_vsingle. econstructor.
     apply IRInt_correct. eexists; eauto.
-  - inversion His; subst.
-    apply Classical_Prop.EqdepTheory.inj_pair2 in H0; subst.
-    apply Classical_Prop.EqdepTheory.inj_pair2 in H1; subst.
-    rewrite IIRInt_unfold_cons. econstructor; eauto.
+  - rewrite IIRInt_unfold_cons. econstructor; eauto.
     apply IRInt_correct. eexists; eauto.
 Qed.
 
@@ -91,15 +91,9 @@ Proof.
   destruct n.
   { inversion His. }
 
-  induction n as [| n' IH].
-  - inversion His; subst.
-    apply Classical_Prop.EqdepTheory.inj_pair2 in H; subst.
-    apply Classical_Prop.EqdepTheory.inj_pair2 in H0; subst.
-    rewrite IIRInt_unfold_vsingle. apply is_IRInt_unique; auto.
-  - inversion His; subst.
-    apply Classical_Prop.EqdepTheory.inj_pair2 in H0; subst.
-    apply Classical_Prop.EqdepTheory.inj_pair2 in H1; subst.
-    rewrite IIRInt_unfold_cons. apply is_IRInt_unique; auto.
+  induction n as [| n' IH]; inversion His; subst; sigT_inj.
+  - rewrite IIRInt_unfold_vsingle. apply is_IRInt_unique; auto.
+  - rewrite IIRInt_unfold_cons. apply is_IRInt_unique; auto.
 Qed.
 
 
@@ -113,33 +107,19 @@ Proof.
   { inversion His. }
 
   revert v His.
-  induction n as [| n' IH] => v His.
-  - inversion His; subst.
-    apply Classical_Prop.EqdepTheory.inj_pair2 in H; subst.
-    apply Classical_Prop.EqdepTheory.inj_pair2 in H0; subst.
-    econstructor. eapply is_IRInt_scal; auto.
-    rewrite /wf_rectangle in Hwf. inversion Hwf. subst.
-    apply Classical_Prop.EqdepTheory.inj_pair2 in H2; subst.
-    eauto.
-  - inversion His; subst.
-    apply Classical_Prop.EqdepTheory.inj_pair2 in H0; subst.
-    apply Classical_Prop.EqdepTheory.inj_pair2 in H1; subst.
-    econstructor.
+  induction n as [| n' IH] => v His; inversion His; subst; sigT_inj.
+  - econstructor. eapply is_IRInt_scal; auto.
+    rewrite /wf_rectangle in Hwf. inversion Hwf; subst; sigT_inj; eauto.
+  - econstructor.
     { intros y Hin. edestruct (H2 y) as (v'&Hv'); eauto. eexists.
       eapply IH; eauto.
-      { inversion Hwf; eauto; subst. eauto.
-        apply Classical_Prop.EqdepTheory.inj_pair2 in H1; subst.
-        eauto.
-      }
+      { inversion Hwf; sigT_inj; eauto. }
     }
     eapply (is_IRInt_ext (λ x, scal k (IIRInt _ (λ xbar, f (cons R x (S n') xbar)) _))).
     { inversion Hwf; eauto. }
     { intros. symmetry. apply is_IIRInt_unique.
       eapply IH.
-      { inversion Hwf; eauto; subst. eauto.
-        apply Classical_Prop.EqdepTheory.inj_pair2 in H4; subst.
-        eauto.
-      }
+      { inversion Hwf; sigT_inj; eauto. }
       eapply IIRInt_correct. edestruct (H2 x); eauto.
       { split; apply Rbar_lt_le; intuition. }
       eexists; eauto.
