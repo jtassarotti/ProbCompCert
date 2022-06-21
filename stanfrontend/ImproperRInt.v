@@ -587,6 +587,31 @@ Proof.
   eapply (is_right_lim_comp (λ x, UIRInt f x glb) g a); eauto.
 Qed.
 
+Lemma is_IRInt_comp_noncont_strict (f : R → R) (g dg : R → R) (a b : Rbar) (gla glb : Rbar) :
+  Rbar_lt a b ->
+  (∀ (x y : R), Rbar_lt a x /\ x < y /\ Rbar_lt y b -> g x < g y) ->
+  (∀ (x : R), Rbar_lt a x /\ Rbar_lt x b → Rbar_lt gla (g x) /\ Rbar_lt (g x) glb) →
+  (∀ (x : R), Rbar_lt a x /\ Rbar_lt x b → is_derive g x (dg x) ∧ continuous dg x) →
+  is_right_lim g a gla ->
+  is_left_lim g b glb ->
+  ex_IRInt f gla glb ->
+  is_IRInt (fun y => scal (dg y) (f (g y))) a b (IRInt f gla glb).
+Proof.
+  intros Hlt Hmono Hgrange Hdiff Hlima Hlimb Hex.
+  assert (Hatb: Rbar_at_left b (λ y : Rbar, Rbar_lt (g y) glb)).
+  { eapply Rbar_at_left_strict_monotone'; eauto.
+    intros. eapply Hmono; intuition; eauto.
+  }
+  assert (Hata: Rbar_at_right a (λ y : Rbar, Rbar_lt gla (g y))).
+  { eapply Rbar_at_right_strict_monotone'; eauto.
+  }
+  eapply is_IRInt_comp_noncont; eauto. intros.
+  destruct (Req_EM_T x y).
+  { subst. reflexivity. }
+  left. apply Hmono.
+  intuition. nra.
+Qed.
+
 Lemma IRInt_comp (f : R → R) (g dg : R → R) (a b : Rbar) (gla glb : Rbar) :
   Rbar_lt a b ->
   (∀ (x : R), Rbar_lt a x /\ Rbar_lt x b → Rbar_lt gla (g x) /\ Rbar_lt (g x) glb) →
@@ -617,6 +642,19 @@ Lemma IRInt_comp_noncont (f : R → R) (g dg : R → R) (a b : Rbar) (gla glb : 
   IRInt (fun y => scal (dg y) (f (g y))) a b = (IRInt f gla glb).
 Proof.
   intros. apply is_IRInt_unique, is_IRInt_comp_noncont; eauto.
+Qed.
+
+Lemma IRInt_comp_noncont_strict (f : R → R) (g dg : R → R) (a b : Rbar) (gla glb : Rbar) :
+  Rbar_lt a b ->
+  (∀ (x y : R), Rbar_lt a x /\ x < y /\ Rbar_lt y b -> g x < g y) ->
+  (∀ (x : R), Rbar_lt a x /\ Rbar_lt x b → Rbar_lt gla (g x) /\ Rbar_lt (g x) glb) →
+  (∀ (x : R), Rbar_lt a x /\ Rbar_lt x b → is_derive g x (dg x) ∧ continuous dg x) →
+  is_right_lim g a gla ->
+  is_left_lim g b glb ->
+  ex_IRInt f gla glb ->
+  IRInt (fun y => scal (dg y) (f (g y))) a b = (IRInt f gla glb).
+Proof.
+  intros. apply is_IRInt_unique, is_IRInt_comp_noncont_strict; eauto.
 Qed.
 
 End IRInt.

@@ -1642,7 +1642,7 @@ Qed.
 
 Lemma Rbar_at_left_strict_monotone (t : R) (b : Rbar) g glim :
   Rbar_lt t b →
-  (∀ x y, t <= x < y → Rbar_lt y b → g x < g y) →
+  (∀ (x y : R), Rbar_lt t x /\ x < y → Rbar_lt y b → g x < g y) →
   is_left_lim g b glim ->
   Rbar_at_left b (λ y : Rbar, Rbar_lt (g y) glim).
 Proof.
@@ -1686,13 +1686,34 @@ Proof.
       { exists x. split; eauto. }
       exists (x + 1).
       split; first nra.
-      rewrite Heq. simpl. apply Ht; auto; split; try nra.
+      rewrite Heq. simpl. apply Ht; auto; split; simpl; try nra.
     }
     apply open_Rbar_lt' in r0. apply Hlim in r0.
     eapply (Rbar_at_left_witness_above_p_infty x) in r0; try (intuition eauto; done).
     destruct r0 as (y&Hrange'&Hlt).
     simpl in Hlt. apply Rlt_not_le in Hlt.
     apply Hlt. left. apply Ht; simpl; simpl in Hltb; try nra.
+Qed.
+
+Lemma Rbar_at_left_strict_monotone' (t : Rbar) (b : Rbar) g glim :
+  Rbar_lt t b →
+  (∀ (x y : R), Rbar_lt t x /\ x < y → Rbar_lt y b → g x < g y) →
+  is_left_lim g b glim ->
+  Rbar_at_left b (λ y : Rbar, Rbar_lt (g y) glim).
+Proof.
+  intros Hlt Hmono Hlim.
+  destruct t.
+  - eapply Rbar_at_left_strict_monotone; eauto.
+  - inversion Hlt.
+  - destruct b as [r' | |].
+    { eapply (Rbar_at_left_strict_monotone (Rmin 0 (r' - 1))); eauto.
+      { simpl. apply Rmin_case_strong; nra. }
+      { intros. apply Hmono; auto. split; intuition auto. }
+    }
+    { eapply (Rbar_at_left_strict_monotone 0); eauto.
+      { intros. apply Hmono; auto. split; intuition auto. }
+    }
+    { inversion Hlt. }
 Qed.
 
 Lemma Rbar_at_right_witness (r: R) (eps: posreal) P:
@@ -1734,7 +1755,7 @@ Qed.
 
 Lemma Rbar_at_right_strict_monotone (t : R) (a : Rbar) g glim :
   Rbar_lt a t →
-  (∀ x y, x < y <= t → Rbar_lt a x → g x < g y) →
+  (∀ x y, x < y /\ Rbar_lt y t → Rbar_lt a x → g x < g y) →
   is_right_lim g a glim ->
   Rbar_at_right a (λ y : Rbar, Rbar_lt glim (g y)).
 Proof.
@@ -1778,13 +1799,34 @@ Proof.
       { exists x. split; eauto. }
       exists (x - 1).
       split; first nra.
-      rewrite -Heq. simpl. apply Ht; auto; split; try nra.
+      rewrite -Heq. simpl. apply Ht; auto; split; simpl; try nra.
     }
     apply open_Rbar_gt' in r0. apply Hlim in r0.
     eapply (Rbar_at_right_witness_above_m_infty x) in r0; try (intuition eauto; done).
     destruct r0 as (y&Hrange'&Hlt).
     simpl in Hlt. apply Rlt_not_le in Hlt.
     apply Hlt. left. apply Ht; simpl; simpl in Hltb; try nra.
+Qed.
+
+Lemma Rbar_at_right_strict_monotone' (t : Rbar) (a : Rbar) g glim :
+  Rbar_lt a t →
+  (∀ x y, x < y /\ Rbar_lt y t → Rbar_lt a x → g x < g y) →
+  is_right_lim g a glim ->
+  Rbar_at_right a (λ y : Rbar, Rbar_lt glim (g y)).
+Proof.
+  intros Hlt Hmono Hlim.
+  destruct t.
+  - eapply Rbar_at_right_strict_monotone; eauto.
+  - destruct a as [r' | |].
+    { eapply (Rbar_at_right_strict_monotone (Rmax 0 (r' + 1))); eauto.
+      { simpl. apply Rmax_case_strong; nra. }
+      { intros. apply Hmono; auto. split; intuition auto. }
+    }
+    { inversion Hlt. }
+    { eapply (Rbar_at_right_strict_monotone 0); eauto.
+      { intros. apply Hmono; auto. split; intuition auto. }
+    }
+  - destruct a; inversion Hlt.
 Qed.
 
 Lemma is_lim_right_lim f x v :
