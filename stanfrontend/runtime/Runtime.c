@@ -33,6 +33,9 @@ int main(int argc, char* argv[]) {
   }
   struct Params* candidate = alloc_params();
 
+  struct Params* statistics = alloc_params();
+  copy_params(statistics,state);
+
   int counter = 0;
 
   for (int i = 0; i < n; ++i) {
@@ -80,10 +83,13 @@ int main(int argc, char* argv[]) {
       }
     }
 
+    add_params_params(statistics,state);
+
   } 
 
   printf("\nExecution success\n");
-  print_params(state,true);
+  mult_params_scalar(statistics,1.0 / (double) n);
+  print_params(statistics,true);
   printf("\n");
   printf("Acceptance ratio: %lf\n", (float)counter / (float)n);
   return 0;

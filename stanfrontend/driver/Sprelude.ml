@@ -44,6 +44,8 @@ let printPreludeHeader sourcefile data params =
     "void copy_params(struct Params* to, struct Params* from);";
     "void constrained_to_unconstrained(struct Params* constrained);";
     "void unconstrained_to_constrained(struct Params* unconstrained);";
+    "void add_params_params(struct Params* accumulator, struct Params* state);";
+    "void mult_params_scalar(struct Params* state, double constant);";
     "";
     "#endif";
   ]);
@@ -278,6 +280,50 @@ let generate_unconstrained_to_constrained vs =
       List.fold_left (fun str -> fun v -> str ^ "  " ^ (generate_single v) ^ "\n") "" vs;
       "}"
     ] 
+
+let generate_add_params_params vs =
+
+  let generate_single v =
+    let name = Camlcoq.extern_atom (fst v) in
+    let typ = snd v in
+    match typ with
+    | Stanlight.Breal -> "accumulator->" ^ name ^ " += " ^ "state->" ^ name ^ ";"
+    | Stanlight.Bint -> "accumulator->" ^ name ^ " += " ^ "state->" ^ name ^ ";"
+    | Stanlight.Barray (_,sz) -> String.concat "\n" [
+                                 "for (int i = 0; i < " ^ (Camlcoq.Z.to_string sz) ^ " ; i++) {";
+                                 "    accumulator->" ^ name ^ "[i]" ^ " += " ^ "state->" ^ name ^ "[i]" ^ ";";
+                                 "  };";
+                               ] 
+    | _ -> "ddd"
+  in
+
+  String.concat "\n\n" [
+      "void add_params_params(struct Params* accumulator, struct Params* state) {";
+      List.fold_left (fun str -> fun v -> str ^ "  " ^ (generate_single v) ^ "\n") "" vs;
+      "}"
+    ]
+  
+let generate_mult_params_scalar vs =
+
+  let generate_single v =
+    let name = Camlcoq.extern_atom (fst v) in
+    let typ = snd v in
+    match typ with
+    | Stanlight.Breal -> "state->" ^ name ^ " *= constant;"
+    | Stanlight.Bint -> "state->" ^ name ^ " *= constant;"
+    | Stanlight.Barray (_,sz) -> String.concat "\n" [
+                                 "for (int i = 0; i < " ^ (Camlcoq.Z.to_string sz) ^ " ; i++) {";
+                                 "    state->" ^ name ^ "[i]" ^ " *= constant;";
+                                 "  };";
+                               ] 
+    | _ -> "ddd"
+  in
+
+  String.concat "\n\n" [
+      "void mult_params_scalar(struct Params* state, double constant) {";
+      List.fold_left (fun str -> fun v -> str ^ "  " ^ (generate_single v) ^ "\n") "" vs;
+      "}"
+    ]
   
 let printPreludeFile sourcefile data params proposal params_with_constraints =
   let sourceDir = Filename.dirname sourcefile in
@@ -300,6 +346,8 @@ let printPreludeFile sourcefile data params proposal params_with_constraints =
     generate_copy_params params;
     generate_constrained_to_unconstrained params_with_constraints;
     generate_unconstrained_to_constrained params_with_constraints;
+    generate_add_params_params params;
+    generate_mult_params_scalar params;
   ]);
   close_out oc
 
