@@ -4,7 +4,7 @@ From mathcomp Require Import eqtype seq.
 From Coquelicot Require Import Markov Rcomplements Lub Lim_seq SF_seq Continuity Hierarchy RInt RInt_analysis Derive.
 From Coquelicot Require Export Rbar.
 
-Require Import RealsExt.
+Require Import RealsExt RIntExt.
 
 Section Upper_IRInt.
 
