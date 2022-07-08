@@ -2,15 +2,134 @@ Require Export RelationClasses Morphisms Utf8.
 From mathcomp Require Import ssreflect ssrbool eqtype.
 From Coquelicot Require Import Hierarchy Markov Rcomplements Rbar Lub Lim_seq SF_seq Continuity Hierarchy RInt RInt_analysis Derive AutoDerive.
 Require Import RealsExt.
-Require ClassicalEpsilon.
 Require Import Reals.
 Require Import Coqlib.
 Require Import Psatz.
-Require Import Program.Basics.
 Import Rbar.
+
+Definition strict_increasing := λ f : R → R, ∀ x y : R, x < y → f x < f y.
+
+Lemma strict_increasing_increasing f :
+  strict_increasing f →
+  increasing f.
+Proof.
+  rewrite /strict_increasing/increasing. intros Hinc x y Hle.
+  destruct Hle.
+  { left. apply Hinc; eauto. }
+  { subst. nra. }
+Qed.
 
 Definition logit u := ln (u / (1 - u)).
 Definition logit_inv u := 1 / (1 + exp(-u)).
+
+(** Lower Bounded Scalar *)
+
+Definition unconstrain_lb a x := ln (x - a).
+Definition constrain_lb a x := exp x + a.
+Definition deriv_constrain_lb (a: R) x := exp x.
+
+Lemma deriv_constrain_lb_correct a x :
+  is_derive (constrain_lb a) x (deriv_constrain_lb a x).
+Proof.
+  rewrite /constrain_lb/deriv_constrain_lb.
+  auto_derive; auto. nra.
+Qed.
+
+Lemma deriv_constrain_lb_pos a x:
+  0 < deriv_constrain_lb a x.
+Proof. rewrite /deriv_constrain_lb. apply exp_pos. Qed.
+
+Lemma constrain_lb_strict_increasing a :
+  strict_increasing (constrain_lb a).
+Proof.
+  rewrite /constrain_lb.
+  intros x y Hle.
+  apply Rplus_lt_compat_r.
+  apply exp_increasing; auto.
+Qed.
+
+Lemma constrain_lb_increasing a :
+  increasing (constrain_lb a).
+Proof.
+  apply strict_increasing_increasing, constrain_lb_strict_increasing.
+Qed.
+
+Lemma constrain_lb_inv :
+  forall a x, a < x -> constrain_lb a (unconstrain_lb a x) = x.
+Proof.
+  intros a x Hrange. rewrite /constrain_lb/unconstrain_lb.
+  rewrite exp_ln; nra.
+Qed.
+
+Lemma constrain_lb_spec_strict a x :
+  a < constrain_lb a x.
+Proof.
+  rewrite /constrain_lb. cut (0 < exp x); first by nra.
+  apply exp_pos.
+Qed.
+
+Lemma constrain_lb_spec a x :
+  a <= constrain_lb a x.
+Proof. left. apply constrain_lb_spec_strict. Qed.
+
+(* Upper bounded scalar *)
+
+(* NOTE: stan uses lb (b - x) instead, but that is not monotone increasing, and instead is monotone decreasing.
+   This is a slight incompatiblity, but it should not matter. 
+ *)
+
+Definition unconstrain_ub b x := - ln (b - x).
+Definition constrain_ub b x := b - exp (- x).
+Definition deriv_constrain_ub (b: R) x := exp (- x).
+
+Lemma deriv_constrain_ub_correct b x :
+  is_derive (constrain_ub b) x (deriv_constrain_ub b x).
+Proof.
+  rewrite /constrain_ub/deriv_constrain_ub.
+  auto_derive; auto. nra.
+Qed.
+
+Lemma deriv_constrain_ub_pos b x:
+  0 < deriv_constrain_lb b x.
+Proof. rewrite /deriv_constrain_ub. apply exp_pos. Qed.
+
+Lemma constrain_ub_strict_increasing a :
+  strict_increasing (constrain_ub a).
+Proof.
+  rewrite /constrain_ub.
+  intros x y Hle.
+  apply Rplus_lt_compat_l.
+  cut (exp (-y) < exp (- x)); first by nra.
+  apply exp_increasing; auto.
+Qed.
+
+Lemma constrain_ub_increasing a :
+  increasing (constrain_ub a).
+Proof.
+  apply strict_increasing_increasing, constrain_ub_strict_increasing.
+Qed.
+
+Lemma constrain_ub_inv :
+  forall b x, x < b -> constrain_ub b (unconstrain_ub b x) = x.
+Proof.
+  intros b x Hrange. rewrite /constrain_ub/unconstrain_ub.
+  rewrite Ropp_involutive.
+  rewrite exp_ln; nra.
+Qed.
+
+Lemma constrain_ub_spec_strict b x :
+  constrain_ub b x < b.
+Proof.
+  rewrite /constrain_ub. cut (0 < exp (- x)); first by nra.
+  apply exp_pos.
+Qed.
+
+Lemma constrain_ub_spec b x :
+   constrain_ub b x <= b.
+Proof. left. apply constrain_ub_spec_strict. Qed.
+
+(* Lower and upper bounded scalar *)
+
 Definition unconstrain_lb_ub a b x :=
   logit ((x - a) / (b - a)).
 Definition constrain_lb_ub a b x :=
@@ -43,6 +162,21 @@ Proof.
   specialize (logit_inv_range x) => ??.
   apply Rmult_lt_0_compat; last by nra.
   apply Rmult_lt_0_compat; nra.
+Qed.
+
+Lemma constrain_lb_ub_strict_increasing a b :
+  a < b ->
+  strict_increasing (constrain_lb_ub a b).
+Proof.
+  rewrite /constrain_lb_ub.
+  intros Hrange x y Hle. rewrite /logit_inv.
+  apply Rplus_lt_compat_l.
+  apply Rmult_lt_compat_l; first nra.
+  apply Rmult_lt_compat_l; first nra.
+  apply Rinv_lt_contravar.
+  { specialize (exp_pos (- y)); specialize (exp_pos (- x)); nra. }
+  apply Rplus_lt_compat_l.
+  apply exp_increasing; nra.
 Qed.
 
 Lemma constrain_lb_ub_increasing a b :
@@ -80,6 +214,13 @@ Proof.
   split.
   { apply Rdiv_lt_0_compat; nra. }
   { apply Rlt_div_l; nra. }
+Qed.
+
+Lemma constrain_lb_ub_spec_strict a b x :
+  a < b ->
+  a < constrain_lb_ub a b x < b.
+Proof.
+  rewrite /constrain_lb_ub. specialize (logit_inv_range x); nra.
 Qed.
 
 Lemma constrain_lb_ub_spec a b x :
