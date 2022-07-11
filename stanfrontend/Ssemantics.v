@@ -241,16 +241,35 @@ Definition data_signature (p : program) : Type :=
 Definition parameters_signature (p : program) : Type :=
   type_of_basic_list (map snd (pr_parameters_vars p)).
 
-Inductive assign_global_locs (ge: genv) : list (ident * basic) -> mem -> list val -> mem -> Prop :=
+Fixpoint count_down_ofs (n: nat) :=
+  match n with
+  | O => nil
+  | S n' => (Ptrofs.repr (Z.of_nat n')) :: count_down_ofs n'
+  end.
+
+Definition count_up_ofs (n: nat) := rev (count_down_ofs n).
+
+Definition basic_to_list (ib : ident * basic) : list (ident * basic * Ptrofs.int) :=
+  match snd ib with
+  | Bint => (ib, Ptrofs.zero) :: nil
+  | Breal => (ib, Ptrofs.zero) :: nil
+  | Barray b z => combine (repeat (fst ib, b) (Z.to_nat z)) (count_up_ofs (Z.to_nat z))
+  | _ => nil
+  end.
+
+Definition flatten_ident_list (ibs: list (ident * basic)) : list (ident * basic * Ptrofs.int) :=
+  List.concat (map basic_to_list ibs).
+
+Inductive assign_global_locs (ge: genv) : list (ident * basic * Ptrofs.int) -> mem -> list val -> mem -> Prop :=
   | assign_global_locs_nil : forall m,
       assign_global_locs ge nil m nil m
-  | assign_global_locs_cons : forall m1 m2 m3 id ty l v bs vs,
+  | assign_global_locs_cons : forall m1 m2 m3 id ty ofs l v bs vs,
       Genv.find_symbol ge id = Some l ->
-      assign_loc ge ty m1 l Ptrofs.zero v m2 ->
+      assign_loc ge ty m1 l ofs v m2 ->
       assign_global_locs ge bs m2 vs m3 ->
-      assign_global_locs ge ((id, ty) :: bs) m1 (v :: vs) m3.
+      assign_global_locs ge ((id, ty, ofs) :: bs) m1 (v :: vs) m3.
 
-(* Joe: TODO: this initial state loading here does not work correctly for array data/params *)
+(* Joe: TODO: this initial state loading here may not be correct for array data/params *)
 Inductive initial_state (p: program) (data : list val) (params: list val) : state -> Prop :=
   | initial_state_intro: forall b f m0 m1 m2 m3 e,
       let ge := globalenv p in
@@ -258,8 +277,8 @@ Inductive initial_state (p: program) (data : list val) (params: list val) : stat
       Genv.find_symbol ge $"model" = Some b ->
       Genv.find_funct_ptr ge b = Some (Internal f) ->
       alloc_variables empty_env m0 f.(fn_vars) e m1 ->
-      assign_global_locs ge p.(pr_data_vars) m1 data m2 ->
-      assign_global_locs ge p.(pr_parameters_vars) m2 params m3 ->
+      assign_global_locs ge (flatten_ident_list p.(pr_data_vars)) m1 data m2 ->
+      assign_global_locs ge (flatten_ident_list p.(pr_parameters_vars)) m2 params m3 ->
       initial_state p data params (State f f.(fn_body) ((Floats.Float.of_int Integers.Int.zero)) Kstop e m3).
 
 Inductive final_state: state -> int -> Prop :=
@@ -327,6 +346,7 @@ Section DENOTATIONAL.
 
   (* IFR -> inject float into real, named in analogy to INR : nat -> R, IZR: Z -> R *)
   Axiom IFR : float -> R.
+  Axiom IRF: R -> float.
 
   Fixpoint constraint_to_interval (c: constraint) :=
     match c with
