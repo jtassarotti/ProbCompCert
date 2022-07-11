@@ -509,37 +509,6 @@ Proof.
   - destruct a; inversion Hlt.
 Qed.
 
-Lemma is_lim_right_lim f x v :
-  x <> p_infty ->
-  is_lim f x v -> is_right_lim f x v.
-Proof.
-  rewrite /is_lim/is_right_lim. intros ? Hfilt; split; auto.
-  move: Hfilt.
-  apply filterlim_filter_le_1.
-  unfold filter_le. intros P.
-  unfold Rbar_at_right, within, Rbar_locally, Rbar_locally'.
-  destruct x.
-  { unfold locally', within. apply filter_imp. simpl. intros ? Himp ?. apply Himp; nra. }
-  { congruence. }
-  {intros (M&HM). exists M. intros. apply HM. auto. }
-Qed.
-
-
-Lemma is_lim_left_lim f x v :
-  x <> m_infty ->
-  is_lim f x v -> is_left_lim f x v.
-Proof.
-  rewrite /is_lim/is_left_lim. intros ? Hfilt; split; auto.
-  move: Hfilt.
-  apply filterlim_filter_le_1.
-  unfold filter_le. intros P.
-  unfold Rbar_at_left, within, Rbar_locally, Rbar_locally'.
-  destruct x.
-  { unfold locally', within. apply filter_imp. simpl. intros ? Himp ?. apply Himp; nra. }
-  {intros (M&HM). exists M. intros. apply HM. auto. }
-  { congruence. }
-Qed.
-
 Section comp.
 
   Lemma R_dist_plus_r1 x y z y':

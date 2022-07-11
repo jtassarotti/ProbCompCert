@@ -28,6 +28,55 @@ Definition unconstrain_lb a x := ln (x - a).
 Definition constrain_lb a x := exp x + a.
 Definition deriv_constrain_lb (a: R) x := exp x.
 
+Definition constrain_lb_lim (a: R) (x : Rbar) : Rbar :=
+  match x with
+  | m_infty => a
+  | Finite x => constrain_lb a x
+  | p_infty => p_infty
+  end.
+
+Lemma constrain_lb_lim_right_correct a x :
+  x <> p_infty ->
+  is_right_lim (constrain_lb a) x (constrain_lb_lim a x).
+Proof.
+  destruct x => /=.
+  - intros _. apply is_lim_right_lim; first congruence.
+    { apply is_lim_continuity'.
+      apply: continuous_plus.
+      * apply ElemFct.continuous_exp.
+      * apply continuous_const.
+    }
+  - intros ?. congruence.
+  - intros _. 
+    replace a with (0 + a) at 2; last nra.
+    rewrite /constrain_lb.
+    apply (is_right_lim_plus' exp (λ _, a)).
+    * apply is_lim_right_lim; first congruence.
+      apply ElemFct.is_lim_exp_m.
+    * apply is_right_lim_const; congruence.
+Qed.
+
+Lemma constrain_lb_lim_left_correct a x :
+  x <> m_infty ->
+  is_left_lim (constrain_lb a) x (constrain_lb_lim a x).
+Proof.
+  destruct x => /=.
+  - intros _. apply is_lim_left_lim; first congruence.
+    { apply is_lim_continuity'.
+      apply: continuous_plus.
+      * apply ElemFct.continuous_exp.
+      * apply continuous_const.
+    }
+  - intros _. 
+    rewrite /constrain_lb.
+    apply (is_left_lim_plus exp (λ _, a) p_infty p_infty a p_infty).
+    * apply is_lim_left_lim; first congruence.
+      apply ElemFct.is_lim_exp_p.
+    * apply is_left_lim_const; congruence.
+    * econstructor.
+  - intros ?. congruence.
+Qed.
+
 Lemma deriv_constrain_lb_correct a x :
   is_derive (constrain_lb a) x (deriv_constrain_lb a x).
 Proof.
