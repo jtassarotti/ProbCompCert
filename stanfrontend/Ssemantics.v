@@ -4,7 +4,7 @@ Require Import Integers Floats Values AST Memory Builtins Events Globalenvs.
 Require Import Ctypes Cop Stanlight.
 Require Import Smallstep.
 Require Import Linking.
-Require Import ImproperRInt.
+Require Import IteratedRInt.
 Require Vector.
 
 Require Import Clightdefs.
@@ -101,7 +101,7 @@ with transf_typelist (tl: basiclist) : typelist :=
 Definition unary_op_conversion (op: u_op): unary_operation :=
   match op with
   | PNot => Onotbool
-  end. 
+  end.
 
 Definition binary_op_conversion (op: b_op): binary_operation :=
   match op with
@@ -134,14 +134,14 @@ Inductive eval_expr: expr -> val -> Prop :=
       eval_expr a2 v2 ->
       sem_binary_operation (PTree.empty composite) (binary_op_conversion op) v1 (transf_type (typeof a1)) v2 (transf_type (typeof a2)) m = Some v ->
       eval_expr (Ebinop a1 op a2 ty) v
-  | eval_Ecall: forall a al vf ef name sig fd vargs tyargs m ty vres tyres  m' cconv t, 
+  | eval_Ecall: forall a al vf ef name sig fd vargs tyargs m ty vres tyres  m' cconv t,
       eval_expr a vf ->
       eval_exprlist al vargs ->
       Genv.find_funct ge vf = Some fd ->
       ef = EF_external name sig ->
       fd = External ef tyargs tyres cconv ->
       external_call ef ge vargs m t vres m' ->
-      eval_expr (Ecall a al ty) vres 
+      eval_expr (Ecall a al ty) vres
   | eval_Etarget: forall ty,
       eval_expr (Etarget ty) (Vfloat t)
   | eval_Elvalue: forall a loc ofs v,
@@ -168,7 +168,7 @@ with eval_exprlist: exprlist -> list val -> Prop :=
       eval_exprlist Enil nil
   | eval_Econs: forall a bl v1 v2 vl ty,
       eval_expr a v1 ->
-      sem_cast v1 (transf_type (typeof a)) ty m = Some v2 -> 
+      sem_cast v1 (transf_type (typeof a)) ty m = Some v2 ->
       eval_exprlist bl vl ->
       eval_exprlist (Econs a bl) (v2 :: vl).
 
@@ -206,7 +206,7 @@ Inductive step: state -> trace -> state -> Prop :=
   | step_assign: forall f t a1 a2 k e m loc ofs v2 v m',
       eval_lvalue e m t a1 loc ofs ->
       eval_expr e m t a2 v2 ->
-      sem_cast v2 (transf_type (typeof a2)) (transf_type (typeof a1)) m = Some v -> 
+      sem_cast v2 (transf_type (typeof a2)) (transf_type (typeof a1)) m = Some v ->
       assign_loc ge (typeof a1) m loc ofs v m' ->
       step (State f (Sassign a1 None a2) t k e m)
         E0 (State f Sskip t k e m')
@@ -257,8 +257,20 @@ Definition basic_to_list (ib : ident * basic) : list (ident * basic * Ptrofs.int
   | _ => nil
   end.
 
-Definition flatten_ident_list (ibs: list (ident * basic)) : list (ident * basic * Ptrofs.int) :=
+Definition variable_to_list (ib : ident * variable) : list (ident * variable * Ptrofs.int) :=
+  match vd_type (snd ib) with
+  | Bint => (ib, Ptrofs.zero) :: nil
+  | Breal => (ib, Ptrofs.zero) :: nil
+  | Barray b z => combine (repeat (fst ib, {| vd_type := b; vd_constraint := vd_constraint (snd ib) |})
+                                             (Z.to_nat z)) (count_up_ofs (Z.to_nat z))
+  | _ => nil
+  end.
+
+Definition flatten_ident_basic_list (ibs: list (ident * basic)) : list (ident * basic * Ptrofs.int) :=
   List.concat (map basic_to_list ibs).
+
+Definition flatten_ident_variable_list (ibs: list (ident * variable)) : list (ident * variable * Ptrofs.int) :=
+  List.concat (map variable_to_list ibs).
 
 Inductive assign_global_locs (ge: genv) : list (ident * basic * Ptrofs.int) -> mem -> list val -> mem -> Prop :=
   | assign_global_locs_nil : forall m,
@@ -277,8 +289,8 @@ Inductive initial_state (p: program) (data : list val) (params: list val) : stat
       Genv.find_symbol ge $"model" = Some b ->
       Genv.find_funct_ptr ge b = Some (Internal f) ->
       alloc_variables empty_env m0 f.(fn_vars) e m1 ->
-      assign_global_locs ge (flatten_ident_list p.(pr_data_vars)) m1 data m2 ->
-      assign_global_locs ge (flatten_ident_list p.(pr_parameters_vars)) m2 params m3 ->
+      assign_global_locs ge (flatten_ident_basic_list p.(pr_data_vars)) m1 data m2 ->
+      assign_global_locs ge (flatten_ident_basic_list p.(pr_parameters_vars)) m2 params m3 ->
       initial_state p data params (State f f.(fn_body) ((Floats.Float.of_int Integers.Int.zero)) Kstop e m3).
 
 Inductive final_state: state -> int -> Prop :=
@@ -334,19 +346,17 @@ Section DENOTATIONAL.
     | right _ => default
     end.
 
-  (* Return a final target value if one can be obtained from running the program, otherwise
-     returns Float.zero *)
-  Definition log_density_of_program (p: program) (data: list val) (params: list val) : float :=
-    pred_to_default_fun (returns_target_value p data params) Float.zero.
-
-  Record interval := mk_interval { interval_lb : Rbar; interval_ub : Rbar}.
-
-  Definition interval_subset (i1 i2: interval) :=
-    Rbar_le (interval_lb i2) (interval_lb i1) /\ Rbar_le (interval_ub i1) (interval_ub i2).
-
   (* IFR -> inject float into real, named in analogy to INR : nat -> R, IZR: Z -> R *)
   Axiom IFR : float -> R.
   Axiom IRF: R -> float.
+
+  (* Return a final target value if one can be obtained from running the program, otherwise
+     returns Float.zero *)
+  Definition log_density_of_program (p: program) (data: list val) (params: list val) : R :=
+    IFR (pred_to_default_fun (returns_target_value p data params) Float.zero).
+
+  Definition density_of_program (p: program) (data: list val) (params: list val) : R :=
+    exp (log_density_of_program p data params).
 
   Fixpoint constraint_to_interval (c: constraint) :=
     match c with
@@ -355,5 +365,54 @@ Section DENOTATIONAL.
     | Cupper f  => mk_interval m_infty (IFR f)
     | Clower_upper f1 f2 => mk_interval (IFR f1) (IFR f2)
     end.
+
+  Definition rect_indicator {n} (rt: rectangle n) (v: Vector.t R n) : R.
+    destruct (ClassicalEpsilon.excluded_middle_informative (in_rectangle v rt)).
+    - exact 1.
+    - exact 0.
+  Defined.
+
+  (*
+  Definition distribution_of_program (p: program) (data: list val) : rectangle (parameter_dimension p) -> R :=
+    fun rt =>
+      IIRInt _ (fun v => density_of_program p data (map (fun r => Vfloat (IRF r)) (Vector.to_list v))) rt.
+   *)
+
+  Definition default_var : variable :=
+    {| vd_type := Breal; vd_constraint := Cidentity |}.
+
+  Definition lookup_def_ident (p: program) (id: ident) :=
+    match List.find (fun '(id', _) => Pos.eqb id id') (pr_defs p) with
+    | Some (_, Gvar v) => (id, gvar_info v)
+    | _ => (id, default_var)
+    end.
+
+  Definition flatten_parameter_variables (p: program) :=
+    flatten_ident_variable_list (map (fun '(id, _) => lookup_def_ident p id) (pr_parameters_vars p)).
+
+  Definition flatten_parameter_constraints (p: program) : list constraint :=
+    map (fun '(id, v, _) => vd_constraint v) (flatten_parameter_variables p).
+
+  Definition parameter_rect (p: program) : rectangle _ :=
+    Vector.of_list (map (constraint_to_interval) (flatten_parameter_constraints p)).
+
+  Definition parameter_dimension (p: program) : nat :=
+    List.length (map (constraint_to_interval) (flatten_parameter_constraints p)).
+
+
+  Definition distribution_of_program_unnormalized (p: program) (data: list val) : rectangle _ -> R :=
+    fun rt =>
+      IIRInt _
+        (fun v => density_of_program p data (map (fun r => Vfloat (IRF r)) (Vector.to_list v))
+                         * rect_indicator rt v)
+        (parameter_rect p).
+
+  Definition program_normalizing_constant (p : program) (data: list val) : R :=
+      IIRInt _
+        (fun v => density_of_program p data (map (fun r => Vfloat (IRF r)) (Vector.to_list v)))
+        (parameter_rect p).
+
+  Definition distribution_of_program (p: program) (data: list val) : rectangle (parameter_dimension p) -> R :=
+    fun rt => (distribution_of_program_unnormalized p data rt) / program_normalizing_constant p data.
 
 End DENOTATIONAL.
