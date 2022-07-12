@@ -114,27 +114,30 @@ Fixpoint find_parameter (defs: list (AST.ident * AST.globdef fundef variable)) (
     end
   end.
 
+Definition unconstrained_to_constrained_fun (c: constraint) : expr -> expr :=
+  fun i =>
+  match c with
+  | Cidentity => i
+  | Clower_upper a b =>
+    let a := Econst_float a Breal in
+    let b := Econst_float b Breal in
+    let call := Ecall (Evar $"expit" (Bfunction (Bcons Breal Bnil) Breal)) (Econs i Enil) Breal in
+    (Ebinop a Plus (Ebinop (Ebinop b Minus a Breal) Times call Breal) Breal)
+  | Clower a =>
+    let a := Econst_float a Breal in
+    let call := Ecall (Evar $"exp" (Bfunction (Bcons Breal Bnil) Breal)) (Econs i Enil) Breal in
+    (Ebinop call Plus a Breal)
+  | Cupper b =>
+    let b := Econst_float b Breal in
+    let call := Ecall (Evar $"exp" (Bfunction (Bcons Breal Bnil) Breal)) (Econs i Enil) Breal in
+    (Ebinop b Minus call Breal)
+  end.
+
 Definition unconstrained_to_constrained (i: AST.ident) (v: variable) : option expr :=
   let typ := v.(vd_type) in
   let constraint := v.(vd_constraint) in
   match typ with
-  | Breal =>
-    match constraint with
-    | Cidentity => Some (Evar i typ)
-    | Clower_upper a b => 
-      let a := Econst_float a Breal in
-      let b := Econst_float b Breal in
-      let call := Ecall (Evar $"expit" (Bfunction (Bcons Breal Bnil) Breal)) (Econs (Evar i typ) Enil) Breal in
-      Some (Ebinop a Plus (Ebinop (Ebinop b Minus a Breal) Times call Breal) Breal) 
-    | Clower a => 
-      let a := Econst_float a Breal in
-      let call := Ecall (Evar $"exp" (Bfunction (Bcons Breal Bnil) Breal)) (Econs (Evar i typ) Enil) Breal in
-      Some (Ebinop call Plus a Breal)
-    | Cupper b =>
-      let b := Econst_float b Breal in
-      let call := Ecall (Evar $"exp" (Bfunction (Bcons Breal Bnil) Breal)) (Econs (Evar i typ) Enil) Breal in
-      Some (Ebinop b Minus call Breal)
-    end
+  | Breal => Some (unconstrained_to_constrained_fun constraint (Evar i typ))
   | Barray Breal _ => 
     match constraint with
     | Cidentity => Some (Evar i typ)
@@ -193,10 +196,12 @@ Definition transf_program(p: Stanlight.program): Errors.res Stanlight.program :=
   do parameters <- Errors.mmap (find_parameter p.(pr_defs)) p.(pr_parameters_vars);
   let pmap := u_to_c_rewrite_map parameters in
   let correction := collect_corrections parameters in
+  let out_maps := List.map (fun '(id, v) => unconstrained_to_constrained_fun (vd_constraint v)) parameters in
 
   do p1 <- AST.transform_partial_program2 (transf_fundef pmap correction) transf_variable p;
   Errors.OK {|
       Stanlight.pr_defs := AST.prog_defs p1;
       Stanlight.pr_parameters_vars := p.(pr_parameters_vars);
       Stanlight.pr_data_vars := p.(pr_data_vars);
+      Stanlight.pr_parameters_out := out_maps;
     |}.

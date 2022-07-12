@@ -78,6 +78,9 @@ Record program := mkprogram {
   pr_defs: list (ident * globdef fundef variable);
   pr_parameters_vars: list (ident * basic);
   pr_data_vars: list (ident * basic);
+  (* Expression that shows how to map a paramter from internal representation to
+     user displayable output *)
+  pr_parameters_out : list (expr -> expr)
 }.
 
 Definition program_of_program (p: program) : AST.program fundef variable :=

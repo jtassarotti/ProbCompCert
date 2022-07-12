@@ -34,4 +34,5 @@ Definition transf_program(p: program): program :=
       Stanlight.pr_defs := AST.prog_defs p1;
       Stanlight.pr_parameters_vars := p.(pr_parameters_vars);
       Stanlight.pr_data_vars := p.(pr_data_vars);
+      Stanlight.pr_parameters_out := p.(pr_parameters_out);
     |}.

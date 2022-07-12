@@ -431,6 +431,7 @@ let elaborate (sourcefile : string) (p: Stan.program) =
       Stanlight.pr_defs=  helpers @ data_variables @ param_variables @ functions @ all_math_fns;
       Stanlight.pr_data_vars=data_fields;
       Stanlight.pr_parameters_vars=param_fields;
+      Stanlight.pr_parameters_out=List.map (fun _ -> (fun x -> x)) param_fields;
     }
 
 let location t =

@@ -120,6 +120,7 @@ Definition binary_op_conversion (op: b_op): binary_operation :=
   | Geq => Oge
   end.
 
+
 Inductive eval_expr: expr -> val -> Prop :=
   | eval_Econst_int: forall i ty,
       eval_expr (Econst_int i ty) (Vint i)
@@ -382,7 +383,7 @@ Section DENOTATIONAL.
     {| vd_type := Breal; vd_constraint := Cidentity |}.
 
   Definition lookup_def_ident (p: program) (id: ident) :=
-    match List.find (fun '(id', _) => Pos.eqb id id') (pr_defs p) with
+    match List.find (fun '(id', _) => positive_eq_dec id id') (pr_defs p) with
     | Some (_, Gvar v) => (id, gvar_info v)
     | _ => (id, default_var)
     end.
@@ -399,7 +400,9 @@ Section DENOTATIONAL.
   Definition parameter_dimension (p: program) : nat :=
     List.length (map (constraint_to_interval) (flatten_parameter_constraints p)).
 
+  Axiom eval_expr_fun : expr -> val.
 
+  (* TODO: eval the parameter_out vector on v before passing to rect_indicator *)
   Definition distribution_of_program_unnormalized (p: program) (data: list val) : rectangle _ -> R :=
     fun rt =>
       IIRInt _
@@ -411,6 +414,7 @@ Section DENOTATIONAL.
       IIRInt _
         (fun v => density_of_program p data (map (fun r => Vfloat (IRF r)) (Vector.to_list v)))
         (parameter_rect p).
+
 
   Definition distribution_of_program (p: program) (data: list val) : rectangle (parameter_dimension p) -> R :=
     fun rt => (distribution_of_program_unnormalized p data rt) / program_normalizing_constant p data.
