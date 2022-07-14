@@ -76,11 +76,10 @@ Definition fundef := Ctypes.fundef function.
 (* John: I think it is a mistake for the parameters and data to carry their types, it should be fetched from the variable*)
 Record program := mkprogram {
   pr_defs: list (ident * globdef fundef variable);
-  pr_parameters_vars: list (ident * basic);
-  pr_data_vars: list (ident * basic);
-  (* Expression that shows how to map a paramter from internal representation to
+  (* Last part of tuple is an expression showing how to map a paramter from internal representation to
      user displayable output *)
-  pr_parameters_out : list (expr -> expr)
+  pr_parameters_vars: list (ident * basic * (expr -> expr));
+  pr_data_vars: list (ident * basic);
 }.
 
 Definition program_of_program (p: program) : AST.program fundef variable :=

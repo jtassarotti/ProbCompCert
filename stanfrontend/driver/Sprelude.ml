@@ -21,7 +21,8 @@ let renderStruct name vs =
 let renderGlobalStruct global_name struct_type is_ptr =
   "struct " ^ struct_type ^ (if is_ptr then "*" else "") ^" "^ global_name ^";"
   
-let printPreludeHeader sourcefile data params =
+let printPreludeHeader sourcefile data params_fun =
+  let params = List.map fst params_fun in
   let sourceDir = Filename.dirname sourcefile in
   let file = sourceDir ^ "/" ^ "prelude.h" in
   Printf.fprintf stdout "Generating: %s\n" file;
@@ -325,7 +326,8 @@ let generate_mult_params_scalar vs =
       "}"
     ]
   
-let printPreludeFile sourcefile data params proposal params_with_constraints =
+let printPreludeFile sourcefile data params_funs proposal params_with_constraints =
+  let params = List.map fst params_funs in
   let sourceDir = Filename.dirname sourcefile in
   let file = sourceDir ^ "/" ^ "prelude.c" in
   let oc = open_out file in
@@ -365,7 +367,7 @@ let rec filter_params defs params =
 let generate_prelude sourcefile program proposal =
   let defs = program.Stanlight.pr_defs in
   let params = program.Stanlight.pr_parameters_vars in
-  let params_with_constraints = filter_params defs (List.map (fun v -> Camlcoq.extern_atom (fst v)) params) in
+  let params_with_constraints = filter_params defs (List.map (fun v -> Camlcoq.extern_atom (fst (fst v))) params) in
   let data = program.Stanlight.pr_data_vars in
   printPreludeHeader sourcefile data params;
   printPreludeFile sourcefile data params proposal params_with_constraints

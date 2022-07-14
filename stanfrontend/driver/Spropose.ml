@@ -13,7 +13,7 @@ let generate_epilogue () =
       ""
     ]
 
-let generate_param (id, t) =
+let generate_param ((id, t), f) =
   let name = Camlcoq.extern_atom id in
   match t with
   | Stanlight.Breal -> String.concat "\n" [

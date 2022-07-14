@@ -383,7 +383,8 @@ Definition transf_program(p: Stanlight.program): Errors.res CStan.program :=
 
   let params_struct_id := $"Params" in 
 
-  do parameter_vars <- list_mmap_res (fun ib => do b <- transf_type_res (snd ib); Errors.OK (fst ib, b)) p.(Stanlight.pr_parameters_vars);
+  do parameter_vars <- list_mmap_res (fun ibf => let ib := fst ibf in
+                                                 do b <- transf_type_res (snd ib); Errors.OK (fst ib, b)) p.(Stanlight.pr_parameters_vars);
   let parameter_members := List.map (fun tlp => Member_plain (fst tlp) (snd tlp)) parameter_vars in
   let params_struct := Composite params_struct_id Ctypes.Struct parameter_members Ctypes.noattr in
 

@@ -103,13 +103,13 @@ Definition transf_fundef (pmap: AST.ident -> option expr) (correction: expr) (id
 Definition transf_variable (_: AST.ident) (v: Stanlight.variable): Errors.res Stanlight.variable := 
   Errors.OK (mkvariable (v.(vd_type)) (Cidentity)).
 
-Fixpoint find_parameter (defs: list (AST.ident * AST.globdef fundef variable)) (entry: AST.ident * basic) {struct defs}: Errors.res (AST.ident * variable) :=
-  let param := fst entry in  
+Fixpoint find_parameter {A} (defs: list (AST.ident * AST.globdef fundef variable)) (entry: AST.ident * basic * A) {struct defs}: Errors.res (AST.ident * variable * A) :=
+  let '(param, _, a) := entry in  
   match defs with
   | nil => Errors.Error (Errors.msg "Reparameterization: parameter missing from list of global definitions")
   | (id,def) :: defs => 
     match def with
-    | AST.Gvar v => if positive_eq_dec id param then Errors.OK (param,v.(AST.gvar_info)) else find_parameter defs entry 
+    | AST.Gvar v => if positive_eq_dec id param then Errors.OK (param,v.(AST.gvar_info), a) else find_parameter defs entry 
     | AST.Gfun _ => find_parameter defs entry
     end
   end.
@@ -146,10 +146,10 @@ Definition unconstrained_to_constrained (i: AST.ident) (v: variable) : option ex
   | _ => None
   end.
 
-Fixpoint u_to_c_rewrite_map (parameters: list (AST.ident * variable)) {struct parameters}: (AST.ident -> option expr) :=
+Fixpoint u_to_c_rewrite_map {A} (parameters: list (AST.ident * variable * A)) {struct parameters}: (AST.ident -> option expr) :=
   match parameters with
   | nil => fun x => None
-  | (id, v) :: parameters => 
+  | (id, v, _) :: parameters => 
     let inner_map := u_to_c_rewrite_map parameters in
       fun param => 
         if positive_eq_dec id param then (unconstrained_to_constrained id v) else (inner_map param)
@@ -181,10 +181,10 @@ Definition change_of_variable_correction (i: AST.ident) (v: variable): option ex
   | _ => None
   end.
 
-Fixpoint collect_corrections (parameters: list (AST.ident * variable)) {struct parameters}: expr :=
+Fixpoint collect_corrections {A} (parameters: list (AST.ident * variable * A)) {struct parameters}: expr :=
   match parameters with
   | nil => Econst_float (Floats.Float.of_int Integers.Int.zero) Breal
-  | (id,v) :: parameters => 
+  | (id,v,_) :: parameters => 
     match change_of_variable_correction id v with
     | None => collect_corrections parameters
     | Some correction => Ebinop correction Plus (collect_corrections parameters) Breal
@@ -196,12 +196,13 @@ Definition transf_program(p: Stanlight.program): Errors.res Stanlight.program :=
   do parameters <- Errors.mmap (find_parameter p.(pr_defs)) p.(pr_parameters_vars);
   let pmap := u_to_c_rewrite_map parameters in
   let correction := collect_corrections parameters in
-  let out_maps := List.map (fun '(id, v) => unconstrained_to_constrained_fun (vd_constraint v)) parameters in
+  let pr_parameters_vars' := List.map (fun '(id, v, f) =>
+                                 (id, vd_type v,
+                                 fun x => f (unconstrained_to_constrained_fun (vd_constraint v) x))) parameters in
 
   do p1 <- AST.transform_partial_program2 (transf_fundef pmap correction) transf_variable p;
   Errors.OK {|
       Stanlight.pr_defs := AST.prog_defs p1;
-      Stanlight.pr_parameters_vars := p.(pr_parameters_vars);
+      Stanlight.pr_parameters_vars := pr_parameters_vars';
       Stanlight.pr_data_vars := p.(pr_data_vars);
-      Stanlight.pr_parameters_out := out_maps;
     |}.

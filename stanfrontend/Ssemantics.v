@@ -240,7 +240,7 @@ Definition data_signature (p : program) : Type :=
   type_of_basic_list (map snd (pr_data_vars p)).
 
 Definition parameters_signature (p : program) : Type :=
-  type_of_basic_list (map snd (pr_parameters_vars p)).
+  type_of_basic_list (map (fun '(_, b, _) => b) (pr_parameters_vars p)).
 
 Fixpoint count_down_ofs (n: nat) :=
   match n with
@@ -250,7 +250,7 @@ Fixpoint count_down_ofs (n: nat) :=
 
 Definition count_up_ofs (n: nat) := rev (count_down_ofs n).
 
-Definition basic_to_list (ib : ident * basic) : list (ident * basic * Ptrofs.int) :=
+Definition data_basic_to_list (ib : ident * basic) : list (ident * basic * Ptrofs.int) :=
   match snd ib with
   | Bint => (ib, Ptrofs.zero) :: nil
   | Breal => (ib, Ptrofs.zero) :: nil
@@ -258,19 +258,27 @@ Definition basic_to_list (ib : ident * basic) : list (ident * basic * Ptrofs.int
   | _ => nil
   end.
 
-Definition variable_to_list (ib : ident * variable) : list (ident * variable * Ptrofs.int) :=
-  match vd_type (snd ib) with
-  | Bint => (ib, Ptrofs.zero) :: nil
-  | Breal => (ib, Ptrofs.zero) :: nil
-  | Barray b z => combine (repeat (fst ib, {| vd_type := b; vd_constraint := vd_constraint (snd ib) |})
-                                             (Z.to_nat z)) (count_up_ofs (Z.to_nat z))
+Definition parameter_basic_to_list (ibf : ident * basic * (expr -> expr)) : list (ident * basic * Ptrofs.int) :=
+  data_basic_to_list (fst ibf).
+
+Definition variable_to_list {A} (ib : ident * variable * A) : list (ident * variable * A) :=
+  let '(i, v, a) := ib in
+  match vd_type v with
+  | Bint => ib :: nil
+  | Breal => ib :: nil
+  | Barray b z => repeat (i, {| vd_type := b; vd_constraint := vd_constraint v |}, a) (Z.to_nat z)
   | _ => nil
   end.
 
-Definition flatten_ident_basic_list (ibs: list (ident * basic)) : list (ident * basic * Ptrofs.int) :=
-  List.concat (map basic_to_list ibs).
+Definition flatten_data_list (ibs: list (ident * basic)) :
+  list (ident * basic * Ptrofs.int) :=
+  List.concat (map data_basic_to_list ibs).
 
-Definition flatten_ident_variable_list (ibs: list (ident * variable)) : list (ident * variable * Ptrofs.int) :=
+Definition flatten_parameter_list (ibs: list (ident * basic * (expr -> expr))) :
+  list (ident * basic * Ptrofs.int) :=
+  List.concat (map parameter_basic_to_list ibs).
+
+Definition flatten_ident_variable_list {A} (ibs: list (ident * variable * A)) :=
   List.concat (map variable_to_list ibs).
 
 Inductive assign_global_locs (ge: genv) : list (ident * basic * Ptrofs.int) -> mem -> list val -> mem -> Prop :=
@@ -290,8 +298,8 @@ Inductive initial_state (p: program) (data : list val) (params: list val) : stat
       Genv.find_symbol ge $"model" = Some b ->
       Genv.find_funct_ptr ge b = Some (Internal f) ->
       alloc_variables empty_env m0 f.(fn_vars) e m1 ->
-      assign_global_locs ge (flatten_ident_basic_list p.(pr_data_vars)) m1 data m2 ->
-      assign_global_locs ge (flatten_ident_basic_list p.(pr_parameters_vars)) m2 params m3 ->
+      assign_global_locs ge (flatten_data_list p.(pr_data_vars)) m1 data m2 ->
+      assign_global_locs ge (flatten_parameter_list p.(pr_parameters_vars)) m2 params m3 ->
       initial_state p data params (State f f.(fn_body) ((Floats.Float.of_int Integers.Int.zero)) Kstop e m3).
 
 Inductive final_state: state -> int -> Prop :=
@@ -389,32 +397,48 @@ Section DENOTATIONAL.
     end.
 
   Definition flatten_parameter_variables (p: program) :=
-    flatten_ident_variable_list (map (fun '(id, _) => lookup_def_ident p id) (pr_parameters_vars p)).
+    flatten_ident_variable_list (map (fun '(id, _, f) => (lookup_def_ident p id, f)) (pr_parameters_vars p)).
 
   Definition flatten_parameter_constraints (p: program) : list constraint :=
     map (fun '(id, v, _) => vd_constraint v) (flatten_parameter_variables p).
 
-  Definition parameter_rect (p: program) : rectangle _ :=
-    Vector.of_list (map (constraint_to_interval) (flatten_parameter_constraints p)).
+  Definition flatten_parameter_out (p: program) : list (expr -> expr) :=
+    map (fun '(id, v, f) => f) (flatten_parameter_variables p).
 
   Definition parameter_dimension (p: program) : nat :=
     List.length (map (constraint_to_interval) (flatten_parameter_constraints p)).
 
+  Definition parameter_rect (p: program) : rectangle (parameter_dimension p) :=
+    Vector.of_list (map (constraint_to_interval) (flatten_parameter_constraints p)).
+
   Axiom eval_expr_fun : expr -> val.
 
-  (* TODO: eval the parameter_out vector on v before passing to rect_indicator *)
+  Definition val2R v : R :=
+    match v with
+    | Vfloat flt => IFR flt
+    | _ => 0
+    end.
+
+  Program Definition eval_param_map (p : program) (vt: Vector.t R (parameter_dimension p)) :
+    Vector.t R (parameter_dimension p) :=
+    (Vector.map2 (fun v f => val2R (eval_expr_fun (f (Econst_float (IRF v) Breal))))
+                 vt (Vector.of_list (flatten_parameter_out p))).
+  Next Obligation.
+    unfold parameter_dimension, flatten_parameter_out, flatten_parameter_constraints.
+    repeat rewrite map_length. auto. 
+  Qed.
+
   Definition distribution_of_program_unnormalized (p: program) (data: list val) : rectangle _ -> R :=
     fun rt =>
       IIRInt _
         (fun v => density_of_program p data (map (fun r => Vfloat (IRF r)) (Vector.to_list v))
-                         * rect_indicator rt v)
+                         * rect_indicator rt (eval_param_map p v))
         (parameter_rect p).
 
   Definition program_normalizing_constant (p : program) (data: list val) : R :=
       IIRInt _
         (fun v => density_of_program p data (map (fun r => Vfloat (IRF r)) (Vector.to_list v)))
         (parameter_rect p).
-
 
   Definition distribution_of_program (p: program) (data: list val) : rectangle (parameter_dimension p) -> R :=
     fun rt => (distribution_of_program_unnormalized p data rt) / program_normalizing_constant p data.
