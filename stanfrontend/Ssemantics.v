@@ -135,13 +135,14 @@ Inductive eval_expr: expr -> val -> Prop :=
       eval_expr a2 v2 ->
       sem_binary_operation (PTree.empty composite) (binary_op_conversion op) v1 (transf_type (typeof a1)) v2 (transf_type (typeof a2)) m = Some v ->
       eval_expr (Ebinop a1 op a2 ty) v
-  | eval_Ecall: forall a al vf ef name sig fd vargs tyargs m ty vres tyres  m' cconv t,
+  | eval_Ecall: forall a al vf ef name sig fd vargs tyargs ty vres tyres cconv,
       eval_expr a vf ->
       eval_exprlist al vargs ->
       Genv.find_funct ge vf = Some fd ->
       ef = EF_external name sig ->
       fd = External ef tyargs tyres cconv ->
-      external_call ef ge vargs m t vres m' ->
+      (* External calls must not (1) modify memory or (2) emit an observable trace event *)
+      external_call ef ge vargs m E0 vres m ->
       eval_expr (Ecall a al ty) vres
   | eval_Etarget: forall ty,
       eval_expr (Etarget ty) (Vfloat t)
@@ -167,11 +168,15 @@ with eval_lvalue: expr -> block -> ptrofs -> Prop :=
 with eval_exprlist: exprlist -> list val -> Prop :=
   | eval_Enil:
       eval_exprlist Enil nil
-  | eval_Econs: forall a bl v1 v2 vl ty,
-      eval_expr a v1 ->
-      sem_cast v1 (transf_type (typeof a)) ty m = Some v2 ->
-      eval_exprlist bl vl ->
-      eval_exprlist (Econs a bl) (v2 :: vl).
+  | eval_Econs: forall a1 al v1 vl,
+      eval_expr a1 v1 ->
+      eval_exprlist al vl ->
+      eval_exprlist (Econs a1 al) (v1 :: vl).
+
+Scheme eval_expr_ind2 := Minimality for eval_expr Sort Prop
+  with eval_exprlist_ind2 := Minimality for eval_exprlist Sort Prop
+  with eval_lvalue_ind2 := Minimality for eval_lvalue Sort Prop.
+Combined Scheme eval_exprs_ind from eval_expr_ind2, eval_exprlist_ind2, eval_lvalue_ind2.
 
 End EXPR.
 
@@ -302,15 +307,171 @@ Inductive initial_state (p: program) (data : list val) (params: list val) : stat
       assign_global_locs ge (flatten_parameter_list p.(pr_parameters_vars)) m2 params m3 ->
       initial_state p data params (State f f.(fn_body) ((Floats.Float.of_int Integers.Int.zero)) Kstop e m3).
 
-Inductive final_state: state -> int -> Prop :=
-  | final_state_intro: forall f t e m,
-      final_state (State f Sskip t Kstop e m) Integers.Int.zero.
+(* A final state returns 0 if the target matches testval and 1 otherwise,
+   this may seem backwards from one expecting this to function like an "indicator"
+   (where 1 is true), but we are adhering to the unix tradition where "0" return value is "normal"
+   and 1 is exceptional. It remains to be seen if this convention is confusing *)
+Inductive final_state (testval: float) : state -> int -> Prop :=
+  | final_state_match: forall f t e m,
+      testval = t ->
+      final_state testval (State f Sskip t Kstop e m) Integers.Int.zero
+  | final_state_nonmatch: forall f t e m,
+      testval <> t ->
+      final_state testval (State f Sskip t Kstop e m) Integers.Int.one.
 
 End SEMANTICS.
 
-Definition semantics (p: program) (data: list val) (params: list val) :=
+Ltac determ_aux :=
+    match goal with
+    | [ H: eval_lvalue _ _ _ _ _ _ _  |- _ ] => try (inversion H; fail)
+    end.
+
+Lemma assign_loc_determ ce ty m0 b ofs v m m' :
+  assign_loc ce ty m0 b ofs v m ->
+  assign_loc ce ty m0 b ofs v m' ->
+  m' = m.
+Proof.
+  intros Hd1 Hd2. inv Hd1; inv Hd2; try congruence.
+Qed.
+
+Lemma deref_loc_determ ty m loc ofs v v' :
+  deref_loc ty m loc ofs v ->
+  deref_loc ty m loc ofs v' ->
+  v' = v.
+Proof.
+  intros Hd1 Hd2. inv Hd1; inv Hd2; try congruence.
+Qed.
+
+Lemma eval_exprs_determ:
+  forall (ge : genv) (sp: env) (m: mem) (t: float),
+  (forall (e: expr) v, eval_expr ge sp m t e v ->
+                         forall v', eval_expr ge sp m t e v' -> v' = v) /\
+  (forall (e: exprlist) l, eval_exprlist ge sp m t e l ->
+                         forall l', eval_exprlist ge sp m t e l' -> l' = l) /\
+  (forall (e: expr) blk ofs, eval_lvalue ge sp m t e blk ofs ->
+                         forall blk' ofs', eval_lvalue ge sp m t e blk' ofs' -> blk' = blk /\ ofs' = ofs).
+Proof.
+  intros ge sp m t.
+  apply (eval_exprs_ind ge sp m t); intros; try (inv H; auto; try determ_aux; auto; fail).
+  - inv H2; auto; try determ_aux; auto. assert (v0 = v1) by eauto. congruence.
+  - inv H4; auto; try determ_aux; auto.
+    assert (v0 = v1) by eauto.
+    assert (v3 = v2) by eauto. congruence.
+  - inv H7; auto; try determ_aux; auto.
+    assert (vargs0 = vargs) by eauto.
+    assert (vf0 = vf) by eauto.
+    assert (sig0 = sig) by congruence.
+    assert (name0 = name) by congruence.
+    subst.
+    exploit external_call_determ. eexact H6. eexact H17.
+    intros (?&Heq). symmetry; eapply Heq; auto.
+  -  inv H2; auto; try determ_aux; auto.
+     exploit H0; eauto. intros (->&->). 
+     eapply deref_loc_determ; eauto.
+  - inv H3; auto; try determ_aux.
+    f_equal; eauto.
+  - inv H0; split; congruence.
+  - inv H1; split; congruence.
+  - inv H3. exploit H0; eauto. intros Heq. inv Heq.
+    exploit H2; eauto. intros Heq. inv Heq; auto.
+Qed.
+
+Lemma eval_expr_determ:
+  forall ge sp e m a v, eval_expr ge sp e m a v ->
+  forall v', eval_expr ge sp e m a v' -> v' = v.
+Proof.
+  intros. eapply eval_exprs_determ; eauto.
+Qed.
+
+Lemma eval_exprlist_determ:
+  forall ge sp e m al vl, eval_exprlist ge sp e m al vl ->
+  forall vl', eval_exprlist ge sp e m al vl' -> vl' = vl.
+Proof.
+  intros. eapply eval_exprs_determ; eauto.
+Qed.
+
+Lemma eval_lvalue_determ:
+  forall ge sp e m t blk vl, eval_lvalue ge sp e m t blk vl ->
+  forall blk' vl', eval_lvalue ge sp e m t blk' vl' -> blk' = blk /\ vl' = vl.
+Proof.
+  intros. eapply eval_exprs_determ; eauto.
+Qed.
+
+Lemma alloc_variables_determ:
+  forall e0 m0 vs e m, alloc_variables e0 m0 vs e m ->
+  forall e' m', alloc_variables e0 m0 vs e' m' -> e' = e /\ m' = m.
+Proof.
+  induction 1; intros e' m' A; inv A; auto.
+  assert (m3 = m1) by congruence; subst.
+  assert (b0 = b1) by congruence; subst.
+  eauto.
+Qed.
+
+Lemma assign_global_locs_determ:
+  forall ge ids m0 vs m, assign_global_locs ge ids m0 vs m ->
+  forall m', assign_global_locs ge ids m0 vs m' -> m' = m.
+Proof.
+  induction 1; intros m' A; inv A; auto.
+  assert (l0 = l) by congruence; subst.
+  assert (m4 = m2) by (eapply assign_loc_determ; eauto); subst.
+  eauto.
+Qed.
+  
+Definition semantics (p: program) (data: list val) (params: list val) (testval: float) :=
   let ge := Genv.globalenv p in
-  Semantics_gen step (initial_state p data params) final_state ge ge.
+  Semantics_gen step (initial_state p data params) (final_state testval) ge ge.
+
+Ltac Determ :=
+  try congruence;
+  match goal with
+  | [ |- match_traces _ E0 E0 /\ (_ -> _) ]  =>
+          split; [constructor|intros _; Determ]
+  | [ H1: eval_expr _ _ _ _ ?a ?v1, H2: eval_expr _ _ _ _ ?a ?v2 |- _ ] =>
+          assert (v1 = v2) by (eapply eval_expr_determ; eauto);
+          clear H1 H2; Determ
+  | [ H1: eval_exprlist _ _ _ _ ?a ?v1, H2: eval_exprlist _ _ _ _ ?a ?v2 |- _ ] =>
+          assert (v1 = v2) by (eapply eval_exprlist_determ; eauto);
+          clear H1 H2; Determ
+  | [ H1: eval_lvalue _ _ _ _ ?a ?blk1 ?v1, H2: eval_lvalue _ _ _ _ ?a ?blk2 ?v2 |- _ ] =>
+          assert (blk1 = blk2 /\ v1 = v2) as (?&?) by (eapply eval_lvalue_determ; eauto);
+          clear H1 H2; Determ
+  | _ => idtac
+  end.
+
+Lemma semantics_determinate:
+  forall (p: program) data params tval, determinate (semantics p data params tval).
+Proof.
+  intros. constructor; set (ge := Genv.globalenv p); simpl; intros.
+- (* determ *)
+  inv H; inv H0; Determ.
+  (*
+  + subst vargs0. exploit external_call_determ. eexact H2. eexact H13.
+    intros (A & B). split; intros; auto.
+    apply B in H; destruct H; congruence.
+   *)
+  + subst v0. subst loc0. subst ofs0.
+    assert (v1 = v) by congruence; subst.
+    assert (m' = m'0) by (eapply assign_loc_determ; eauto). subst. eauto.
+  + subst.
+    assert (b0 = b) by congruence. subst. auto.
+- (* single event *)
+  red; simpl. destruct 1; simpl; try lia;
+  eapply external_call_trace_length; eauto.
+- (* initial states *)
+  inv H; inv H0.
+  assert (m0 = m4) by congruence; subst.
+  unfold ge0, ge1 in *.
+  assert (b0 = b) by congruence; subst.
+  assert (f0 = f) by congruence; subst.
+  exploit alloc_variables_determ. eexact H4. eexact H9. intros (?&?); subst.
+  exploit assign_global_locs_determ. eexact H5. eexact H10. intros; subst.
+  exploit assign_global_locs_determ. eexact H6. eexact H11. intros; subst.
+  eauto.
+- (* nostep final state *)
+  red; intros; red; intros. inv H; inv H0.
+- (* final states *)
+  inv H; inv H0; auto; try congruence.
+Qed.
 
 (* Example of what needs to be done: https://compcert.org/doc/html/compcert.cfrontend.Ctypes.html#Linker_program *)
 
@@ -341,10 +502,17 @@ Section DENOTATIONAL.
 
   (* returns_target_value p data params t holds if it is possible for p to go from an
      initial state with data and params loaded to a final state with t as the target value *)
+  (*
   Definition returns_target_value (p: program) (data: list val) (params: list val) (t: float) :=
     exists s1 tr f e m,
       Smallstep.initial_state (semantics p data params) s1 /\
       Star (semantics p data params) s1 tr (State f Sskip t Kstop e m).
+   *)
+  Definition returns_target_value (p: program) (data: list val) (params: list val) (t: float) :=
+    exists s1 s2 tr,
+      Smallstep.initial_state (semantics p data params t) s1 /\
+        Star (semantics p data params t) s1 tr s2 /\
+        Smallstep.final_state (semantics p data params t) s2 Integers.Int.zero.
 
   (* Given a predicate P : V -> Prop, pred_to_default_fun P default will return
      an arbitrary value v such that P v holds, if such a v exists, and otherwise returns default. *)
@@ -444,3 +612,30 @@ Section DENOTATIONAL.
     fun rt => (distribution_of_program_unnormalized p data rt) / program_normalizing_constant p data.
 
 End DENOTATIONAL.
+
+
+(* TODO: move and generalize these results to any denotational semantics obtained this way *)
+From Coq Require Import Reals Psatz ssreflect ssrbool Utf8.
+Section DENOTATIONAL_SIMULATION.
+
+Variable prog: Stanlight.program.
+Variable tprog: Stanlight.program.
+Variable transf_correct:
+  forall data params t,
+    forward_simulation (Ssemantics.semantics prog data params t) (Ssemantics.semantics tprog data params t).
+
+Lemma  log_density_equiv data params :
+  log_density_of_program prog data params = log_density_of_program tprog data params.
+Proof.
+  rewrite /log_density_of_program. f_equal.
+  rewrite /pred_to_default_fun.
+  destruct (ClassicalEpsilon.excluded_middle_informative) as [(v&Hreturns)|Hne].
+  { destruct (ClassicalEpsilon.constructive_indefinite_description).
+    rewrite /returns_target_value in r.
+    destruct r as (s1&s2&tr&Hinit&Hstar&Hfinal).
+    destruct (transf_correct data params x) as [index order match_states props].
+    edestruct (fsim_match_initial_states) as (?&s1'&Hinit'&Hmatch1); eauto.
+    edestruct (simulation_star) as (?&s2'&Hstar'&Hmatch2); eauto.
+    eapply (fsim_match_final_states) in Hmatch2; eauto.
+Abort.
+End DENOTATIONAL_SIMULATION.

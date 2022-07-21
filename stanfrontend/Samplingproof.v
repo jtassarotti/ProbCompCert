@@ -253,22 +253,25 @@ Proof.
 Qed.
 
 Lemma transf_final_states:
-  forall S1 S2 r, match_states S1 S2 -> final_state S1 r -> final_state S2 r.
+  forall S1 S2 t r, match_states S1 S2 -> final_state t S1 r -> final_state t S2 r.
 Proof.
   intros. 
-  inversion H. inversion H0. subst. inversion H3; subst.   
+  inversion H. inversion H0. subst. inversion H4; subst.   
   inversion MCONT; subst. 
   simpl. 
   econstructor; eauto. 
+  subst.
+  inversion H4. subst.
+  inversion H. subst. inversion MCONT0. subst. constructor. auto.
 Qed. 
 
-Theorem transf_program_correct:
-  forward_simulation (Ssemantics.semantics prog data params) (Ssemantics.semantics tprog data params).
+Theorem transf_program_correct t:
+  forward_simulation (Ssemantics.semantics prog data params t) (Ssemantics.semantics tprog data params t).
 Proof.
   eapply forward_simulation_step.
   eapply senv_preserved. 
   eexact transf_initial_states.
-  eexact transf_final_states.
+  intros. eapply transf_final_states; eauto.
   exact step_simulation.  
 Qed. 
 
