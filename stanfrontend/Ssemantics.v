@@ -473,6 +473,19 @@ Proof.
   inv H; inv H0; auto; try congruence.
 Qed.
 
+Lemma semantics_receptive:
+  forall (p: program) data params tval, receptive (semantics p data params tval).
+Proof.
+  intros.
+  set (ge := globalenv p). constructor; simpl; intros.
+(* receptiveness *)
+  assert (t1 = E0 -> exists s2, step ge s t2 s2).
+    intros. subst. inv H0. exists s1; auto.
+  inversion H; subst; auto.
+(* trace length *)
+  red; simpl; intros. inv H; simpl; try lia.
+Qed.
+
 (* Example of what needs to be done: https://compcert.org/doc/html/compcert.cfrontend.Ctypes.html#Linker_program *)
 
 Axiom variable_eq: forall (ty1 ty2: variable), {ty1=ty2} + {ty1<>ty2}.
@@ -497,6 +510,7 @@ Defined.
 
 Require ClassicalEpsilon.
 Require Import Reals.
+From Coq Require Import Reals Psatz ssreflect ssrbool Utf8.
 
 Section DENOTATIONAL.
 
@@ -509,9 +523,9 @@ Section DENOTATIONAL.
       Star (semantics p data params) s1 tr (State f Sskip t Kstop e m).
    *)
   Definition returns_target_value (p: program) (data: list val) (params: list val) (t: float) :=
-    exists s1 s2 tr,
+    exists s1 s2,
       Smallstep.initial_state (semantics p data params t) s1 /\
-        Star (semantics p data params t) s1 tr s2 /\
+        Star (semantics p data params t) s1 E0 s2 /\
         Smallstep.final_state (semantics p data params t) s2 Integers.Int.zero.
 
   (* Given a predicate P : V -> Prop, pred_to_default_fun P default will return
@@ -532,10 +546,59 @@ Section DENOTATIONAL.
   Definition log_density_of_program (p: program) (data: list val) (params: list val) : R :=
     IFR (pred_to_default_fun (returns_target_value p data params) Float.zero).
 
+  Lemma star_determinacy_nostep L:
+    determinate L ->
+    forall s t s', Star L s t s' -> Nostep L s' ->
+                    forall s'', Star L s t s'' -> Nostep L s'' -> s' = s''.
+  Proof.
+    intros Hdeterm s t s' Hstar Hno s'' Hstar'' Hno''.
+    exploit star_determinacy.
+    { exact Hdeterm. }
+    { eexact Hstar. }
+    { eexact Hstar''. }
+    intros [Hstep1|Hstep2].
+    { inv Hstep1; auto. exfalso. eapply Hno; eauto. }
+    { inv Hstep2; auto. exfalso. eapply Hno''; eauto. }
+  Qed.
+
+  Lemma returns_target_value_determ p data params t t' :
+    returns_target_value p data params t ->
+    returns_target_value p data params t' ->
+    t' = t.
+  Proof.
+    rewrite /returns_target_value.
+    intros (s1&s2&Hinit&Hstar&Hfin).
+    intros (s1'&s2'&Hinit'&Hstar'&Hfin').
+    assert (s1' = s1).
+    { eapply sd_initial_determ; eauto using semantics_determinate. }
+    subst.
+    assert (s2' = s2).
+    { eapply star_determinacy_nostep; eauto using semantics_determinate, sd_final_nostep.
+      inversion Hfin; subst. 
+      intros ?? Hstep. inv Hstep.
+    }
+    subst.
+    inv Hfin.
+    inv Hfin'. auto.
+  Qed.
+
+  Lemma log_density_of_program_trace p data params t :
+    returns_target_value p data params t ->
+    log_density_of_program p data params = IFR t.
+  Proof.
+    intros Hreturns.
+    rewrite /log_density_of_program. f_equal.
+    rewrite /pred_to_default_fun.
+    destruct ClassicalEpsilon.excluded_middle_informative as [Hv|Hnv]; last first.
+    { exfalso. apply Hnv. eauto. }
+    destruct ClassicalEpsilon.constructive_indefinite_description as [v' Hv']; last first.
+    eapply returns_target_value_determ; eauto.
+  Qed.
+
   Definition density_of_program (p: program) (data: list val) (params: list val) : R :=
     exp (log_density_of_program p data params).
 
-  Fixpoint constraint_to_interval (c: constraint) :=
+  Definition constraint_to_interval (c: constraint) :=
     match c with
     | Cidentity => mk_interval m_infty p_infty
     | Clower f  => mk_interval (IFR f) p_infty
@@ -615,27 +678,76 @@ End DENOTATIONAL.
 
 
 (* TODO: move and generalize these results to any denotational semantics obtained this way *)
-From Coq Require Import Reals Psatz ssreflect ssrbool Utf8.
 Section DENOTATIONAL_SIMULATION.
 
 Variable prog: Stanlight.program.
 Variable tprog: Stanlight.program.
+(* prog is assumed to be safe/well-defined on data/params satisfying a predicate P *)
+Variable P : list val -> list val -> Prop.
+
+Variable prog_safe :
+  ∀ data params t s,
+    P data params ->
+    Smallstep.initial_state (semantics prog data params t) s ->
+    safe (semantics prog data params t) s.
+
+Variable inhabited_initial :
+  ∀ data params t, P data params -> ∃ s, Smallstep.initial_state (semantics prog data params t) s.
+
 Variable transf_correct:
   forall data params t,
     forward_simulation (Ssemantics.semantics prog data params t) (Ssemantics.semantics tprog data params t).
 
+Lemma returns_target_value_fsim data params t:
+  returns_target_value prog data params t ->
+  returns_target_value tprog data params t.
+Proof.
+  intros (s1&s2&Hinit&Hstar&Hfinal).
+  destruct (transf_correct data params t) as [index order match_states props].
+  edestruct (fsim_match_initial_states) as (?&s1'&Hinit'&Hmatch1); eauto.
+  edestruct (simulation_star) as (?&s2'&Hstar'&Hmatch2); eauto.
+  eapply (fsim_match_final_states) in Hmatch2; eauto.
+  exists s1', s2'; auto.
+Qed.
+
+Lemma returns_target_value_bsim data params t:
+  P data params ->
+  returns_target_value tprog data params t ->
+  returns_target_value prog data params t.
+Proof.
+  intros HP (s1&s2&Hinit&Hstar&Hfinal).
+  specialize (transf_correct data params t) as Hfsim.
+  apply forward_to_backward_simulation in Hfsim as Hbsim;
+    auto using semantics_determinate, semantics_receptive.
+  destruct Hbsim as [index order match_states props].
+  assert (∃ s10, Smallstep.initial_state (semantics prog data params t) s10) as (s10&?).
+  { apply inhabited_initial; eauto. }
+  edestruct (bsim_match_initial_states) as (?&s1'&Hinit'&Hmatch1); eauto.
+  edestruct (bsim_E0_star) as (?&s2'&Hstar'&Hmatch2); eauto.
+  eapply (bsim_match_final_states) in Hmatch2 as (s2''&?&?); eauto; last first.
+  { eapply star_safe; last eapply prog_safe; eauto. }
+  exists s1', s2''. intuition eauto.
+  { eapply star_trans; eauto. }
+Qed.
+
 Lemma  log_density_equiv data params :
+  P data params ->
   log_density_of_program prog data params = log_density_of_program tprog data params.
 Proof.
-  rewrite /log_density_of_program. f_equal.
+  intros HP.
+  rewrite {1}/log_density_of_program.
   rewrite /pred_to_default_fun.
   destruct (ClassicalEpsilon.excluded_middle_informative) as [(v&Hreturns)|Hne].
-  { destruct (ClassicalEpsilon.constructive_indefinite_description).
-    rewrite /returns_target_value in r.
-    destruct r as (s1&s2&tr&Hinit&Hstar&Hfinal).
-    destruct (transf_correct data params x) as [index order match_states props].
-    edestruct (fsim_match_initial_states) as (?&s1'&Hinit'&Hmatch1); eauto.
-    edestruct (simulation_star) as (?&s2'&Hstar'&Hmatch2); eauto.
-    eapply (fsim_match_final_states) in Hmatch2; eauto.
-Abort.
+  { destruct (ClassicalEpsilon.constructive_indefinite_description) as [x Hx].
+    symmetry. apply log_density_of_program_trace. clear Hreturns.
+    apply returns_target_value_fsim; auto.
+  }
+  symmetry.
+  rewrite {1}/log_density_of_program.
+  rewrite /pred_to_default_fun.
+  destruct (ClassicalEpsilon.excluded_middle_informative) as [(v&Hreturns)|Hne']; auto.
+  exfalso. apply Hne.
+  exists v.
+  apply returns_target_value_bsim; auto.
+Qed.
 End DENOTATIONAL_SIMULATION.
