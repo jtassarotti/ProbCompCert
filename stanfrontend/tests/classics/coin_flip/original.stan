@@ -1,6 +1,6 @@
 data {
   int N;
-  int flips[N];
+  array[N] int flips;
 }
 parameters {
   real<lower=0.0,upper=1.0> mu;
