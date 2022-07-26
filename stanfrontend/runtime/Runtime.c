@@ -17,19 +17,22 @@ int main(int argc, char* argv[]) {
   if (argc == 5) {
     debug = true;
   }
+
+  FILE *output = fopen("output.csv","w");
+  fprintf(output,"lp__,accept_stat__,stepsize__,int_time__,energy__,theta\n");
   
   int n = atoi(argv[1]);
 
   struct Data* observations = alloc_data();
   read_data(observations,argv[2],"r");
   if (debug) {
-    print_data(observations);
+    print_data(observations,stdout);
   }
     
   struct Params* state = alloc_params();
   read_params(state,argv[3],"r");
   if (debug) {
-    print_params(state,false);
+    print_params(state,false,stdout);
   }
   struct Params* candidate = alloc_params();
 
@@ -42,7 +45,7 @@ int main(int argc, char* argv[]) {
 
     if (debug) {
       printf("\n\n\nIteration: %i\n\n\n", i);
-      print_params(state,false);
+      print_params(state,false,stdout);
     }
     
     double lp_parameters = model(observations,state);
@@ -58,7 +61,7 @@ int main(int argc, char* argv[]) {
     propose(state,candidate);
 
     if (debug) {
-      print_params(candidate,false);
+      print_params(candidate,false,stdout);
     }
     
     double lp_candidate = model(observations,candidate);
@@ -75,7 +78,7 @@ int main(int argc, char* argv[]) {
       counter += 1;
       if (debug) {
 	printf("\n-> Accepted\n");
-	print_params(state,false);
+	print_params(state,false,stdout);
       }
     } else {
       if (debug) {
@@ -83,15 +86,18 @@ int main(int argc, char* argv[]) {
       }
     }
 
-    add_params_params(statistics,state);
+    copy_params(statistics,state);
+    fprintf(output,"%lf,%lf,%lf,%lf,%lf,",0.0,0.0,0.0,0.0,0.0);
+    print_params(statistics,true,output);
+    fprintf(output,"\n");
 
   } 
 
   printf("\nExecution success\n");
-  mult_params_scalar(statistics,1.0 / (double) n);
-  print_params(statistics,true);
-  printf("\n");
   printf("Acceptance ratio: %lf\n", (float)counter / (float)n);
+
+  fclose(output);
+  
   return 0;
   
 }

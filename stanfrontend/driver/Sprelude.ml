@@ -35,10 +35,10 @@ let printPreludeHeader sourcefile data params_fun =
     renderStruct "Data" data;
     renderStruct "Params" params;
     "";
-    "void print_data(struct Data* observations);";
+    "void print_data(struct Data* observations, FILE *fp);";
     "void read_data(struct Data* observations, char* file,char * perm);";
     "struct Data* alloc_data(void);";
-    "void print_params(struct Params* parameters, bool convert);";
+    "void print_params(struct Params* parameters, bool convert, FILE *fp);";
     "void read_params(struct Params* parameters, char* file,char * perm);";
     "struct Params* alloc_params(void);";    
     "void propose(struct Params* state, struct Params* candidate);";
@@ -77,20 +77,20 @@ let generate_read_data vs =
 let generate_print_data vs =
 
   let generate_single v =
-    let name = fst v in
+    let name = Camlcoq.extern_atom (fst v) in
     let typ = snd v in
     match typ with
-    | Stanlight.Bint -> "print_int(observations->" ^ (Camlcoq.extern_atom name) ^ ");"
-    | Stanlight.Breal -> "print_real(observations->" ^ (Camlcoq.extern_atom name) ^ ");"
+    | Stanlight.Bint -> "print_int(observations->" ^ name ^ ",fp);"
+    | Stanlight.Breal -> "print_real(observations->" ^ name ^ ",fp);"
     | Stanlight.Barray (Stanlight.Bint,sz) ->
-       "print_int_array(observations->" ^  (Camlcoq.extern_atom name) ^ "," ^ (Camlcoq.Z.to_string sz) ^ ");"
+       "print_int_array(observations->" ^ name ^ "," ^ (Camlcoq.Z.to_string sz) ^ ",fp);"
     | Stanlight.Barray (Stanlight.Breal,sz) ->
-       "print_real_array(observations->" ^ (Camlcoq.extern_atom name) ^ "," ^ (Camlcoq.Z.to_string sz) ^ ");"
+       "print_real_array(observations->" ^ name ^ "," ^ (Camlcoq.Z.to_string sz) ^ ",fp);"
     | _ -> raise (NIY_gen "Array of array or function")
   in
 
   String.concat "\n\n" [
-      "void print_data(struct Data* observations) {";
+      "void print_data(struct Data* observations, FILE *fp) {";
       List.fold_left (fun str -> fun v -> str ^ "  " ^ (generate_single v) ^ "\n") "" vs;
       "}"
     ]
@@ -140,17 +140,17 @@ let generate_print_params vs =
     let name = Camlcoq.extern_atom (fst v) in
     let typ = snd v in
     match typ with
-    | Stanlight.Bint -> "print_int(parameters->" ^ name ^ ");"
-    | Stanlight.Breal -> "print_real(parameters->" ^ name ^ ");"
+    | Stanlight.Bint -> "print_int(parameters->" ^ name ^ ",fp);"
+    | Stanlight.Breal -> "print_real(parameters->" ^ name ^ ",fp);"
     | Stanlight.Barray (Stanlight.Bint,sz) ->
-       "print_int_array(parameters->" ^ name ^ "," ^ (Camlcoq.Z.to_string sz) ^ ");"
+       "print_int_array(parameters->" ^ name ^ "," ^ (Camlcoq.Z.to_string sz) ^ ",fp);"
     | Stanlight.Barray (Stanlight.Breal,sz) ->
-       "print_real_array(parameters->" ^ name ^ "," ^ (Camlcoq.Z.to_string sz) ^ ");"
+       "print_real_array(parameters->" ^ name ^ "," ^ (Camlcoq.Z.to_string sz) ^ ",fp);"
     | _ -> raise (NIY_gen "Array of array or function")
   in
 
   String.concat "\n\n" [
-      "void print_params(struct Params* parameters, bool convert) {";
+      "void print_params(struct Params* parameters, bool convert, FILE *fp) {";
       "  if (convert) {";
       "    unconstrained_to_constrained(parameters);";
       "  }";
