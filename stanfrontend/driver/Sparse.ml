@@ -343,7 +343,7 @@ let mkVariableFromLocal (v, id, basic) =
 let mkVariable v = mkVariableFromLocal (mkLocal v)
 let declareVariable = mkVariable
 
-let mkFunction name body rt params extraVars extraTemps =
+let mkFunction name body extraVars extraTemps =
   let id = Camlcoq.intern_string name in
   Hashtbl.add C2C.decl_atom id {
     a_storage = C.Storage_default;
@@ -361,8 +361,8 @@ let mkFunction name body rt params extraVars extraTemps =
     Stanlight.fn_body = body} in
   (id,  AST.Gfun(Ctypes.Internal fd))
 
-let declareFundef name body rt params =
-  mkFunction name body rt params [] []
+let declareFundef name body =
+  mkFunction name body [] []
 
 let mapMaybe fn mval =
   match mval with
@@ -404,15 +404,18 @@ let elaborate (sourcefile : string) (p: Stan.program) =
 
     let _ = Camlcoq.intern_string "target" in
     let (id_model,f_model) =
-      mkFunction "model" ((get_code td) @ (get_code tp) @ (get_code m)) (Some Stanlight.Breal) [] [] [] in 
+      mkFunction "model" ((get_code td) @ (get_code tp) @ (get_code m)) [] [] in 
     
     let functions = (id_model,f_model) :: functions in
+
+    let (id_grad,f_grad) =
+      mkFunction "grad" ([]) [] [] in 
+    
+    let functions = (id_grad,f_grad) :: functions in
  
     let functions =
       List.fold_left
-        (fun acc -> fun ff -> (declareFundef ff.Stan.fn_name [ff.Stan.fn_body]
-                                 (mapMaybe stype2basic ff.Stan.fn_return)
-                                 (List.map sparam2stanEparam ff.Stan.fn_params)) :: acc)
+        (fun acc -> fun ff -> (declareFundef ff.Stan.fn_name [ff.Stan.fn_body]) :: acc)
         functions (unop f) in
 
     let gl1 = C2C.convertGlobdecls Env.empty [] (Env.initial_declarations()) in
