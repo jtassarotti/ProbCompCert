@@ -115,37 +115,15 @@ double exponential_lpdf(double x, double lambda){
 
 /* Utilities for the data and parameter structures */
 
-void read_int(FILE *fp, int* i) {
-
-  fscanf(fp, "%i", i);
-
-}
-
 void print_int(int i){
 
   printf("%i\n",i);
   
 }
 
-void read_real(FILE *fp,double* f) {
-
-  fscanf(fp, "%lf", f);
-
-}
-
 void print_real(double f){
 
   printf("%lf\n",f);
-  
-}
-
-void read_int_array(FILE *fp, int* arr, int N) {
-
-  for (int i = 0; i < N; i++) {
-
-    read_int(fp,arr + i);
-    
-  }
   
 }
 
@@ -156,16 +134,6 @@ void print_int_array(int* arr, int N) {
   }
   printf("\n");
 
-}
-
-void read_real_array(FILE *fp, double* arr, int N) {
-
-  for (int i = 0; i < N; i++) {
-
-    read_real(fp,arr + i);
-    
-  }
-  
 }
 
 void print_real_array(double* arr, int N) {

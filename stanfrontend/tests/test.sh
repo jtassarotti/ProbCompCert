@@ -22,6 +22,9 @@ popd
 cp ../runtime/stanlib.h classics/$1/
 cp ../runtime/stanlib.c classics/$1/
 cp ../runtime/Runtime.c classics/$1/
+cp ../runtime/jsmn.h classics/$1/
+cp ../runtime/parser.h classics/$1/
+cp ../runtime/parser.c classics/$1/
 pushd classics/$1/
 ../../../../ccomp -c stanlib.c
 if [ $? -ne 0 ]; then
@@ -29,6 +32,13 @@ if [ $? -ne 0 ]; then
     exit
 else
     echo "Compilation success: library"
+fi
+../../../../ccomp -c parser.c
+if [ $? -ne 0 ]; then
+    echo 'Compilation of runtime parser failed'
+    exit
+else
+    echo "Compilation success: runtime parser"
 fi
 ../../../../ccomp -c -dcstan -dclight code.stan
 if [ $? -ne 0 ]; then
@@ -54,10 +64,10 @@ if [ $? -ne 0 ]; then
 else
     echo "Compilation success: runtime"
 fi
-../../../../ccomp stanlib.o prelude.o Runtime.o code.o -o executable -lm
+../../../../ccomp parser.o stanlib.o prelude.o Runtime.o code.o -o executable -lm
 
 # Run
-./executable $2 data.csv params.csv
+./executable $2 data.json params.json
 popd
 
 

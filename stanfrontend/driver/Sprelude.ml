@@ -55,24 +55,22 @@ let printPreludeHeader sourcefile data params_fun =
 let generate_read_data vs =
 
   let generate_single v =
-    let name = fst v in
+    let name = Camlcoq.extern_atom (fst v) in
     let typ = snd v in
     match typ with
-    | Stanlight.Bint -> "read_int(fp,&observations->" ^ (Camlcoq.extern_atom name) ^ ");"
-    | Stanlight.Breal -> "read_real(fp,&observations->" ^ (Camlcoq.extern_atom name) ^ ");"
+    | Stanlight.Bint -> "read_int(get(\"" ^ name ^ "\"),&observations->" ^ name ^ ");"
+    | Stanlight.Breal -> "read_real(get(\"" ^ name ^ "\"),&observations->" ^ name ^ ");"
     | Stanlight.Barray (Stanlight.Bint,sz) ->
-       "read_int_array(fp,observations->" ^  (Camlcoq.extern_atom name) ^ "," ^ (Camlcoq.Z.to_string sz) ^ ");"
+       "read_int_array(get(\"" ^ name ^ "\"),observations->" ^  name ^ "," ^ (Camlcoq.Z.to_string sz) ^ ");"
     | Stanlight.Barray (Stanlight.Breal,sz) ->
-       "read_real_array(fp,observations->" ^ (Camlcoq.extern_atom name) ^ "," ^ (Camlcoq.Z.to_string sz) ^ ");"
+       "read_real_array(get(\"" ^ name ^ "\"),observations->" ^ name ^ "," ^ (Camlcoq.Z.to_string sz) ^ ");"
     | _ -> raise (NIY_gen "Array of array or function")
   in
 
   String.concat "\n\n" [
       "void read_data(struct Data* observations, char* file,char * perm) {";
-      "  FILE *fp;";
-      "  fp = fopen(file, perm);";
+      "  parse(file);";
       List.fold_left (fun str -> fun v -> str ^ "  " ^ (generate_single v) ^ "\n") "" vs;
-      "  fclose(fp);";
       "}"
     ]  
 
@@ -111,21 +109,19 @@ let generate_read_params vs =
     let name = Camlcoq.extern_atom (fst v) in
     let typ = snd v in
     match typ with
-    | Stanlight.Bint -> "read_int(fp,&parameters->" ^ name ^ ");"
-    | Stanlight.Breal -> "read_real(fp,&parameters->" ^ name ^ ");"
+    | Stanlight.Bint -> "read_int(get(\"" ^ name ^ "\"),&parameters->" ^ name ^ ");"
+    | Stanlight.Breal -> "read_real(get(\"" ^ name ^ "\"),&parameters->" ^ name ^ ");"
     | Stanlight.Barray (Stanlight.Bint,sz) ->
-       "read_int_array(fp,parameters->" ^  name ^ "," ^ (Camlcoq.Z.to_string sz) ^ ");"
+       "read_int_array(get(\"" ^ name ^ "\"),parameters->" ^  name ^ "," ^ (Camlcoq.Z.to_string sz) ^ ");"
     | Stanlight.Barray (Stanlight.Breal,sz) ->
-       "read_real_array(fp,parameters->" ^ name ^ "," ^ (Camlcoq.Z.to_string sz) ^ ");"
+       "read_real_array(get(\"" ^ name ^ "\"),parameters->" ^ name ^ "," ^ (Camlcoq.Z.to_string sz) ^ ");"
     | _ -> raise (NIY_gen "Array of array or function")
   in
 
   String.concat "\n\n" [
       "void read_params(struct Params* parameters, char* file,char * perm) {";
-      "  FILE *fp;";
-      "  fp = fopen(file, perm);";
+      "  parse(file);";
       List.fold_left (fun str -> fun v -> str ^ "  " ^ (generate_single v) ^ "\n") "" vs;
-      "  fclose(fp);";
       "  constrained_to_unconstrained(parameters);";
       "}"
     ]  
@@ -337,6 +333,7 @@ let printPreludeFile sourcefile data params_funs proposal params_with_constraint
     "#include <stdlib.h>";
     "#include <stdio.h>";
     "#include \"stanlib.h\"";
+    "#include \"parser.h\"";
     "#include \"prelude.h\"";
     proposal;
     generate_alloc_data ();

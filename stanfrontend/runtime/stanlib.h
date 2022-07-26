@@ -21,13 +21,9 @@ double bernoulli_logit_lpmf(int x, double alpha);
 double poisson_lpmf(int x, double lambda);
 double exponential_lpdf(double x, double lambda); 
 
-void read_int(FILE *fp, int* i);
 void print_int(int i);
-void read_real(FILE *fp,double* f);
 void print_real(double f);
-void read_int_array(FILE *fp, int* arr, int N);
 void print_int_array(int* arr, int N);
-void read_real_array(FILE *fp, double* arr, int N);
 void print_real_array(double* arr, int N);
 
 #endif // STANLIB_H_
