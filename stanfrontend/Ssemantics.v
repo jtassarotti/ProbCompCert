@@ -639,8 +639,11 @@ Section DENOTATIONAL.
   Definition parameter_dimension (p: program) : nat :=
     List.length (map (constraint_to_interval) (flatten_parameter_constraints p)).
 
+  Definition parameter_list_rect p :=
+   (map (constraint_to_interval) (flatten_parameter_constraints p)). 
+
   Definition parameter_rect (p: program) : rectangle (parameter_dimension p) :=
-    Vector.of_list (map (constraint_to_interval) (flatten_parameter_constraints p)).
+    Vector.of_list (parameter_list_rect p).
 
   Axiom eval_expr_fun : expr -> val.
 
@@ -674,6 +677,29 @@ Section DENOTATIONAL.
   Definition distribution_of_program (p: program) (data: list val) : rectangle (parameter_dimension p) -> R :=
     fun rt => (distribution_of_program_unnormalized p data rt) / program_normalizing_constant p data.
 
+  Definition is_safe p data params : Prop :=
+    (forall t s, Smallstep.initial_state (semantics p data params t) s ->
+                 safe (semantics p data params t) s).
+
+  Definition safe_data p data : Prop :=
+    (forall params, 
+    in_list_rectangle params (parameter_list_rect p) ->
+    is_safe p data (map (fun r => Vfloat (IRF r)) params)).
+
+  (* p1 refines p2 if:
+
+    (1) They have the same dimensions of parameter space,
+    (2) Anything that is considered a "safe" data input for p2 is also safe for p1
+    (3) For all of those safe data inputs, the distribution of p1 is the same as p2 for all rectangular subsets
+        of that dimension
+ *)
+  Definition denotational_refinement (p1 p2: program) :=
+    ∃ (Hpf: parameter_dimension p1 = parameter_dimension p2),
+    (∀ data, safe_data p2 data -> safe_data p1 data) /\
+      (∀ data rt, safe_data p2 data ->
+                  distribution_of_program p1 data rt = distribution_of_program p2 data
+                                           (eq_rect (parameter_dimension p1) _ rt _ Hpf)).
+
 End DENOTATIONAL.
 
 
@@ -685,18 +711,27 @@ Variable tprog: Stanlight.program.
 (* prog is assumed to be safe/well-defined on data/params satisfying a predicate P *)
 Variable P : list val -> list val -> Prop.
 
+(*
 Variable prog_safe :
   ∀ data params t s,
     P data params ->
     Smallstep.initial_state (semantics prog data params t) s ->
     safe (semantics prog data params t) s.
+*)
 
 Variable inhabited_initial :
-  ∀ data params t, P data params -> ∃ s, Smallstep.initial_state (semantics prog data params t) s.
+  ∀ data params t, is_safe prog data params -> ∃ s, Smallstep.initial_state (semantics prog data params t) s.
 
 Variable transf_correct:
   forall data params t,
     forward_simulation (Ssemantics.semantics prog data params t) (Ssemantics.semantics tprog data params t).
+
+Variable parameters_preserved:
+  flatten_parameter_variables tprog = flatten_parameter_variables prog.
+
+Lemma dimen_preserved:
+  parameter_dimension tprog = parameter_dimension prog.
+Proof. rewrite /parameter_dimension/flatten_parameter_constraints. rewrite parameters_preserved //. Qed.
 
 Lemma returns_target_value_fsim data params t:
   returns_target_value prog data params t ->
@@ -712,10 +747,11 @@ Qed.
 
 Lemma returns_target_value_bsim data params t:
   P data params ->
+  is_safe prog data params ->
   returns_target_value tprog data params t ->
   returns_target_value prog data params t.
 Proof.
-  intros HP (s1&s2&Hinit&Hstar&Hfinal).
+  intros HP Hsafe (s1&s2&Hinit&Hstar&Hfinal).
   specialize (transf_correct data params t) as Hfsim.
   apply forward_to_backward_simulation in Hfsim as Hbsim;
     auto using semantics_determinate, semantics_receptive.
@@ -725,13 +761,14 @@ Proof.
   edestruct (bsim_match_initial_states) as (?&s1'&Hinit'&Hmatch1); eauto.
   edestruct (bsim_E0_star) as (?&s2'&Hstar'&Hmatch2); eauto.
   eapply (bsim_match_final_states) in Hmatch2 as (s2''&?&?); eauto; last first.
-  { eapply star_safe; last eapply prog_safe; eauto. }
+  { eapply star_safe; last eapply Hsafe; eauto. }
   exists s1', s2''. intuition eauto.
   { eapply star_trans; eauto. }
 Qed.
 
 Lemma  log_density_equiv data params :
   P data params ->
+  is_safe prog data params ->
   log_density_of_program prog data params = log_density_of_program tprog data params.
 Proof.
   intros HP.
@@ -750,4 +787,34 @@ Proof.
   exists v.
   apply returns_target_value_bsim; auto.
 Qed.
+
+Lemma safe_data_preserved :
+  ∀ data, safe_data prog data -> safe_data tprog data.
+Proof.
+  intros data Hsafe.
+  rewrite /safe_data. intros params Hin.
+  assert (Hin': in_list_rectangle params (parameter_list_rect prog)).
+  { move:Hin. rewrite /parameter_list_rect/flatten_parameter_constraints parameters_preserved //. } 
+  specialize (Hsafe _ Hin').
+  rewrite /is_safe. intros t s Hinit.
+  specialize (transf_correct data (map (λ r, Vfloat (IRF r)) params) t) as Hfsim.
+  apply forward_to_backward_simulation in Hfsim as Hbsim;
+    auto using semantics_determinate, semantics_receptive.
+  edestruct Hbsim as [index order match_states props].
+  assert (∃ s10, Smallstep.initial_state (semantics prog data (map (λ r, Vfloat (IRF r)) params) t) s10) as (s10&?).
+  { apply inhabited_initial; eauto. }
+  edestruct (bsim_match_initial_states) as (?&s1'&Hinit'&Hmatch1); eauto.
+
+  eapply bsim_safe; eauto.
+Qed.
+
+Lemma denotational_preserved :
+  denotational_refinement tprog prog.
+Proof.
+  exists (dimen_preserved).
+  split.
+  - intros data Hsafe. apply safe_data_preserved; auto.
+  -
+Abort.
+  
 End DENOTATIONAL_SIMULATION.

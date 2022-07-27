@@ -26,6 +26,11 @@ Definition in_interval (x: R) (i: interval) :=
   Rbar_lt (interval_lb i) x /\ Rbar_lt x (interval_ub i).
 Definition in_rectangle {n: nat} (x: Vector.t _ n) (r: rectangle n) :=
   Forall2 in_interval x r.
+Definition rectangle_subset {n} (r1 r2: rectangle n) :=
+  Forall2 interval_subset r1 r2.
+
+Definition in_list_rectangle x r :=
+  List.Forall2 in_interval x r.
 
 Definition wf_interval (i: interval) :=
   Rbar_lt (interval_lb i) (interval_ub i).
