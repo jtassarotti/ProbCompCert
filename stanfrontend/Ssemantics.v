@@ -606,17 +606,17 @@ Section DENOTATIONAL.
     | Clower_upper f1 f2 => mk_interval (IFR f1) (IFR f2)
     end.
 
+  Definition rect_list_indicator (rt: rectangle_list) (v: list R) : R.
+    destruct (ClassicalEpsilon.excluded_middle_informative (in_list_rectangle v rt)).
+    - exact 1.
+    - exact 0.
+  Defined.
+
   Definition rect_indicator {n} (rt: rectangle n) (v: Vector.t R n) : R.
     destruct (ClassicalEpsilon.excluded_middle_informative (in_rectangle v rt)).
     - exact 1.
     - exact 0.
   Defined.
-
-  (*
-  Definition distribution_of_program (p: program) (data: list val) : rectangle (parameter_dimension p) -> R :=
-    fun rt =>
-      IIRInt _ (fun v => density_of_program p data (map (fun r => Vfloat (IRF r)) (Vector.to_list v))) rt.
-   *)
 
   Definition default_var : variable :=
     {| vd_type := Breal; vd_constraint := Cidentity |}.
@@ -653,6 +653,9 @@ Section DENOTATIONAL.
     | _ => 0
     end.
 
+  Program Definition eval_param_map_list (p : program) (vt: list R) : list R :=
+    List.map (fun '(v,f) => val2R (eval_expr_fun (f (Econst_float (IRF v) Breal)))) (List.combine vt (flatten_parameter_out p)).
+
   Program Definition eval_param_map (p : program) (vt: Vector.t R (parameter_dimension p)) :
     Vector.t R (parameter_dimension p) :=
     (Vector.map2 (fun v f => val2R (eval_expr_fun (f (Econst_float (IRF v) Breal))))
@@ -662,19 +665,19 @@ Section DENOTATIONAL.
     repeat rewrite map_length. auto. 
   Qed.
 
-  Definition distribution_of_program_unnormalized (p: program) (data: list val) : rectangle _ -> R :=
+  Definition distribution_of_program_unnormalized (p: program) (data: list val) : rectangle_list -> R :=
     fun rt =>
-      IIRInt _
-        (fun v => density_of_program p data (map (fun r => Vfloat (IRF r)) (Vector.to_list v))
-                         * rect_indicator rt (eval_param_map p v))
-        (parameter_rect p).
+      IIRInt_list
+        (fun v => density_of_program p data (map (fun r => Vfloat (IRF r)) v)
+                         * rect_list_indicator rt (eval_param_map_list p v))
+        (parameter_list_rect p).
 
   Definition program_normalizing_constant (p : program) (data: list val) : R :=
-      IIRInt _
-        (fun v => density_of_program p data (map (fun r => Vfloat (IRF r)) (Vector.to_list v)))
-        (parameter_rect p).
+      IIRInt_list
+        (fun v => density_of_program p data (map (fun r => Vfloat (IRF r)) v))
+        (parameter_list_rect p).
 
-  Definition distribution_of_program (p: program) (data: list val) : rectangle (parameter_dimension p) -> R :=
+  Definition distribution_of_program (p: program) (data: list val) : rectangle_list -> R :=
     fun rt => (distribution_of_program_unnormalized p data rt) / program_normalizing_constant p data.
 
   Definition is_safe p data params : Prop :=
@@ -693,12 +696,13 @@ Section DENOTATIONAL.
     (3) For all of those safe data inputs, the distribution of p1 is the same as p2 for all rectangular subsets
         of that dimension
  *)
+
   Definition denotational_refinement (p1 p2: program) :=
     ∃ (Hpf: parameter_dimension p1 = parameter_dimension p2),
     (∀ data, safe_data p2 data -> safe_data p1 data) /\
       (∀ data rt, safe_data p2 data ->
-                  distribution_of_program p1 data rt = distribution_of_program p2 data
-                                           (eq_rect (parameter_dimension p1) _ rt _ Hpf)).
+                  rectangle_list_subset rt (parameter_list_rect p2) ->
+                  distribution_of_program p1 data rt = distribution_of_program p2 data rt).
 
 End DENOTATIONAL.
 
@@ -814,7 +818,7 @@ Proof.
   exists (dimen_preserved).
   split.
   - intros data Hsafe. apply safe_data_preserved; auto.
-  - intros data rt Hsafe.
+  - intros data rt Hsafe Hsubset.
     rewrite /distribution_of_program. f_equal.
     * rewrite /distribution_of_program_unnormalized.
       rewrite /parameter_rect.
