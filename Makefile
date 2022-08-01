@@ -155,7 +155,7 @@ PARSER=Cabs.v Parser.v
 
 # Stan front-end
 
-STANFRONTEND=Stan.v Stanlight.v Ssemantics.v Sparser.v \
+STANFRONTEND=Stan.v Stanlight.v Ssemantics.v DenotationalSimulation.v Sparser.v \
   CStan.v \
   CStanCont.v \
   CStanSemanticsBackend.v \
