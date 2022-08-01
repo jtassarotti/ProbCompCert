@@ -701,6 +701,7 @@ Section DENOTATIONAL.
     ∃ (Hpf: parameter_dimension p1 = parameter_dimension p2),
     (∀ data, safe_data p2 data -> safe_data p1 data) /\
       (∀ data rt, safe_data p2 data ->
+                  wf_rectangle_list (parameter_list_rect p2) ->
                   rectangle_list_subset rt (parameter_list_rect p2) ->
                   distribution_of_program p1 data rt = distribution_of_program p2 data rt).
 
@@ -812,17 +813,34 @@ Proof.
   eapply bsim_safe; eauto.
 Qed.
 
+Lemma parameter_list_rect_preserved :
+  parameter_list_rect tprog = parameter_list_rect prog.
+Proof.
+  rewrite /parameter_list_rect/flatten_parameter_constraints parameters_preserved //.
+Qed.
+
 Lemma denotational_preserved :
   denotational_refinement tprog prog.
 Proof.
   exists (dimen_preserved).
   split.
   - intros data Hsafe. apply safe_data_preserved; auto.
-  - intros data rt Hsafe Hsubset.
+  - intros data rt Hsafe Hwf Hsubset.
     rewrite /distribution_of_program. f_equal.
-    * rewrite /distribution_of_program_unnormalized.
-      rewrite /parameter_rect.
-      rewrite /parameter_dimension.
-Abort.
+    { rewrite /distribution_of_program_unnormalized.
+      rewrite parameter_list_rect_preserved.
+      apply IIRInt_list_ext; auto.
+      * intros x Hin. f_equal.
+        { rewrite /density_of_program. rewrite log_density_equiv //. eapply Hsafe. eauto. }
+      * f_equal. rewrite /eval_param_map_list.
+        f_equal. rewrite /flatten_parameter_out. rewrite parameters_preserved //.
+    }
+    { rewrite /program_normalizing_constant.
+      rewrite parameter_list_rect_preserved.
+      apply IIRInt_list_ext; auto.
+      * intros x Hin.
+        { rewrite /density_of_program. rewrite log_density_equiv //. eapply Hsafe. eauto. }
+    }
+Qed.
   
 End DENOTATIONAL_SIMULATION.
