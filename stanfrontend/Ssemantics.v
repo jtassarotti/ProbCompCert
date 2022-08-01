@@ -709,7 +709,6 @@ Section DENOTATIONAL_SIMULATION.
 Variable prog: Stanlight.program.
 Variable tprog: Stanlight.program.
 (* prog is assumed to be safe/well-defined on data/params satisfying a predicate P *)
-Variable P : list val -> list val -> Prop.
 
 (*
 Variable prog_safe :
@@ -724,6 +723,7 @@ Variable inhabited_initial :
 
 Variable transf_correct:
   forall data params t,
+    is_safe prog data params ->
     forward_simulation (Ssemantics.semantics prog data params t) (Ssemantics.semantics tprog data params t).
 
 Variable parameters_preserved:
@@ -734,11 +734,13 @@ Lemma dimen_preserved:
 Proof. rewrite /parameter_dimension/flatten_parameter_constraints. rewrite parameters_preserved //. Qed.
 
 Lemma returns_target_value_fsim data params t:
+  is_safe prog data params ->
   returns_target_value prog data params t ->
   returns_target_value tprog data params t.
 Proof.
+  intros Hsafe.
   intros (s1&s2&Hinit&Hstar&Hfinal).
-  destruct (transf_correct data params t) as [index order match_states props].
+  destruct (transf_correct data params t) as [index order match_states props]; eauto.
   edestruct (fsim_match_initial_states) as (?&s1'&Hinit'&Hmatch1); eauto.
   edestruct (simulation_star) as (?&s2'&Hstar'&Hmatch2); eauto.
   eapply (fsim_match_final_states) in Hmatch2; eauto.
@@ -746,12 +748,11 @@ Proof.
 Qed.
 
 Lemma returns_target_value_bsim data params t:
-  P data params ->
   is_safe prog data params ->
   returns_target_value tprog data params t ->
   returns_target_value prog data params t.
 Proof.
-  intros HP Hsafe (s1&s2&Hinit&Hstar&Hfinal).
+  intros Hsafe (s1&s2&Hinit&Hstar&Hfinal).
   specialize (transf_correct data params t) as Hfsim.
   apply forward_to_backward_simulation in Hfsim as Hbsim;
     auto using semantics_determinate, semantics_receptive.
@@ -767,7 +768,6 @@ Proof.
 Qed.
 
 Lemma  log_density_equiv data params :
-  P data params ->
   is_safe prog data params ->
   log_density_of_program prog data params = log_density_of_program tprog data params.
 Proof.
@@ -814,7 +814,11 @@ Proof.
   exists (dimen_preserved).
   split.
   - intros data Hsafe. apply safe_data_preserved; auto.
-  -
+  - intros data rt Hsafe.
+    rewrite /distribution_of_program. f_equal.
+    * rewrite /distribution_of_program_unnormalized.
+      rewrite /parameter_rect.
+      rewrite /parameter_dimension.
 Abort.
   
 End DENOTATIONAL_SIMULATION.
