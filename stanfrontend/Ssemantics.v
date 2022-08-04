@@ -653,6 +653,9 @@ Section DENOTATIONAL.
     | _ => 0
     end.
 
+  Definition R2val v : val :=
+    Vfloat (IRF v).
+
   Program Definition eval_param_map_list (p : program) (vt: list R) : list R :=
     List.map (fun '(v,f) => val2R (eval_expr_fun (f (Econst_float (IRF v) Breal)))) (List.combine vt (flatten_parameter_out p)).
 
