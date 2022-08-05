@@ -17,7 +17,6 @@ From Coq Require Import Reals Psatz ssreflect ssrbool Utf8.
 
 Require Import Ssemantics.
 
-(* TODO: move and generalize these results to any denotational semantics obtained this way *)
 Section DENOTATIONAL_SIMULATION.
 
 Variable prog: Stanlight.program.
@@ -30,31 +29,34 @@ Variable param_map : list R -> list R.
 Variable target_map : R -> R.
 Variable target_unmap : R -> R.
 
-Axiom target_map_unmap : ∀ x, target_map (target_unmap x) = x.
-Axiom target_map_zero : target_map (IFR Float.zero) = IFR Float.zero.
+Variable target_map_unmap : ∀ x, target_map (target_unmap x) = x.
+Variable target_map_zero : target_map (IFR Float.zero) = IFR Float.zero.
 
 Variable inhabited_initial :
   ∀ data params t, is_safe prog data params -> ∃ s, Smallstep.initial_state (semantics prog data params t) s.
 
-Axiom dimen_preserved: parameter_dimension tprog = parameter_dimension prog.
+Variable dimen_preserved: parameter_dimension tprog = parameter_dimension prog.
 
-Axiom param_map_unmap :
+Variable wf_paramter_rect_tprog :
+  wf_rectangle_list (parameter_list_rect tprog).
+
+Variable param_map_unmap :
   ∀ x, in_list_rectangle x (parameter_list_rect prog) ->
        param_map (param_unmap x) = x.
 
-Axiom param_unmap_map :
+Variable param_unmap_map :
   ∀ x, in_list_rectangle x (parameter_list_rect tprog) ->
        param_unmap (param_map x) = x.
 
-Axiom param_unmap_in_dom :
+Variable param_unmap_in_dom :
   ∀ x, in_list_rectangle x (parameter_list_rect prog) ->
        in_list_rectangle (param_unmap x) (parameter_list_rect tprog).
 
-Axiom param_map_in_dom :
+Variable param_map_in_dom :
   ∀ x, in_list_rectangle x (parameter_list_rect tprog) ->
        in_list_rectangle (param_map x) (parameter_list_rect prog).
 
-Axiom param_unmap_out_inv :
+Variable param_unmap_out_inv :
   ∀ data params, is_safe prog data (map R2val params) ->
                  eval_param_map_list prog params = eval_param_map_list tprog (param_unmap params).
 
@@ -64,9 +66,9 @@ Variable transf_correct:
     forward_simulation (Ssemantics.semantics prog data (map R2val params) (IRF t))
       (Ssemantics.semantics tprog data (map R2val (param_unmap params)) (IRF (target_map t))).
 
-Axiom IFR_IRF_inv :
+Variable IFR_IRF_inv :
   ∀ x, IFR (IRF x) = x.
-Axiom IRF_IFR_inv :
+Variable IRF_IFR_inv :
   ∀ x, IRF (IFR x) = x.
 
 (*
@@ -141,7 +143,6 @@ Proof.
     exists (IRF (target_unmap (IFR v))).
     apply returns_target_value_bsim; auto.
   }
-  apply target_map_zero.
 Qed.
 
 Lemma safe_data_preserved :
@@ -167,24 +168,108 @@ Proof.
   rewrite target_map_unmap IRF_IFR_inv /R2val in props; eauto.
 Qed.
 
+(* The last lemma assumes that the transformation actually in fact
+   corresponds to a change of variables where we've accounted for the Jacobian *)
+Variable gs : list (R -> R).
+Variable log_dgs : list (R -> R).
+
+Variable param_map_gs :
+  ∀ x, in_list_rectangle x (parameter_list_rect tprog) ->
+       list_apply gs x = param_map x.
+Variable target_map_dgs :
+  ∀ data x, in_list_rectangle x (parameter_list_rect tprog) ->
+  target_map (log_density_of_program prog data (map R2val (param_map x))) =
+  list_plus (list_apply log_dgs x) + log_density_of_program prog data (map R2val (param_map x)).
+Variable gs_monotone : Forall2 strict_monotone_on_interval (parameter_list_rect tprog) gs.
+Variable gs_image :
+  Forall3 is_interval_image gs (parameter_list_rect tprog) (parameter_list_rect prog).
+Variable gs_deriv :  Forall3 continuous_derive_on_interval (parameter_list_rect tprog) gs
+    (map (λ (f : R → R) (x : R), exp (f x)) log_dgs).
+Variable eval_param_map_list_preserved :
+  ∀ x,
+    in_list_rectangle x (parameter_list_rect tprog) ->
+    eval_param_map_list tprog x = eval_param_map_list prog (param_map x).
+
+Set Nested Proofs Allowed.
+
+Lemma exp_list_plus l :
+  exp (list_plus l) = list_mult (map exp l).
+Proof.
+  induction l.
+  - rewrite //= exp_0 //.
+  - rewrite //= exp_plus IHl //.
+Qed.
+
+Lemma map_list_apply {A B C} (g : B -> C) (fs : list (A -> B)) xs :
+  map g (list_apply fs xs) = list_apply (map (λ f, λ x, g (f x)) fs) xs. 
+Proof.
+  revert xs.
+  induction fs => xs.
+  - rewrite //=.
+  - destruct xs => //=.
+    rewrite IHfs /=. 
+    rewrite /list_apply/=//.
+Qed.
+
 Lemma denotational_preserved :
   denotational_refinement tprog prog.
 Proof.
   exists (dimen_preserved).
   split.
   - intros data Hsafe. apply safe_data_preserved; auto.
-  - intros data rt Hsafe Hwf Hsubset.
-    rewrite /distribution_of_program. f_equal.
-    2:{ rewrite /program_normalizing_constant.
-        etransitivity; first eapply IIRInt_list_ext.
-        { admit. }
-        { intros xs Hin. rewrite /density_of_program.
-          replace xs with (param_unmap (param_map xs)) at 1; last first.
-          { rewrite param_unmap_map //. }
-          rewrite -log_density_map.
-          { reflexivity. }
-          eapply Hsafe. apply param_map_in_dom. auto.
-        }
-Abort.
+  - intros data rt vt Hsafe Hwf Hsubset.
+    rewrite /is_program_distribution/is_program_normalizing_constant/is_unnormalized_program_distribution.
+    intros (vnum&vnorm&Hneq0&His_norm&His_num&Hdiv).
+    eexists vnum, vnorm;  repeat split; auto.
+    { 
+      assert (vnorm = IIRInt_list (program_normalizing_constant_integrand prog data) (parameter_list_rect prog))
+        as ->.
+      { symmetry. apply is_IIRInt_list_unique. auto. }
+      eapply is_IIRInt_list_ext; last first.
+      { eapply (is_IIRInt_list_comp_noncont _ gs (map (λ f, λ x, exp (f x)) log_dgs));
+          last (by (eexists; eauto)); eauto.
+      }
+      2: {  eauto. }
+      intros x Hin. simpl.
+      rewrite /program_normalizing_constant_integrand/density_of_program.
+      symmetry.
+      replace x with (param_unmap (param_map x)) at 1; last first.
+      { rewrite param_unmap_map //. }
+      rewrite -log_density_map; eauto.
+      rewrite target_map_dgs; eauto.
+      rewrite exp_plus.
+      rewrite exp_list_plus.
+
+      rewrite map_list_apply -param_map_gs //.
+    }
+    {
+      assert (vnum = IIRInt_list (unnormalized_program_distribution_integrand prog data rt)
+                       (parameter_list_rect prog))
+        as ->.
+      { symmetry. apply is_IIRInt_list_unique. auto. }
+      eapply is_IIRInt_list_ext; last first.
+      { eapply (is_IIRInt_list_comp_noncont _ gs (map (λ f, λ x, exp (f x)) log_dgs));
+          last (by (eexists; eauto)); eauto.
+      }
+      2: {  eauto. }
+      intros x Hin. simpl.
+      rewrite /unnormalized_program_distribution_integrand/density_of_program.
+      symmetry.
+      replace x with (param_unmap (param_map x)) at 1; last first.
+      { rewrite param_unmap_map //. }
+      rewrite -log_density_map; eauto.
+      rewrite target_map_dgs; eauto.
+      rewrite exp_plus.
+      rewrite exp_list_plus.
+
+      rewrite map_list_apply -param_map_gs //.
+      rewrite -?Rmult_assoc.
+      f_equal.
+
+
+      rewrite eval_param_map_list_preserved //.
+      rewrite param_map_gs //.
+    }
+Qed.
   
 End DENOTATIONAL_SIMULATION.

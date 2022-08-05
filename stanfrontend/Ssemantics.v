@@ -668,20 +668,42 @@ Section DENOTATIONAL.
     repeat rewrite map_length. auto. 
   Qed.
 
-  Definition distribution_of_program_unnormalized (p: program) (data: list val) : rectangle_list -> R :=
+  Definition unnormalized_program_distribution_integrand p data rt :=
+    (fun v => density_of_program p data (map (fun r => Vfloat (IRF r)) v)
+              * rect_list_indicator rt (eval_param_map_list p v)).
+
+  Definition is_unnormalized_program_distribution p data rt v : Prop :=
+    is_IIRInt_list (unnormalized_program_distribution_integrand p data rt) (parameter_list_rect p) v.
+
+  Definition ex_unnormalized_program_distribution p data rt : Prop :=
+    ∃ v, is_unnormalized_program_distribution p data rt v.
+
+  Definition unnormalized_program_distribution (p: program) (data: list val) : rectangle_list -> R :=
     fun rt =>
       IIRInt_list
-        (fun v => density_of_program p data (map (fun r => Vfloat (IRF r)) v)
-                         * rect_list_indicator rt (eval_param_map_list p v))
+        (unnormalized_program_distribution_integrand p data rt)
         (parameter_list_rect p).
+
+  Definition program_normalizing_constant_integrand p data :=
+        (fun v => density_of_program p data (map (fun r => Vfloat (IRF r)) v)).
+
+  Definition is_program_normalizing_constant p data v : Prop :=
+    is_IIRInt_list (program_normalizing_constant_integrand p data) (parameter_list_rect p) v.
+
+  Definition ex_program_normalizing_constant p data :=
+    ∃ v, is_program_normalizing_constant p data v.
 
   Definition program_normalizing_constant (p : program) (data: list val) : R :=
-      IIRInt_list
-        (fun v => density_of_program p data (map (fun r => Vfloat (IRF r)) v))
-        (parameter_list_rect p).
+      IIRInt_list (program_normalizing_constant_integrand p data) (parameter_list_rect p).
 
-  Definition distribution_of_program (p: program) (data: list val) : rectangle_list -> R :=
-    fun rt => (distribution_of_program_unnormalized p data rt) / program_normalizing_constant p data.
+  Definition is_program_distribution (p: program) (data: list val) (rt : rectangle_list) (v: R) : Prop :=
+    ∃ vnum vnorm, vnorm <> 0 /\
+      is_program_normalizing_constant p data vnorm /\
+      is_unnormalized_program_distribution p data rt vnum /\
+      v = vnum/vnorm.
+
+  Definition program_distribution (p: program) (data: list val) : rectangle_list -> R :=
+    fun rt => (unnormalized_program_distribution p data rt) / program_normalizing_constant p data.
 
   Definition is_safe p data params : Prop :=
     (forall t s, Smallstep.initial_state (semantics p data params t) s ->
@@ -703,10 +725,11 @@ Section DENOTATIONAL.
   Definition denotational_refinement (p1 p2: program) :=
     ∃ (Hpf: parameter_dimension p1 = parameter_dimension p2),
     (∀ data, safe_data p2 data -> safe_data p1 data) /\
-      (∀ data rt, safe_data p2 data ->
+      (∀ data rt vt, safe_data p2 data ->
                   wf_rectangle_list (parameter_list_rect p2) ->
                   rectangle_list_subset rt (parameter_list_rect p2) ->
-                  distribution_of_program p1 data rt = distribution_of_program p2 data rt).
+                  is_program_distribution p2 data rt vt ->
+                  is_program_distribution p1 data rt vt).
 
 End DENOTATIONAL.
 

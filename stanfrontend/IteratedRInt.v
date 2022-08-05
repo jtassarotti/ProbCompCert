@@ -562,6 +562,9 @@ Qed.
 Definition list_apply {A B} (fs: list (A -> B)) (xs: list A) : list B :=
   List.map (λ fx, (fst fx) (snd fx)) (List.combine fs xs).
 
+Definition list_plus (xs: list R) : R :=
+  List.fold_right (Rplus) 0 xs.
+
 Definition list_mult (xs: list R) : R :=
   List.fold_right (Rmult) 1 xs.
 

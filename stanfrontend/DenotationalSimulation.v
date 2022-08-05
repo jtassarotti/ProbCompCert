@@ -17,7 +17,7 @@ From Coq Require Import Reals Psatz ssreflect ssrbool Utf8.
 
 Require Import Ssemantics.
 
-(* TODO: move and generalize these results to any denotational semantics obtained this way *)
+(* TODO: generalize these results to any denotational semantics obtained this way *)
 Section DENOTATIONAL_SIMULATION.
 
 Variable prog: Stanlight.program.
@@ -126,21 +126,23 @@ Proof.
   exists (dimen_preserved).
   split.
   - intros data Hsafe. apply safe_data_preserved; auto.
-  - intros data rt Hsafe Hwf Hsubset.
-    rewrite /distribution_of_program. f_equal.
-    { rewrite /distribution_of_program_unnormalized.
+  - intros data rt vt Hsafe Hwf Hsubset.
+    rewrite /is_program_distribution/is_program_normalizing_constant/is_unnormalized_program_distribution.
+    intros (vnum&vnorm&Hneq0&His_norm&His_num&Hdiv).
+    exists vnum, vnorm. repeat split; auto.
+    { 
       rewrite parameter_list_rect_preserved.
-      apply IIRInt_list_ext; auto.
-      * intros x Hin. f_equal.
+      eapply is_IIRInt_list_ext; try eassumption; [].
+      * intros x Hin. rewrite /program_normalizing_constant_integrand.
         { rewrite /density_of_program. rewrite log_density_equiv //. eapply Hsafe. eauto. }
-      * f_equal. rewrite /eval_param_map_list.
-        f_equal. rewrite /flatten_parameter_out. rewrite parameters_preserved //.
     }
-    { rewrite /program_normalizing_constant.
+    {
       rewrite parameter_list_rect_preserved.
-      apply IIRInt_list_ext; auto.
-      * intros x Hin.
-        { rewrite /density_of_program. rewrite log_density_equiv //. eapply Hsafe. eauto. }
+      eapply is_IIRInt_list_ext; try eassumption; [].
+      intros x Hin. rewrite /unnormalized_program_distribution_integrand. f_equal.
+      { rewrite /density_of_program. rewrite log_density_equiv //. eapply Hsafe. eauto. }
+      { f_equal. rewrite /eval_param_map_list.
+        f_equal. rewrite /flatten_parameter_out. rewrite parameters_preserved //. }
     }
 Qed.
   
