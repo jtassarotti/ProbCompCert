@@ -29,7 +29,7 @@ let generate_param (id, t) =
   | _ -> raise (NIY_propose "Not handling non-real types yet")
 
 (*functions for converting op, basic, expression, statement types to string*)
-let string_op b_op =
+let op_to_string b_op =
   match b_op with
   | Stanlight.Plus -> " + "
   | Stanlight.Minus -> " - "
@@ -52,31 +52,42 @@ let rec string_uop uop =
   | _ -> ""
 what do you mean PNot is unbound???*)
 
-let rec string_basic bas =
+let rec basic_to_string bas =
   match bas with
   | Stanlight.Bint -> "int"
   | Stanlight.Breal -> "real"
-  | Stanlight.Barray (basic, intgr) -> (string_basic basic) ^ "[" ^ Camlcoq.Z.to_string intgr ^ "]"
-  | Stanlight.Bfunction (basiclist, basic) -> "inputs -> " ^ (string_basic basic)
+  | Stanlight.Barray (basic, intgrs) -> (basic_to_string basic) ^ "[" ^ Camlcoq.Z.to_string intgrs ^ "]"
+  | Stanlight.Bfunction (basiclist, basic) -> "inputs -> " ^ (basic_to_string basic)
 
 (*uniform_lpdf and bernoulli_lpdf are both variables???*)
-let rec string_expression expr =
+let rec expression_to_string expr =
   match expr with
   | Stanlight.Econst_int (intgr, bas) -> Camlcoq.Z.to_string intgr
-  | Stanlight.Econst_float (flt, bas) -> "float" (*how to convert float to string??*)
-  | Stanlight.Evar (ident, bas) -> "Var " ^ Camlcoq.extern_atom ident
-  | Stanlight.Ecall (expr1, exprl, bas) -> String.concat "" ["Call "; string_expression expr1; "("; string_exprlist exprl; ")"]
-  | Stanlight.Eunop (expr1, bas) -> "U_op !" ^ string_expression expr1 (*has 3 arguments in documents but apparently needs 2 here??*)
-  | Stanlight.Ebinop (expr1, b_op, expr2, bas) -> "B_op " ^ String.concat "" [string_expression expr1; string_op b_op; string_expression expr2]
-  | Stanlight.Eindexed (expr1, exprl, bas) -> "Index " ^ String.concat "" [string_expression expr1; "["; string_exprlist exprl; "]"]
-  | Stanlight.Etarget bas -> "target expression " (*what is this??*)
-and string_exprlist exprlist =
+  | Stanlight.Econst_float (flt, bas) -> string_of_float (Camlcoq.camlfloat_of_coqfloat flt)
+  | Stanlight.Evar (ident, bas) -> Camlcoq.extern_atom ident
+  | Stanlight.Ecall (expr1, exprl, bas) -> String.concat "" ["Call "; expression_to_string expr1; "("; exprlist_to_string exprl; ")"]
+  | Stanlight.Eunop (expr1, bas) -> "not " ^ expression_to_string expr1
+  | Stanlight.Ebinop (expr1, b_op, expr2, bas) -> String.concat "" [expression_to_string expr1; op_to_string b_op; expression_to_string expr2]
+  | Stanlight.Eindexed (expr1, exprl, bas) -> String.concat "" [expression_to_string expr1; "["; exprlist_to_string exprl; "]"]
+  | Stanlight.Etarget bas -> "target" (*what is this??*)
+and exprlist_to_string exprlist =
   match exprlist with
   | Stanlight.Enil -> ""
-  | Stanlight.Econs (e, Stanlight.Enil) -> string_expression e
-  | Stanlight.Econs (e, es) -> String.concat "" [string_expression e; ", "; string_exprlist es]
+  | Stanlight.Econs (e, Stanlight.Enil) -> expression_to_string e
+  | Stanlight.Econs (e, es) -> String.concat "" [expression_to_string e; ", "; exprlist_to_string es]
 
 
+let rec statement_to_string stmt =
+  match stmt with
+  | Stanlight.Sskip -> ""
+  | Stanlight.Sassign (expr1, opr, expr2) -> String.concat "" [expression_to_string expr1; " = "; expression_to_string expr2; ";\n"] (*how to incorporate option part of option_op??*)
+  | Stanlight.Ssequence (stmt1, stmt2) -> statement_to_string stmt1 ^ statement_to_string stmt2
+  | Stanlight.Sifthenelse (expr, stmt1, stmt2) -> String.concat "" [expression_to_string expr; " ? "; statement_to_string stmt1; " : "; statement_to_string stmt2; ";\n"]
+  | Stanlight.Sfor (ident, expr1, expr2, stmt1) -> String.concat "" ["for ("; Camlcoq.extern_atom ident; " in "; expression_to_string expr1; ":"; expression_to_string expr2; ") {\n"; statement_to_string stmt1; "}\n"]
+  | Stanlight.Starget expr -> String.concat "" ["target += "; expression_to_string expr; ";\n"]
+  | Stanlight.Stilde (expr1, expr2, exprl) -> String.concat "" [expression_to_string expr1; " ~ "; expression_to_string expr2; "("; exprlist_to_string exprl; ")"; ";\n"]
+
+(*expression -> expression -> expression*)
 let diff_wrt expr sub_expr =
   let zero_float = Stanlight.Econst_float (Camlcoq.coqfloat_of_camlfloat 0., Stanlight.Breal) in
   let one_float = Stanlight.Econst_float (Camlcoq.coqfloat_of_camlfloat 1., Stanlight.Breal) in
@@ -138,17 +149,9 @@ let diff_wrt expr sub_expr =
   | Stanlight.Eindexed (_, _, _) -> zero_float
   | Stanlight.Etarget _ -> zero_float
 
+(*helper functions for dealing with list of Sassigns*)
 
-let rec string_statement stmt =
-  match stmt with
-  | Stanlight.Sskip -> "Sskip\n"
-  | Stanlight.Sassign (expr1, opr, expr2) -> String.concat "" [string_expression expr1; " = "; string_expression expr2; ";\n"] (*how to incorporate option op??*)
-  | Stanlight.Ssequence (stmt1, stmt2) -> "Ssequence (\n" ^ string_statement stmt1 ^ string_statement stmt2 ^ ")\n"
-  | Stanlight.Sifthenelse (expr, stmt1, stmt2) -> String.concat "" [string_expression expr; " ? "; string_statement stmt1; " : "; string_statement stmt2; ";\n"]
-  | Stanlight.Sfor (ident, expr1, expr2, stmt1) -> String.concat "" ["for ("; Camlcoq.extern_atom ident; " in "; string_expression expr1; ":"; string_expression expr2; ") {\n"; string_statement stmt1; "}\n"]
-  | Stanlight.Starget expr -> String.concat "" ["target += "; string_expression expr; ";\n"]
-  | Stanlight.Stilde (expr1, expr2, exprl) -> String.concat "" [string_expression expr1; " ~ "; string_expression expr2; "("; string_exprlist exprl; ")"; ";\n"]
-
+(*expression -> statement list -> expression*)
 let rec get_expr variable variable_assignments =
   match variable_assignments with
   | [] -> variable
@@ -160,6 +163,7 @@ let rec get_expr variable variable_assignments =
   end
   | _ -> variable
 
+(*expression -> expression -> statement list -> statement list*)
 let rec set_expr variable expression variable_assignments =
   match variable_assignments with
   | [] -> []
@@ -171,6 +175,7 @@ let rec set_expr variable expression variable_assignments =
     end
   | _ -> variable_assignments
 
+(*expression -> statement list -> bool*)
 let rec has_var_assignment variable variable_assignments =
   match variable_assignments with
   | [] -> false
@@ -182,11 +187,16 @@ let rec has_var_assignment variable variable_assignments =
     end
   | _ -> false
 
-(*
+let bool_to_float bool_val =
+  match bool_val with
+  | true -> 1.
+  | false -> 0.
+
+(*expression -> statement list -> float*)
 let rec evaluate expr var_assignments =
   match expr with
-  | Stanlight.Econst_int (intgr, _) -> intgr
-  | Stanlight.Econst_float (flt, _) -> flt
+  | Stanlight.Econst_int (intgr, _) -> float_of_int (Camlcoq.Z.to_int intgr) 
+  | Stanlight.Econst_float (flt, _) -> Camlcoq.camlfloat_of_coqfloat flt
   | Stanlight.Evar (ident, _) -> evaluate (get_expr expr var_assignments) var_assignments
   | Stanlight.Ecall (expr1, exprl, bas) -> evaluate expr1 var_assignments (*fill in*)
   | Stanlight.Eunop (expr1, bas) -> evaluate expr1 var_assignments (*fill in*)
@@ -195,42 +205,56 @@ let rec evaluate expr var_assignments =
       let expr1_val = evaluate expr1 var_assignments in
       let expr2_val = evaluate expr2 var_assignments in
       match b_op with
-      | Stanlight.Plus -> expr1_val + expr2_val
-      | Stanlight.Minus -> expr1_val - expr2_val
-      | Stanlight.Times -> expr1_val * expr2_val
-      | Stanlight.Divide -> expr1_val / expr2_val
-      | Stanlight.Modulo -> expr1_val mod expr2_val
-      | Stanlight.Or -> expr1_val || expr2_val
-      | Stanlight.And -> expr1_val && expr2_val
-      | Stanlight.Equals -> expr1_val = expr2_val
-      | Stanlight.NEquals -> not (expr1_val = expr2_val)
-      | Stanlight.Less -> expr1_val < expr2_val
-      | Stanlight.Leq -> expr1_val <= expr2_val
-      | Stanlight.Greater -> expr1_val > expr2_val
-      | Stanlight.Geq -> expr1_val >= expr2_val
+      | Stanlight.Plus -> expr1_val +. expr2_val
+      | Stanlight.Minus -> expr1_val -. expr2_val
+      | Stanlight.Times -> expr1_val *. expr2_val
+      | Stanlight.Divide -> expr1_val /. expr2_val
+      | Stanlight.Modulo -> float_of_int ((int_of_float expr1_val) mod (int_of_float expr2_val))
+      | Stanlight.Or -> (*assuming true -> 1. and false -> 0.*)
+        begin
+          match (expr1_val, expr2_val) with
+          | (0., 0.) -> 0.
+          | (_, _) -> 1.
+        end
+      | Stanlight.And ->
+        begin
+          match (expr1_val, expr2_val) with
+          | (1., 1.) -> 1.
+          | (_, _) -> 0.
+        end
+      | Stanlight.Equals -> bool_to_float (expr1_val = expr2_val)
+      | Stanlight.NEquals -> bool_to_float (not (expr1_val = expr2_val))
+      | Stanlight.Less -> bool_to_float (expr1_val < expr2_val)
+      | Stanlight.Leq -> bool_to_float (expr1_val <= expr2_val)
+      | Stanlight.Greater -> bool_to_float (expr1_val > expr2_val)
+      | Stanlight.Geq -> bool_to_float (expr1_val >= expr2_val)
     end
-  | Stanlight.Eindexed (expr1, exprl, bas) -> Integers.Int.int 0 (*fill in*)
-  | Stanlight.Etarget bas -> Camlcoq.BinNums.coq_Z 0 (*fill in*)
-*)
+  | Stanlight.Eindexed (expr1, exprl, bas) -> 0. (*fill in*)
+  | Stanlight.Etarget bas -> 0. (*fill in*)
+
 
 (*actually going through the program definitions to hunt down model*)
-let unpack_fundef fdf =
-  match fdf with
-  | Ctypes.Internal f -> string_statement f.Stanlight.fn_body
-  | Ctypes.External _ -> ""
 
-let rec unpack_block gbs =
+let fundef_to_funcbody fdf =
+  match fdf with
+  | Ctypes.Internal f -> f.Stanlight.fn_body
+  | Ctypes.External _ -> Stanlight.Sskip
+
+let rec programdefs_to_funcbody gbs block_name =
   match gbs with
-  | [] -> ()
-  | (ident, AST.Gfun f) :: gs ->
+  | [] -> Stanlight.Sskip
+  | (ident, AST.Gfun fundef) :: gs ->
     begin
-    match (Camlcoq.extern_atom ident) with
-    | "model" ->
-      let str_stmt = unpack_fundef f in
-      print_string("\nmodel {\n" ^ str_stmt ^ "}\n")
-    | _ -> unpack_block gs
+      match (Camlcoq.extern_atom ident) = block_name with
+      | true -> fundef_to_funcbody fundef
+      | false -> programdefs_to_funcbody gs block_name
     end
-  | (ident, AST.Gvar v) :: gs -> unpack_block gs
+  | (ident, AST.Gvar v) :: gs -> programdefs_to_funcbody gs block_name
+
+let fundef_to_string fdf =
+  match fdf with
+  | Ctypes.Internal f -> statement_to_string f.Stanlight.fn_body
+  | Ctypes.External _ -> ""
 
 let rec program_defs gbs =
   match gbs with
@@ -238,8 +262,9 @@ let rec program_defs gbs =
   | _ -> ""
 
 let generate_proposal program =
-  let _ = unpack_block program.Stanlight.pr_defs in
- (* let _ = print_string(program_defs program.Stanlight.pr_defs) in*)
+  let programdefs = program.Stanlight.pr_defs in
+  let stmt = programdefs_to_funcbody programdefs "model" in
+  let _ = print_string (statement_to_string stmt ^ "\n") in
   let pro = generate_prologue () in
   let epi = generate_epilogue () in
   let body = String.concat "\n" (List.map generate_param program.Stanlight.pr_parameters_vars) in
