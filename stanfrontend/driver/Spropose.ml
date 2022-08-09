@@ -67,7 +67,7 @@ let rec expression_to_string expr =
   | Stanlight.Evar (ident, bas) -> Camlcoq.extern_atom ident
   | Stanlight.Ecall (expr1, exprl, bas) -> String.concat "" ["Call "; expression_to_string expr1; "("; exprlist_to_string exprl; ")"]
   | Stanlight.Eunop (expr1, bas) -> "not " ^ expression_to_string expr1
-  | Stanlight.Ebinop (expr1, b_op, expr2, bas) -> String.concat "" [expression_to_string expr1; op_to_string b_op; expression_to_string expr2]
+  | Stanlight.Ebinop (expr1, b_op, expr2, bas) -> String.concat "" ["("; expression_to_string expr1; op_to_string b_op; expression_to_string expr2; ")"]
   | Stanlight.Eindexed (expr1, exprl, bas) -> String.concat "" [expression_to_string expr1; "["; exprlist_to_string exprl; "]"]
   | Stanlight.Etarget bas -> "target" (*what is this??*)
 and exprlist_to_string exprlist =
@@ -75,7 +75,6 @@ and exprlist_to_string exprlist =
   | Stanlight.Enil -> ""
   | Stanlight.Econs (e, Stanlight.Enil) -> expression_to_string e
   | Stanlight.Econs (e, es) -> String.concat "" [expression_to_string e; ", "; exprlist_to_string es]
-
 
 let rec statement_to_string stmt =
   match stmt with
@@ -87,6 +86,8 @@ let rec statement_to_string stmt =
   | Stanlight.Starget expr -> String.concat "" ["target += "; expression_to_string expr; ";\n"]
   | Stanlight.Stilde (expr1, expr2, exprl) -> String.concat "" [expression_to_string expr1; " ~ "; expression_to_string expr2; "("; exprlist_to_string exprl; ")"; ";\n"]
 
+(*Autodiff*)
+
 (*expression -> expression -> expression*)
 let diff_wrt expr sub_expr =
   let zero_float = Stanlight.Econst_float (Camlcoq.coqfloat_of_camlfloat 0., Stanlight.Breal) in
@@ -94,8 +95,6 @@ let diff_wrt expr sub_expr =
   let two_float = Stanlight.Econst_float (Camlcoq.coqfloat_of_camlfloat 2., Stanlight.Breal) in
   let neg_one_float = Stanlight.Econst_float (Camlcoq.coqfloat_of_camlfloat (-1.), Stanlight.Breal) in
   match expr with
-  | Stanlight.Econst_int (_, _) -> zero_float
-  | Stanlight.Econst_float (_, _) -> zero_float
   | Stanlight.Evar (_, bas) ->
     begin
       match sub_expr = expr with
@@ -103,7 +102,7 @@ let diff_wrt expr sub_expr =
       | false -> zero_float
     end
   | Stanlight.Ecall (_,_,_)-> zero_float (*figure out what this is*)
-  | Stanlight.Eunop (_,_) -> zero_float
+  | Stanlight.Eunop (_,_) -> zero_float (*figure out how to do this*)
   | Stanlight.Ebinop (expr1, op, expr2, bas) ->
     begin
       match op with
@@ -146,8 +145,11 @@ let diff_wrt expr sub_expr =
         end
       | _ -> zero_float (*figure out what to do with Modulo and logic operators*)
     end
-  | Stanlight.Eindexed (_, _, _) -> zero_float
-  | Stanlight.Etarget _ -> zero_float
+  | _ -> zero_float
+
+let diff_to_string expr sub_expr =
+  let diff = diff_wrt expr sub_expr in
+  String.concat "" ["d("; expression_to_string expr; ")/d("; expression_to_string sub_expr; ") = "; expression_to_string diff]
 
 (*helper functions for dealing with list of Sassigns*)
 
@@ -195,7 +197,7 @@ let bool_to_float bool_val =
 (*expression -> statement list -> float*)
 let rec evaluate expr var_assignments =
   match expr with
-  | Stanlight.Econst_int (intgr, _) -> float_of_int (Camlcoq.Z.to_int intgr) 
+  | Stanlight.Econst_int (intgr, _) -> float_of_int (Camlcoq.Z.to_int intgr)
   | Stanlight.Econst_float (flt, _) -> Camlcoq.camlfloat_of_coqfloat flt
   | Stanlight.Evar (ident, _) -> evaluate (get_expr expr var_assignments) var_assignments
   | Stanlight.Ecall (expr1, exprl, bas) -> evaluate expr1 var_assignments (*fill in*)
