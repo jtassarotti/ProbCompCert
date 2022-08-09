@@ -151,6 +151,29 @@ let diff_to_string expr sub_expr =
   let diff = diff_wrt expr sub_expr in
   String.concat "" ["d("; expression_to_string expr; ")/d("; expression_to_string sub_expr; ") = "; expression_to_string diff]
 
+(*expression -> expression -> expression*)
+let rec rev_diff expr wrt_expr prev_derivs =
+  match expr with
+  | Stanlight.Ebinop (expr1, _, expr2, Stanlight.Breal) ->
+    begin
+      let deriv1 = diff_wrt expr expr1 in
+      let _ = print_string((diff_to_string expr1 wrt_expr) ^ "\n" ^ diff_to_string expr2 wrt_expr ^ "\n") in
+      let new_derivs1 = Stanlight.Ebinop (prev_derivs, Stanlight.Times, deriv1, Stanlight.Breal) in
+      let rev_diff1 = rev_diff expr1 wrt_expr new_derivs1 in
+      match expr1 = expr2 with
+      | true -> rev_diff1
+      | false ->
+        begin
+          let deriv2 = diff_wrt expr expr2 in
+          let new_derivs2 = Stanlight.Ebinop (prev_derivs, Stanlight.Times, deriv2, Stanlight.Breal) in
+          let rev_diff2 = rev_diff expr2 wrt_expr new_derivs2 in
+          Stanlight.Ebinop (rev_diff1, Stanlight.Plus, rev_diff2, Stanlight.Breal)
+        end
+    end
+  | _ ->
+    let deriv = diff_wrt expr wrt_expr in
+    Stanlight.Ebinop (prev_derivs, Stanlight.Times, deriv, Stanlight.Breal)
+
 (*helper functions for dealing with list of Sassigns*)
 
 (*expression -> statement list -> expression*)
@@ -264,6 +287,15 @@ let rec program_defs gbs =
   | _ -> ""
 
 let generate_proposal program =
+  let x = Stanlight.Evar (Camlcoq.intern_string "x", Stanlight.Breal) in
+  let y = Stanlight.Evar (Camlcoq.intern_string "y", Stanlight.Breal) in
+  let expr1 = Stanlight.Ebinop (x, Stanlight.Divide, x, Stanlight.Breal) in
+  let expr2 = Stanlight.Ebinop (x, Stanlight.Times, y, Stanlight.Breal) in
+  let expr3 = Stanlight.Ebinop (expr1, Stanlight.Minus, expr2, Stanlight.Breal) in
+  let _ = print_string(expression_to_string expr3 ^ "\n") in
+  let diff = rev_diff expr3 x (Stanlight.Econst_float (Camlcoq.coqfloat_of_camlfloat 1., Stanlight.Breal)) in
+  let _ = print_string(expression_to_string diff ^ "\n") in
+
   let programdefs = program.Stanlight.pr_defs in
   let stmt = programdefs_to_funcbody programdefs "model" in
   let _ = print_string (statement_to_string stmt ^ "\n") in
