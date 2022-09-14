@@ -38,6 +38,7 @@ let printPreludeHeader sourcefile data params_fun =
     "void print_data(struct Data* observations, FILE *fp);";
     "void read_data(struct Data* observations, char* file,char * perm);";
     "struct Data* alloc_data(void);";
+    "void print_params_names(FILE *fp);";
     "void print_params(struct Params* parameters, bool convert, FILE *fp);";
     "void read_params(struct Params* parameters, char* file,char * perm);";
     "struct Params* alloc_params(void);";    
@@ -131,6 +132,17 @@ let generate_alloc_params () =
       "struct Params* alloc_params() {";
       "  struct Params* params = (struct Params*) malloc(sizeof(struct Params));";
       "  return params;";
+      "}"
+    ]
+
+let generate_print_params_names vs =
+
+  let params_names_str = String.concat ", " (List.map (fun v -> Camlcoq.extern_atom (fst v)) vs) in
+  let fprint_stmt = "  fprintf(fp, \"" ^ params_names_str ^ "\");" in
+
+  String.concat "\n\n" [
+      "void print_params_names(FILE *fp) {";
+      fprint_stmt;
       "}"
     ]
 
@@ -340,6 +352,7 @@ let printPreludeFile sourcefile data params_funs proposal params_with_constraint
     generate_print_data data;
     generate_read_data data;
     generate_alloc_params();
+    generate_print_params_names params;
     generate_print_params params;
     generate_read_params params;
     generate_copy_params params;

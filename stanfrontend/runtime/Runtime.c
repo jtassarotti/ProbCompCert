@@ -19,7 +19,9 @@ int main(int argc, char* argv[]) {
   }
 
   FILE *output = fopen("output.csv","w");
-  fprintf(output,"lp__,accept_stat__,stepsize__,int_time__,energy__,theta\n");
+  fprintf(output,"lp__,accept_stat__,stepsize__,int_time__,energy__,");
+  print_params_names(output);
+  fprintf(output,"\n");
   
   int n = atoi(argv[1]);
 
