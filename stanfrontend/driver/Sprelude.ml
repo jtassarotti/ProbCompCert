@@ -161,12 +161,16 @@ let generate_print_params vs =
     | _ -> raise (NIY_gen "Array of array or function")
   in
 
+  let generate_strings =
+    String.concat "\n  fprintf(fp, \",\");\n" (List.map (fun v -> "  " ^ generate_single v) vs)
+  in
+
   String.concat "\n\n" [
       "void print_params(struct Params* parameters, bool convert, FILE *fp) {";
       "  if (convert) {";
       "    unconstrained_to_constrained(parameters);";
       "  }";
-      List.fold_left (fun str -> fun v -> str ^ "  " ^ (generate_single v) ^ "\n") "" vs;
+      generate_strings;
       "}"
     ]
 
@@ -344,6 +348,7 @@ let printPreludeFile sourcefile data params_funs proposal params_with_constraint
   Printf.fprintf oc "%s\n" (String.concat "\n\n" [
     "#include <stdlib.h>";
     "#include <stdio.h>";
+    "#include <math.h>";
     "#include \"stanlib.h\"";
     "#include \"parser.h\"";
     "#include \"prelude.h\"";
