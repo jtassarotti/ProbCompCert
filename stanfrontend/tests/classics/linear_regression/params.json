@@ -1,5 +1,5 @@
 {
-    "alpha" : 0.4,
-    "beta" : 0.2,
-    "sigma" : 0.7
+    "alpha" : 0.15,
+    "beta" : -1.0,
+    "sigma" : 1.0
 }
