@@ -35,6 +35,7 @@ int main(int argc, char* argv[]) {
   read_params(state,argv[3],"r");
   if (debug) {
     print_params(state,false,stdout);
+    printf("\n");
   }
   struct Params* candidate = alloc_params();
 
@@ -48,6 +49,7 @@ int main(int argc, char* argv[]) {
     if (debug) {
       printf("\n\n\nIteration: %i\n\n\n", i);
       print_params(state,false,stdout);
+      printf("\n");
     }
     
     double lp_parameters = model(observations,state);
@@ -64,15 +66,25 @@ int main(int argc, char* argv[]) {
 
     if (debug) {
       print_params(candidate,false,stdout);
+      printf("\n");
     }
     
     double lp_candidate = model(observations,candidate);
+
 
     if (debug) {
       printf("P = %lf\n",exp(lp_candidate));
     }
       
-    double lu = log((double) rand() / RAND_MAX);
+    double u = (double) rand() / RAND_MAX;
+    double lu = log(u);
+
+    if(debug) {
+      printf("u = %f\n", u);
+      printf("lu = %f\n", lu);
+      printf("lp_candidate - lp_parameters = %f\n", lp_candidate - lp_parameters);
+    }
+
 
 
     if (lu <= lp_candidate - lp_parameters) {
@@ -81,6 +93,7 @@ int main(int argc, char* argv[]) {
       if (debug) {
 	printf("\n-> Accepted\n");
 	print_params(state,false,stdout);
+	printf("\n");
       }
     } else {
       if (debug) {
