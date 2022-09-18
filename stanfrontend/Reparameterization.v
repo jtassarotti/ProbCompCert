@@ -161,7 +161,7 @@ Definition change_of_variable_correction (i: AST.ident) (v: variable): option ex
   match typ with
   | Breal =>
     match constraint with
-    | Cidentity => Some (Evar i typ)
+    | Cidentity => None
     | Clower_upper a b => 
       let a := Econst_float a Breal in
       let b := Econst_float b Breal in
