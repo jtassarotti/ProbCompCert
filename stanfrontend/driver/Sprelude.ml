@@ -137,7 +137,16 @@ let generate_alloc_params () =
 
 let generate_print_params_names vs =
 
-  let params_names_str = String.concat ", " (List.map (fun v -> Camlcoq.extern_atom (fst v)) vs) in
+  let generate_single v =
+    let name = Camlcoq.extern_atom (fst v) in
+    let typ = snd v in
+    match typ with
+    | Stanlight.Barray (_, sz) ->
+       String.concat ", " (List.init (Camlcoq.Z.to_int sz) (fun n -> name ^ "." ^ string_of_int (n + 1)))
+    | _ -> name
+  in
+
+  let params_names_str = String.concat ", " (List.map generate_single vs) in
   let fprint_stmt = "  fprintf(fp, \"" ^ params_names_str ^ "\");" in
 
   String.concat "\n\n" [

@@ -136,6 +136,9 @@ void print_int_array(int* arr, int N, FILE *fp) {
 
   for (int i = 0; i < N; ++i) {
     fprintf(fp,"%i ", arr[i]);
+    if(i < N - 1) {
+      fprintf(fp, ",");
+    }
   }
 
 }
@@ -144,6 +147,9 @@ void print_real_array(double* arr, int N, FILE *fp) {
 
   for (int i = 0; i < N; ++i) {
     fprintf(fp,"%lf ", arr[i]);
+    if(i < N - 1) {
+      fprintf(fp, ",");
+    }
   }
 
 }
