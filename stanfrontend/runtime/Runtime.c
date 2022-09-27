@@ -4,6 +4,7 @@
 #include <stdbool.h>
 #include <string.h>
 #include <getopt.h>
+#include <time.h>
 #include "stanlib.h"
 #include "prelude.h"
 
@@ -20,6 +21,7 @@ int main(int argc, char* argv[]) {
     {"thin",          required_argument, 0, 't'},
     {"init",          required_argument, 0, 'i'},
     {"data",          required_argument, 0, 'd'},
+    {"seed",          required_argument, 0, 's'},
     {NULL,            0,                 NULL, 0},
   };
 
@@ -27,11 +29,12 @@ int main(int argc, char* argv[]) {
   int thin = 1;
   char *dataname = NULL;
   char *paramsname = NULL;
+  unsigned int seed = time(NULL);
 
 
   while (1) {
     int option_index = 0;
-    int c = getopt_long(argc, argv, "n:t:i:d:",
+    int c = getopt_long(argc, argv, "n:t:i:d:s:",
 		    long_options, &option_index);
 
     // No more arguments; break
@@ -64,6 +67,10 @@ int main(int argc, char* argv[]) {
 	strcpy(paramsname, optarg);
 	printf("paramsname = %s (%s)\n", optarg, paramsname);
 	break;
+
+      case 's':
+	seed = (unsigned int) atoi(optarg);
+	printf("seed = %s (%u)\n", optarg, seed);
     }
 
   }
@@ -77,6 +84,8 @@ int main(int argc, char* argv[]) {
     printf("No params file specified\n");
     exit(1);
   }
+
+  srand(seed);
 
   /*
   if (argc < 4 || argc > 5) {
