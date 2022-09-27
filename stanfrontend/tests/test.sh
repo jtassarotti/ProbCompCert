@@ -67,7 +67,7 @@ fi
 ../../../../ccomp parser.o stanlib.o prelude.o Runtime.o code.o -o executable -lm
 
 # Run
-./executable --num_samples $2 --data data.json --init params.json
+./executable --num_samples $2 --data data.json --init params.json --thin $3
 popd
 
 

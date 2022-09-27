@@ -24,7 +24,7 @@ int main(int argc, char* argv[]) {
   };
 
   int n = 0;
-  int t = 1;
+  int thin = 1;
   char *dataname = NULL;
   char *paramsname = NULL;
 
@@ -49,8 +49,8 @@ int main(int argc, char* argv[]) {
 	break;
 
       case 't':
-	t = atoi(optarg);
-	printf("thin = %s (%d)\n", optarg, t);
+	thin = atoi(optarg);
+	printf("thin = %s (%d)\n", optarg, thin);
 	break;
 
       case 'd':
@@ -174,11 +174,19 @@ int main(int argc, char* argv[]) {
       }
     }
 
-    copy_params(statistics,state);
-    fprintf(output,"%lf,%lf,%lf,%lf,%lf,",0.0,0.0,0.0,0.0,0.0);
-    print_params(statistics,true,output);
-    fprintf(output,"\n");
+    if (debug) {
+      printf("i mod thin == %d\n", i % thin);
+    }
 
+    copy_params(statistics,state);
+    if (i % thin == 0) {
+      if (debug) {
+	printf("keeping sample\n");
+      }
+      fprintf(output,"%lf,%lf,%lf,%lf,%lf,",0.0,0.0,0.0,0.0,0.0);
+      print_params(statistics,true,output);
+      fprintf(output,"\n");
+    }
   }
 
   printf("\nExecution success\n");
