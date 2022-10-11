@@ -183,7 +183,6 @@ End EXPR.
 Inductive cont: Type :=
   | Kstop: cont
   | Kseq: statement -> cont -> cont (* Kseq s2 k = after s1 in s1;s2 *)
-  | Kifthenelse: statement -> statement -> cont -> cont (* Kifthenelse s1 s2 k = after x in if (x) { s1 } else { s2 } *)
   | Kfor2: expr -> statement -> statement -> cont -> cont (* Kfor2 e2 e3 s k = after e2 in for(e1;e2;e3) s *)
   | Kfor3: expr -> statement -> statement -> cont -> cont (* Kfor3 e2 e3 s k = after s in for(e1;e2;e3) s *)
   | Kfor4: expr -> statement -> statement -> cont -> cont (* Kfor4 e2 e3 s k = after e3 in for(e1;e2;e3) s *)
