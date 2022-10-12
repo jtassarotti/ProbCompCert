@@ -120,7 +120,6 @@ Definition binary_op_conversion (op: b_op): binary_operation :=
   | Geq => Oge
   end.
 
-
 Inductive eval_expr: expr -> val -> Prop :=
   | eval_Econst_int: forall i ty,
       eval_expr (Econst_int i ty) (Vint i)
@@ -536,6 +535,26 @@ Section DENOTATIONAL.
     | right _ => default
     end.
 
+  Lemma pred_to_default_fun_spec1 {V: Type} (P: V -> Prop) (default: V) :
+    (∃ v, P v /\ pred_to_default_fun P default = v) \/
+      ((∀ v, ¬ P v) /\ pred_to_default_fun P default = default).
+  Proof.
+    rewrite /pred_to_default_fun.
+    destruct ClassicalEpsilon.excluded_middle_informative.
+    - destruct ClassicalEpsilon.constructive_indefinite_description; eauto.
+    - right. firstorder.
+  Qed.
+
+  Lemma pred_to_default_fun_default {V: Type} (P: V -> Prop) (default: V) :
+   (∀ v, ¬ P v) -> pred_to_default_fun P default = default.
+  Proof.
+    intros Hnex.
+    rewrite /pred_to_default_fun.
+    destruct ClassicalEpsilon.excluded_middle_informative.
+    - exfalso; firstorder.
+    - auto.
+  Qed.
+
   (* IFR -> inject float into real, named in analogy to INR : nat -> R, IZR: Z -> R *)
   Axiom IFR : float -> R.
   Axiom IRF: R -> float.
@@ -644,7 +663,89 @@ Section DENOTATIONAL.
   Definition parameter_rect (p: program) : rectangle (parameter_dimension p) :=
     Vector.of_list (parameter_list_rect p).
 
-  Axiom eval_expr_fun : expr -> val.
+  (*
+  Definition eval_expr_fun ge e m a :=
+    pred_to_default_fun (eval_expr ge e m (Float.zero) a) (Vfloat (Float.zero)).
+   *)
+
+  Definition eval_expr_fun p a :=
+    pred_to_default_fun (eval_expr (globalenv p) empty_env Mem.empty (Float.zero) a) (Vfloat (Float.zero)).
+
+  Lemma eval_expr_fun_spec p a v :
+    eval_expr (globalenv p) empty_env Mem.empty (Float.zero) a v ->
+    eval_expr_fun p a = v.
+  Proof.
+    intros Hexp. rewrite /eval_expr_fun/pred_to_default_fun.
+    destruct (ClassicalEpsilon.excluded_middle_informative _) as [(?&Hx)|Hn] => /=; last first.
+    { exfalso. eapply Hn. eexists; eauto. }
+    destruct (ClassicalEpsilon.constructive_indefinite_description _).
+    eapply eval_expr_determ; eauto.
+  Qed.
+
+
+  Definition sub_external_funct (ge1 ge2: Genv.t fundef variable) :=
+    ∀ vf name sig tyargs tyres cconv,
+      Genv.find_funct ge1 vf = Some (External (EF_external name sig) tyargs tyres cconv) ->
+      Genv.find_funct ge2 vf = Some (External (EF_external name sig) tyargs tyres cconv).
+
+  Definition match_external_funct ge1 ge2 := sub_external_funct ge1 ge2 /\ sub_external_funct ge2 ge1.
+
+  Definition match_find_symbol {F V} (ge1 ge2 : Genv.t F V) :=
+    ∀ s : ident, Genv.find_symbol ge1 s = Genv.find_symbol ge2 s.
+
+  Lemma eval_expr_match_aux ge1 e m x:
+    (∀ a v, eval_expr ge1 e m x a v ->
+            (∀ ge2, match_external_funct ge1 ge2 ->
+                    Senv.equiv ge1 ge2 ->
+                    eval_expr ge2 e m x a v)) /\
+    (∀ als vs, eval_exprlist ge1 e m x als vs ->
+               (∀ ge2, match_external_funct ge1 ge2 ->
+                       Senv.equiv ge1 ge2 ->
+                       eval_exprlist ge2 e m x als vs)) /\
+    (∀ a blk ofs, eval_lvalue ge1 e m x a blk ofs ->
+                  (∀ ge2, match_external_funct ge1 ge2 ->
+                          Senv.equiv ge1 ge2 ->
+                          eval_lvalue ge2 e m x a blk ofs)).
+  Proof.
+    apply (eval_exprs_ind ge1 e m x); intros; try (econstructor; eauto; done).
+    - econstructor; eauto.
+      { subst. eapply H7; eauto. }
+      { eapply external_call_symbols_preserved; eauto. }
+    - eapply eval_Evar_global; eauto.
+      destruct H2 as (H2a&H2b&H2c). rewrite /Senv.find_symbol/= in H2a. rewrite H2a. eauto.
+  Qed.
+
+  Lemma match_external_funct_sym ge1 ge2 :
+    match_external_funct ge1 ge2 ->
+    match_external_funct ge2 ge1.
+  Proof. intros (?&?); split; auto. Qed.
+
+  Lemma senv_equiv_sym ge1 ge2:
+    Senv.equiv ge1 ge2 ->
+    Senv.equiv ge2 ge1.
+  Proof. rewrite /Senv.equiv; intuition. Qed.
+
+  Lemma eval_expr_match ge1 ge2 e m x a v:
+    eval_expr ge1 e m x a v ->
+    match_external_funct ge1 ge2 ->
+    Senv.equiv ge1 ge2 ->
+    eval_expr ge2 e m x a v.
+  Proof. intros. eapply eval_expr_match_aux; eauto. Qed.
+
+  Lemma eval_expr_fun_match p1 p2 a :
+    match_external_funct (globalenv p1) (globalenv p2) ->
+    Senv.equiv (globalenv p1) (globalenv p2) ->
+    eval_expr_fun p1 a = eval_expr_fun p2 a.
+  Proof.
+    intros. rewrite {1}/eval_expr_fun. symmetry.
+    destruct (pred_to_default_fun_spec1 (eval_expr (globalenv p1) empty_env Mem.empty Float.zero a)
+                (Vfloat Float.zero)) as [(v&Hv&Heq)|(Hnex&Heq)].
+    - rewrite Heq. apply eval_expr_fun_spec; eauto.
+      eapply eval_expr_match; eauto.
+    - rewrite Heq. rewrite /eval_expr_fun. apply pred_to_default_fun_default.
+      intros v Hfalso. eapply Hnex.
+      eapply eval_expr_match; eauto using senv_equiv_sym, match_external_funct_sym.
+  Qed.
 
   Definition val2R v : R :=
     match v with
@@ -655,12 +756,12 @@ Section DENOTATIONAL.
   Definition R2val v : val :=
     Vfloat (IRF v).
 
-  Program Definition eval_param_map_list (p : program) (vt: list R) : list R :=
-    List.map (fun '(v,f) => val2R (eval_expr_fun (f (Econst_float (IRF v) Breal)))) (List.combine vt (flatten_parameter_out p)).
+  Definition eval_param_map_list (p : program) (vt: list R) : list R :=
+    List.map (fun '(v,f) => val2R (eval_expr_fun p (f (Econst_float (IRF v) Breal)))) (List.combine vt (flatten_parameter_out p)).
 
   Program Definition eval_param_map (p : program) (vt: Vector.t R (parameter_dimension p)) :
     Vector.t R (parameter_dimension p) :=
-    (Vector.map2 (fun v f => val2R (eval_expr_fun (f (Econst_float (IRF v) Breal))))
+    (Vector.map2 (fun v f => val2R (eval_expr_fun p (f (Econst_float (IRF v) Breal))))
                  vt (Vector.of_list (flatten_parameter_out p))).
   Next Obligation.
     unfold parameter_dimension, flatten_parameter_out, flatten_parameter_constraints.

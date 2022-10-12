@@ -35,6 +35,12 @@ Variable transf_correct:
 Variable parameters_preserved:
   flatten_parameter_variables tprog = flatten_parameter_variables prog.
 
+Variable external_funct_preserved:
+  match_external_funct (globalenv prog) (globalenv tprog).
+
+Variable global_env_equiv :
+  Senv.equiv (globalenv prog) (globalenv tprog).
+
 Lemma dimen_preserved:
   parameter_dimension tprog = parameter_dimension prog.
 Proof. rewrite /parameter_dimension/flatten_parameter_constraints. rewrite parameters_preserved //. Qed.
@@ -142,7 +148,12 @@ Proof.
       intros x Hin. rewrite /unnormalized_program_distribution_integrand. f_equal.
       { rewrite /density_of_program. rewrite log_density_equiv //. eapply Hsafe. eauto. }
       { f_equal. rewrite /eval_param_map_list.
-        f_equal. rewrite /flatten_parameter_out. rewrite parameters_preserved //. }
+        assert (flatten_parameter_out prog = flatten_parameter_out tprog) as ->.
+        { rewrite /flatten_parameter_out parameters_preserved //. }
+        eapply map_ext.
+        intros (r&f) => /=. f_equal.
+        apply eval_expr_fun_match; eauto.
+      }
     }
 Qed.
   
