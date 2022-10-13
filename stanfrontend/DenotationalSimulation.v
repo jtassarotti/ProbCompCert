@@ -24,8 +24,11 @@ Variable prog: Stanlight.program.
 Variable tprog: Stanlight.program.
 (* prog is assumed to be safe/well-defined on data/params satisfying a predicate P *)
 
-Variable inhabited_initial :
+Lemma inhabited_initial :
   ∀ data params t, is_safe prog data params -> ∃ s, Smallstep.initial_state (semantics prog data params t) s.
+Proof.
+  intros data params t Hsafe. destruct Hsafe as (Hex&_). eapply Hex.
+Qed.
 
 Variable transf_correct:
   forall data params t,
@@ -73,6 +76,7 @@ Proof.
   { apply inhabited_initial; eauto. }
   edestruct (bsim_match_initial_states) as (?&s1'&Hinit'&Hmatch1); eauto.
   edestruct (bsim_E0_star) as (?&s2'&Hstar'&Hmatch2); eauto.
+  { eapply Hsafe; eauto. }
   eapply (bsim_match_final_states) in Hmatch2 as (s2''&?&?); eauto; last first.
   { eapply star_safe; last eapply Hsafe; eauto. }
   exists s1', s2''. intuition eauto.
@@ -106,9 +110,16 @@ Proof.
   intros data Hsafe.
   rewrite /safe_data. intros params Hin.
   assert (Hin': in_list_rectangle params (parameter_list_rect prog)).
-  { move:Hin. rewrite /parameter_list_rect/flatten_parameter_constraints parameters_preserved //. } 
+  { move:Hin. rewrite /parameter_list_rect/flatten_parameter_constraints parameters_preserved //. }
   specialize (Hsafe _ Hin').
-  rewrite /is_safe. intros t s Hinit.
+  rewrite /is_safe. split.
+  { intros t.
+    edestruct Hsafe as ((s&Hinit)&_).
+    specialize (transf_correct data (map (λ r, Vfloat (IRF r)) params) t Hsafe) as Hfsim.
+    destruct Hfsim. edestruct fsim_match_initial_states as (ind&s'&?); eauto.
+    exists s'. intuition.
+  }
+  intros t s Hinit.
   specialize (transf_correct data (map (λ r, Vfloat (IRF r)) params) t) as Hfsim.
   apply forward_to_backward_simulation in Hfsim as Hbsim;
     auto using semantics_determinate, semantics_receptive.
@@ -116,8 +127,8 @@ Proof.
   assert (∃ s10, Smallstep.initial_state (semantics prog data (map (λ r, Vfloat (IRF r)) params) t) s10) as (s10&?).
   { apply inhabited_initial; eauto. }
   edestruct (bsim_match_initial_states) as (?&s1'&Hinit'&Hmatch1); eauto.
-
   eapply bsim_safe; eauto.
+  apply Hsafe; eauto.
 Qed.
 
 Lemma parameter_list_rect_preserved :
@@ -136,7 +147,7 @@ Proof.
     rewrite /is_program_distribution/is_program_normalizing_constant/is_unnormalized_program_distribution.
     intros (vnum&vnorm&Hneq0&His_norm&His_num&Hdiv).
     exists vnum, vnorm. repeat split; auto.
-    { 
+    {
       rewrite parameter_list_rect_preserved.
       eapply is_IIRInt_list_ext; try eassumption; [].
       * intros x Hin. rewrite /program_normalizing_constant_integrand.
@@ -156,5 +167,5 @@ Proof.
       }
     }
 Qed.
-  
+
 End DENOTATIONAL_SIMULATION.

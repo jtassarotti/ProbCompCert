@@ -305,6 +305,7 @@ Inductive initial_state (p: program) (data : list val) (params: list val) : stat
       assign_global_locs ge (flatten_parameter_list p.(pr_parameters_vars)) m2 params m3 ->
       initial_state p data params (State f f.(fn_body) ((Floats.Float.of_int Integers.Int.zero)) Kstop e m3).
 
+
 (* A final state returns 0 if the target matches testval and 1 otherwise,
    this may seem backwards from one expecting this to function like an "indicator"
    (where 1 is true), but we are adhering to the unix tradition where "0" return value is "normal"
@@ -364,7 +365,7 @@ Proof.
     exploit external_call_determ. eexact H6. eexact H17.
     intros (?&Heq). symmetry; eapply Heq; auto.
   -  inv H2; auto; try determ_aux; auto.
-     exploit H0; eauto. intros (->&->). 
+     exploit H0; eauto. intros (->&->).
      eapply deref_loc_determ; eauto.
   - inv H3; auto; try determ_aux.
     f_equal; eauto.
@@ -414,7 +415,7 @@ Proof.
   assert (m4 = m2) by (eapply assign_loc_determ; eauto); subst.
   eauto.
 Qed.
-  
+
 Definition semantics (p: program) (data: list val) (params: list val) (testval: float) :=
   let ge := Genv.globalenv p in
   Semantics_gen step (initial_state p data params) (final_state testval) ge ge.
@@ -592,7 +593,7 @@ Section DENOTATIONAL.
     subst.
     assert (s2' = s2).
     { eapply star_determinacy_nostep; eauto using semantics_determinate, sd_final_nostep.
-      inversion Hfin; subst. 
+      inversion Hfin; subst.
       intros ?? Hstep. inv Hstep.
     }
     subst.
@@ -645,6 +646,31 @@ Section DENOTATIONAL.
     | _ => (id, default_var)
     end.
 
+  Lemma list_find_fst_forall2 {A B: Type} (P: A * B -> bool) (l1 l2: list (A * B))
+    (Q: (A * B) -> (A * B) -> Prop):
+    list_forall2 Q l1 l2 ->
+    (forall x1 x2, Q x1 x2 -> fst x1 = fst x2) ->
+    (forall x1 x2, fst x1 = fst x2 -> P x1 = P x2) ->
+    (exists a b1 b2, find P l1 = Some (a, b1) /\ find P l2 = Some (a, b2) /\ Q (a, b1) (a, b2)) \/
+     (find P l1 = None /\ find P l2 = None).
+  Proof.
+    induction 1.
+    - intros. right => //=.
+    - intros HQ HP. simpl.
+      destruct a1 as (a&b).
+      destruct b1 as (a'&b').
+      assert (a'= a).
+      { exploit HQ; eauto. }
+      subst.
+      destruct (P (a, b)) eqn:HPa1.
+      * assert (P (a, b') = true) as ->.
+        { rewrite -HPa1; eauto. }
+        left. exists a, b, b'. repeat split; auto.
+      * assert (P (a, b') = false) as ->.
+        { rewrite -HPa1; eauto. }
+        eapply IHlist_forall2; eauto.
+  Qed.
+
   Definition flatten_parameter_variables (p: program) :=
     flatten_ident_variable_list (map (fun '(id, _, f) => (lookup_def_ident p id, f)) (pr_parameters_vars p)).
 
@@ -658,7 +684,7 @@ Section DENOTATIONAL.
     List.length (map (constraint_to_interval) (flatten_parameter_constraints p)).
 
   Definition parameter_list_rect p :=
-   (map (constraint_to_interval) (flatten_parameter_constraints p)). 
+   (map (constraint_to_interval) (flatten_parameter_constraints p)).
 
   Definition parameter_rect (p: program) : rectangle (parameter_dimension p) :=
     Vector.of_list (parameter_list_rect p).
@@ -765,7 +791,7 @@ Section DENOTATIONAL.
                  vt (Vector.of_list (flatten_parameter_out p))).
   Next Obligation.
     unfold parameter_dimension, flatten_parameter_out, flatten_parameter_constraints.
-    repeat rewrite map_length. auto. 
+    repeat rewrite map_length. auto.
   Qed.
 
   Definition unnormalized_program_distribution_integrand p data rt :=
@@ -806,11 +832,12 @@ Section DENOTATIONAL.
     fun rt => (unnormalized_program_distribution p data rt) / program_normalizing_constant p data.
 
   Definition is_safe p data params : Prop :=
+    (forall t, exists s, Smallstep.initial_state (semantics p data params t) s) /\
     (forall t s, Smallstep.initial_state (semantics p data params t) s ->
                  safe (semantics p data params t) s).
 
   Definition safe_data p data : Prop :=
-    (forall params, 
+    (forall params,
     in_list_rectangle params (parameter_list_rect p) ->
     is_safe p data (map (fun r => Vfloat (IRF r)) params)).
 
@@ -832,5 +859,3 @@ Section DENOTATIONAL.
                   is_program_distribution p1 data rt vt).
 
 End DENOTATIONAL.
-
-

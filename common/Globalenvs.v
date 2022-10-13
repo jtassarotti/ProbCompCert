@@ -1729,6 +1729,16 @@ Proof.
   exists y; auto.
 Qed.
 
+Theorem find_def_match_rev:
+  forall b tg,
+  find_def (globalenv tp) b = Some tg ->
+  exists g,
+  find_def (globalenv p) b = Some g /\ match_globdef match_fundef match_varinfo ctx g tg.
+Proof.
+  intros. generalize (find_def_match_2 b). rewrite H; intros R; inv R.
+  eexists; eauto.
+Qed.
+
 Theorem find_funct_ptr_match:
   forall b f,
   find_funct_ptr (globalenv p) b = Some f ->
@@ -1738,6 +1748,17 @@ Proof.
   intros. rewrite find_funct_ptr_iff in *. apply find_def_match in H.
   destruct H as (tg & P & Q). inv Q.
   exists ctx', f2; intuition auto. apply find_funct_ptr_iff; auto.
+Qed.
+
+Theorem find_funct_ptr_match_rev:
+  forall b tf,
+  find_funct_ptr (globalenv tp) b = Some tf ->
+  exists cunit f,
+  find_funct_ptr (globalenv p) b = Some f /\ match_fundef cunit f tf /\ linkorder cunit ctx.
+Proof.
+  intros. rewrite find_funct_ptr_iff in *. apply find_def_match_rev in H.
+  destruct H as (g & P & Q). inv Q.
+  exists ctx', f1; intuition auto. apply find_funct_ptr_iff; auto.
 Qed.
 
 Theorem find_funct_match:
@@ -1750,6 +1771,18 @@ Proof.
   rewrite find_funct_find_funct_ptr in H.
   rewrite find_funct_find_funct_ptr.
   apply find_funct_ptr_match. auto.
+Qed.
+
+Theorem find_funct_match_rev:
+  forall v tf,
+  find_funct (globalenv tp) v = Some tf ->
+  exists cunit f,
+  find_funct (globalenv p) v = Some f /\ match_fundef cunit f tf /\ linkorder cunit ctx.
+Proof.
+  intros. exploit find_funct_inv; eauto. intros [b EQ]. subst v.
+  rewrite find_funct_find_funct_ptr in H.
+  rewrite find_funct_find_funct_ptr.
+  apply find_funct_ptr_match_rev. auto.
 Qed.
 
 Theorem find_var_info_match:
@@ -1904,6 +1937,15 @@ Theorem find_funct_transf:
 Proof.
   intros. exploit (find_funct_match progmatch); eauto.
   intros (cu & tf & P & Q & R). congruence.
+Qed.
+
+Theorem find_funct_transf_rev:
+  forall v tf,
+  find_funct (globalenv tp) v = Some tf ->
+  exists f, find_funct (globalenv p) v = Some f /\ tf = transf f.
+Proof.
+  intros. exploit (find_funct_match_rev progmatch); eauto.
+  intros (cu & f & P & Q & R). subst. eauto.
 Qed.
 
 Theorem find_symbol_transf:

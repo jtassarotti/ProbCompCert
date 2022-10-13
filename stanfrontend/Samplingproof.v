@@ -5,6 +5,8 @@ Require Import Globalenvs.
 Require Import Stanlight.
 Require Import Ssemantics.
 Require Import Sampling.
+Require Import DenotationalSimulation.
+Require Import Coqlib.
 
 Definition match_prog (p: program) (tp: program) :=
   match_program (fun ctx f tf => tf = transf_fundef f) eq p tp /\
@@ -276,6 +278,49 @@ Proof.
 Qed. 
 
 End PRESERVATION.
+
+Section DENOTATIONAL_PRESERVATION.
+
+Variable prog: program.
+Variable tprog: program.
+Variable TRANSL: match_prog prog tprog.
+  
+Theorem denotational_preserved :
+  denotational_refinement tprog prog.
+Proof.
+  eapply DenotationalSimulation.denotational_preserved.
+  - intros data params t Hsafe.
+    apply transf_program_correct; eauto.
+  - unfold flatten_parameter_variables. simpl.
+    unfold flatten_ident_variable_list.
+    f_equal.
+    destruct TRANSL as (?&?&->).
+    f_equal.
+    apply List.map_ext.
+    intros ((id&b)&f).
+    f_equal.
+    unfold lookup_def_ident.
+    destruct H.
+    simpl in H.
+    edestruct (@list_find_fst_forall2 _ (AST.globdef fundef variable)
+               ((fun '(id', _) => Pos.eq_dec id id'))) as [Hleft|Hright]; first eauto.
+    { intros ?? (?&?); auto. }
+    { intros (?&?) (?&?). simpl; intros; subst. auto. }
+    { simpl. destruct Hleft as (id'&g1&g2&->&->&Hident).
+      inversion Hident. simpl in H3; inversion H3; subst; auto.
+      inversion H4. simpl. congruence. }
+    { destruct Hright as (->&->). auto. }
+  - unfold match_external_funct, sub_external_funct.
+    split.
+    * intros. erewrite functions_translated; eauto. simpl. auto.
+    * intros. destruct TRANSL as (Hmatch&_).
+      edestruct (Genv.find_funct_transf_rev Hmatch) as (p&->&Htransf); eauto.
+      destruct p; simpl in Htransf; try congruence.
+      inversion Htransf. subst. eauto.
+  - eapply Genv.senv_transf; apply TRANSL.
+Qed.
+
+End DENOTATIONAL_PRESERVATION.
 
 Global Instance TransfSamplingLink : TransfLink match_prog.
 Proof.

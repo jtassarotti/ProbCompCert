@@ -32,8 +32,11 @@ Variable target_unmap : R -> R.
 Variable target_map_unmap : ∀ x, target_map (target_unmap x) = x.
 Variable target_map_zero : target_map (IFR Float.zero) = IFR Float.zero.
 
-Variable inhabited_initial :
+Lemma inhabited_initial :
   ∀ data params t, is_safe prog data params -> ∃ s, Smallstep.initial_state (semantics prog data params t) s.
+Proof.
+  intros data params t Hsafe. destruct Hsafe as (Hex&_). eapply Hex.
+Qed.
 
 Variable dimen_preserved: parameter_dimension tprog = parameter_dimension prog.
 
@@ -108,6 +111,7 @@ Proof.
   { apply inhabited_initial; eauto. }
   edestruct (bsim_match_initial_states) as (?&s1'&Hinit'&Hmatch1); eauto.
   edestruct (bsim_E0_star) as (?&s2'&Hstar'&Hmatch2); eauto.
+  { eapply Hsafe; eauto. }
   eapply (bsim_match_final_states) in Hmatch2 as (s2''&?&?); eauto; last first.
   { eapply star_safe; last eapply Hsafe; eauto. }
   exists s1', s2''. intuition eauto.
@@ -153,7 +157,14 @@ Proof.
   assert (Hin': in_list_rectangle (param_map params) (parameter_list_rect prog)).
   { apply param_map_in_dom. auto. }
   specialize (Hsafe _ Hin').
-  rewrite /is_safe. intros t s Hinit.
+  rewrite /is_safe. split.
+  { intros t.
+    edestruct Hsafe as ((s&Hinit)&_).
+    specialize (transf_correct data (param_map params) (target_unmap (IFR t)) Hsafe) as Hfsim.
+    destruct Hfsim. edestruct fsim_match_initial_states as (ind&s'&?); eauto.
+    exists s'. rewrite param_unmap_map in H; intuition.
+  }
+  intros t s Hinit.
   epose proof (transf_correct data (param_map params) ((target_unmap (IFR t)))) as Hfsim.
   apply forward_to_backward_simulation in Hfsim as Hbsim;
     auto using semantics_determinate, semantics_receptive.
@@ -166,6 +177,7 @@ Proof.
   eapply bsim_safe; eauto.
   rewrite param_unmap_map in props; auto.
   rewrite target_map_unmap IRF_IFR_inv /R2val in props; eauto.
+  apply Hsafe; eauto.
 Qed.
 
 (* The last lemma assumes that the transformation actually in fact
@@ -201,13 +213,13 @@ Proof.
 Qed.
 
 Lemma map_list_apply {A B C} (g : B -> C) (fs : list (A -> B)) xs :
-  map g (list_apply fs xs) = list_apply (map (λ f, λ x, g (f x)) fs) xs. 
+  map g (list_apply fs xs) = list_apply (map (λ f, λ x, g (f x)) fs) xs.
 Proof.
   revert xs.
   induction fs => xs.
   - rewrite //=.
   - destruct xs => //=.
-    rewrite IHfs /=. 
+    rewrite IHfs /=.
     rewrite /list_apply/=//.
 Qed.
 
@@ -221,7 +233,7 @@ Proof.
     rewrite /is_program_distribution/is_program_normalizing_constant/is_unnormalized_program_distribution.
     intros (vnum&vnorm&Hneq0&His_norm&His_num&Hdiv).
     eexists vnum, vnorm;  repeat split; auto.
-    { 
+    {
       assert (vnorm = IIRInt_list (program_normalizing_constant_integrand prog data) (parameter_list_rect prog))
         as ->.
       { symmetry. apply is_IIRInt_list_unique. auto. }
@@ -271,5 +283,5 @@ Proof.
       rewrite param_map_gs //.
     }
 Qed.
-  
+
 End DENOTATIONAL_SIMULATION.
