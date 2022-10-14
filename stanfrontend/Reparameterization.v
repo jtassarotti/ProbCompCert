@@ -167,11 +167,12 @@ Definition change_of_variable_correction (i: AST.ident) (v: variable): option ex
       let b := Econst_float b Breal in
       let one := Econst_float (Floats.Float.of_int Integers.Int.one) Breal in
       let call := Ecall (Evar $"expit" (Bfunction (Bcons Breal Bnil) Breal)) (Econs (Evar i typ) Enil) Breal in
-      Some (Ebinop (Ebinop b Minus a Breal) Times (Ebinop call Times (Ebinop one Minus call Breal) Breal) Breal) 
+      let pre_log := (Ebinop (Ebinop b Minus a Breal) Times (Ebinop call Times (Ebinop one Minus call Breal) Breal) Breal) in
+      Some (Ecall (Evar $"log" (Bfunction (Bcons Breal Bnil) Breal)) (Econs pre_log Enil) Breal)
     | Clower a => 
-      Some (Ecall (Evar $"exp" (Bfunction (Bcons Breal Bnil) Breal)) (Econs (Evar i typ) Enil) Breal)
+      Some (Evar i typ)
     | Cupper b =>
-      Some (Ecall (Evar $"exp" (Bfunction (Bcons Breal Bnil) Breal)) (Econs (Evar i typ) Enil) Breal)
+      Some (Evar i typ)
     end
   | Barray Breal _ => 
     match constraint with
