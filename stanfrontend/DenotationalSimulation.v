@@ -44,6 +44,54 @@ Variable external_funct_preserved:
 Variable global_env_equiv :
   Senv.equiv (globalenv prog) (globalenv tprog).
 
+Lemma match_flatten_parameter_variables (p tp : program) f :
+  match_program f eq p tp ->
+  pr_parameters_vars p = pr_parameters_vars tp ->
+  flatten_parameter_variables tp = flatten_parameter_variables p.
+Proof.
+  intros Hmatch Heq.
+    unfold flatten_parameter_variables. simpl.
+    unfold flatten_ident_variable_list.
+    rewrite Heq.
+    f_equal. f_equal.
+    apply List.map_ext.
+    intros ((id&b)&f').
+    f_equal.
+    unfold lookup_def_ident.
+    destruct Hmatch as (H1&H2).
+    simpl in H1.
+    edestruct (@list_find_fst_forall2 _ (AST.globdef fundef variable)
+               ((fun '(id', _) => Pos.eq_dec id id'))) as [Hleft|Hright]; first eauto.
+    { intros ?? (?&?); auto. }
+    { intros (?&?) (?&?). simpl; intros; subst. auto. }
+    { simpl. destruct Hleft as (id'&g1&g2&->&->&Hident).
+      inversion Hident as [Hfst_eq Hglob]. simpl in Hglob.
+      inversion Hglob; auto.
+      subst. inversion H. congruence. }
+    { destruct Hright as (->&->). auto. }
+Qed.
+
+Lemma match_program_external_funct (p tp : program) transf_fundef :
+  match_program (fun ctx f tf => tf = transf_fundef f) eq p tp ->
+  (∀ ef tyargs tyres cconv,
+      transf_fundef (Ctypes.External ef tyargs tyres cconv) =
+      Ctypes.External ef tyargs tyres cconv) ->
+  (∀ f ef tyargs tyres cconv,
+      transf_fundef (Internal f) <> External ef tyargs tyres cconv) ->
+  match_external_funct (globalenv p) (globalenv tp).
+Proof.
+  intros Hmatch Hext Hint.
+  - unfold match_external_funct, sub_external_funct.
+    split.
+    * intros. rewrite -Hext. eapply @Genv.find_funct_transf; eauto.
+    * intros.
+      edestruct (Genv.find_funct_transf_rev Hmatch) as (p'&->&Htransf); eauto.
+      destruct p'; simpl in Htransf; try congruence.
+      { exfalso. eapply Hint. eauto. }
+      rewrite Hext in Htransf.
+      inversion Htransf. subst. eauto.
+Qed.
+
 Lemma dimen_preserved:
   parameter_dimension tprog = parameter_dimension prog.
 Proof. rewrite /parameter_dimension/flatten_parameter_constraints. rewrite parameters_preserved //. Qed.

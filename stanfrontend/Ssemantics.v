@@ -7,6 +7,8 @@ Require Import Linking.
 Require Import IteratedRInt.
 Require Vector.
 
+Set Bullet Behavior "Strict Subproofs".
+
 Require Import Clightdefs.
 Import Clightdefs.ClightNotations.
 Local Open Scope clight_scope.
@@ -223,6 +225,16 @@ Inductive step: state -> trace -> state -> Prop :=
   | step_target: forall f t a v k e m,
     eval_expr e m t a (Vfloat v) ->
     step (State f (Starget a) t k e m) E0 (State f Sskip (Floats.Float.add t v) k e m)
+  | step_tilde: forall f t a ad al v k e m vf vargs vres ef name sig tyargs tyres cconv fd,
+    eval_expr e m t ad vf ->
+    eval_expr e m t a v ->
+    eval_exprlist e m t al vargs ->
+    Genv.find_funct ge vf = Some fd ->
+    ef = EF_external name sig ->
+    fd = External ef tyargs tyres cconv ->
+    (* External calls must not (1) modify memory or (2) emit an observable trace event *)
+    external_call ef ge (v :: vargs) m E0 (Vfloat vres) m ->
+    step (State f (Stilde a ad al) t k e m) E0 (State f Sskip (Floats.Float.add t vres) k e m)
 .
 
 Fixpoint type_of_basic (b: basic) : Type :=
@@ -453,6 +465,13 @@ Proof.
     assert (m' = m'0) by (eapply assign_loc_determ; eauto). subst. eauto.
   + subst.
     assert (b0 = b) by congruence. subst. auto.
+  + subst.
+    assert (name0 = name) by congruence; subst.
+    assert (sig0 = sig) by congruence; subst.
+    exploit external_call_determ.
+    { eapply H7. }
+    { eapply H21. }
+    intros Himpl. intuition congruence.
 - (* single event *)
   red; simpl. destruct 1; simpl; try lia;
   eapply external_call_trace_length; eauto.
