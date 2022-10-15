@@ -160,11 +160,11 @@ with eval_lvalue: expr -> block -> ptrofs -> Prop :=
       e!id = None ->
       Genv.find_symbol ge id = Some l ->
       eval_lvalue (Evar id ty) l Ptrofs.zero
-  | eval_Ederef: forall a al ty l v,
-      eval_expr a (Vptr l (Ptrofs.of_int Integers.Int.zero)) ->
+  | eval_Eindexed: forall id al tya ty l v,
+      eval_lvalue (Evar id tya) l Ptrofs.zero ->
       (* Currently only doing array *)
       eval_exprlist al ((Vint v) :: nil) ->
-      eval_lvalue (Eindexed a al ty) l (Ptrofs.of_int v)
+      eval_lvalue (Eindexed (Evar id tya) al ty) l (Ptrofs.of_int v)
 
 with eval_exprlist: exprlist -> list val -> Prop :=
   | eval_Enil:
