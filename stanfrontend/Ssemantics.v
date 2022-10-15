@@ -22,6 +22,10 @@ Definition env := PTree.t (block * basic).
 
 Definition empty_env: env := (PTree.empty (block * basic)).
 
+Inductive scope :=
+  | Sglobal
+  | Slocal.
+
 Definition access_mode (ty: basic) : mode :=
   match ty with
   | Bint => By_value Mint32
@@ -147,24 +151,24 @@ Inductive eval_expr: expr -> val -> Prop :=
       eval_expr (Ecall a al ty) vres
   | eval_Etarget: forall ty,
       eval_expr (Etarget ty) (Vfloat t)
-  | eval_Elvalue: forall a loc ofs v,
-      eval_lvalue a loc ofs ->
+  | eval_Elvalue: forall a loc ofs v s,
+      eval_lvalue a loc ofs s ->
       deref_loc (typeof a) m loc ofs v ->
       eval_expr a v
 
-with eval_lvalue: expr -> block -> ptrofs -> Prop :=
+with eval_lvalue: expr -> block -> ptrofs -> scope -> Prop :=
   | eval_Evar_local: forall id l ty,
       e!id = Some(l, ty) ->
-      eval_lvalue (Evar id ty) l Ptrofs.zero
+      eval_lvalue (Evar id ty) l Ptrofs.zero Slocal
   | eval_Evar_global: forall id l ty,
       e!id = None ->
       Genv.find_symbol ge id = Some l ->
-      eval_lvalue (Evar id ty) l Ptrofs.zero
-  | eval_Eindexed: forall id al tya ty l v,
-      eval_lvalue (Evar id tya) l Ptrofs.zero ->
+      eval_lvalue (Evar id ty) l Ptrofs.zero Sglobal
+  | eval_Eindexed: forall id al tya ty l v s,
+      eval_lvalue (Evar id tya) l Ptrofs.zero s->
       (* Currently only doing array *)
       eval_exprlist al ((Vint v) :: nil) ->
-      eval_lvalue (Eindexed (Evar id tya) al ty) l (Ptrofs.of_int v)
+      eval_lvalue (Eindexed (Evar id tya) al ty) l (Ptrofs.of_int v) s
 
 with eval_exprlist: exprlist -> list val -> Prop :=
   | eval_Enil:
@@ -210,7 +214,7 @@ Inductive step: state -> trace -> state -> Prop :=
     step (State f (Ssequence s1 s2) t k e m) E0 (State f s1 t (Kseq s2 k) e m)
 
   | step_assign: forall f t a1 a2 k e m loc ofs v2 v m',
-      eval_lvalue e m t a1 loc ofs ->
+      eval_lvalue e m t a1 loc ofs Slocal ->
       eval_expr e m t a2 v2 ->
       sem_cast v2 (transf_type (typeof a2)) (transf_type (typeof a1)) m = Some v ->
       assign_loc ge (typeof a1) m loc ofs v m' ->
@@ -225,6 +229,7 @@ Inductive step: state -> trace -> state -> Prop :=
   | step_target: forall f t a v k e m,
     eval_expr e m t a (Vfloat v) ->
     step (State f (Starget a) t k e m) E0 (State f Sskip (Floats.Float.add t v) k e m)
+
   | step_tilde: forall f t a ad al v k e m vf vargs vres ef name sig tyargs tyres cconv fd,
     eval_expr e m t ad vf ->
     eval_expr e m t a v ->
@@ -334,7 +339,7 @@ End SEMANTICS.
 
 Ltac determ_aux :=
     match goal with
-    | [ H: eval_lvalue _ _ _ _ _ _ _  |- _ ] => try (inversion H; fail)
+    | [ H: eval_lvalue _ _ _ _ _ _ _ _  |- _ ] => try (inversion H; fail)
     end.
 
 Lemma assign_loc_determ ce ty m0 b ofs v m m' :
@@ -359,8 +364,8 @@ Lemma eval_exprs_determ:
                          forall v', eval_expr ge sp m t e v' -> v' = v) /\
   (forall (e: exprlist) l, eval_exprlist ge sp m t e l ->
                          forall l', eval_exprlist ge sp m t e l' -> l' = l) /\
-  (forall (e: expr) blk ofs, eval_lvalue ge sp m t e blk ofs ->
-                         forall blk' ofs', eval_lvalue ge sp m t e blk' ofs' -> blk' = blk /\ ofs' = ofs).
+  (forall (e: expr) blk ofs s, eval_lvalue ge sp m t e blk ofs s ->
+                         forall blk' ofs' s', eval_lvalue ge sp m t e blk' ofs' s' -> blk' = blk /\ ofs' = ofs).
 Proof.
   intros ge sp m t.
   apply (eval_exprs_ind ge sp m t); intros; try (inv H; auto; try determ_aux; auto; fail).
@@ -402,8 +407,8 @@ Proof.
 Qed.
 
 Lemma eval_lvalue_determ:
-  forall ge sp e m t blk vl, eval_lvalue ge sp e m t blk vl ->
-  forall blk' vl', eval_lvalue ge sp e m t blk' vl' -> blk' = blk /\ vl' = vl.
+  forall ge sp e m t blk vl s, eval_lvalue ge sp e m t blk vl s ->
+  forall blk' vl' s', eval_lvalue ge sp e m t blk' vl' s' -> blk' = blk /\ vl' = vl.
 Proof.
   intros. eapply eval_exprs_determ; eauto.
 Qed.
@@ -443,7 +448,7 @@ Ltac Determ :=
   | [ H1: eval_exprlist _ _ _ _ ?a ?v1, H2: eval_exprlist _ _ _ _ ?a ?v2 |- _ ] =>
           assert (v1 = v2) by (eapply eval_exprlist_determ; eauto);
           clear H1 H2; Determ
-  | [ H1: eval_lvalue _ _ _ _ ?a ?blk1 ?v1, H2: eval_lvalue _ _ _ _ ?a ?blk2 ?v2 |- _ ] =>
+  | [ H1: eval_lvalue _ _ _ _ ?a ?blk1 ?v1 ?s1, H2: eval_lvalue _ _ _ _ ?a ?blk2 ?v2 ?s2 |- _ ] =>
           assert (blk1 = blk2 /\ v1 = v2) as (?&?) by (eapply eval_lvalue_determ; eauto);
           clear H1 H2; Determ
   | _ => idtac
@@ -747,10 +752,10 @@ Section DENOTATIONAL.
                (∀ ge2, match_external_funct ge1 ge2 ->
                        Senv.equiv ge1 ge2 ->
                        eval_exprlist ge2 e m x als vs)) /\
-    (∀ a blk ofs, eval_lvalue ge1 e m x a blk ofs ->
+    (∀ a blk ofs s, eval_lvalue ge1 e m x a blk ofs s ->
                   (∀ ge2, match_external_funct ge1 ge2 ->
                           Senv.equiv ge1 ge2 ->
-                          eval_lvalue ge2 e m x a blk ofs)).
+                          eval_lvalue ge2 e m x a blk ofs s)).
   Proof.
     apply (eval_exprs_ind ge1 e m x); intros; try (econstructor; eauto; done).
     - econstructor; eauto.

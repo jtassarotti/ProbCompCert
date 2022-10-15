@@ -78,12 +78,12 @@ Combined Scheme eval_expr_mutind from eval_expr_rec, eval_lvalue_rec, eval_exprl
 Lemma evaluation_preserved:
   forall en m t,
       (forall e v, eval_expr ge en m t e v -> eval_expr tge en m t e v)
-  /\  (forall e loc ofs, eval_lvalue ge en m t e loc ofs -> eval_lvalue tge en m t e loc ofs)
+  /\  (forall e loc ofs s, eval_lvalue ge en m t e loc ofs s -> eval_lvalue tge en m t e loc ofs s)
   /\  (forall el vl, eval_exprlist ge en m t el vl -> eval_exprlist tge en m t el vl).
 Proof.
   intros.
   set (P1 := fun e v => eval_expr ge en m t e v -> eval_expr tge en m t e v).
-  set (P2 := fun e loc ofs => eval_lvalue ge en m t e loc ofs -> eval_lvalue tge en m t e loc ofs).
+  set (P2 := fun e loc ofs s => eval_lvalue ge en m t e loc ofs s -> eval_lvalue tge en m t e loc ofs s).
   set (P3 := fun el vl => eval_exprlist ge en m t el vl -> eval_exprlist tge en m t el vl).
   generalize (eval_expr_mutind ge en m t P1 P2 P3); intro IND.
 
@@ -109,7 +109,7 @@ Proof.
 
   (* Evaluation of lvalues *)
   split.
-  intros e loc ofs EVAL.
+  intros e loc ofs s EVAL.
   eapply IND; eauto; intros; subst; subst P1; subst P2; subst P3; simpl; intros.
   econstructor; eauto.
   econstructor; eauto.
@@ -157,9 +157,9 @@ Proof.
 Qed.
 
 Lemma eval_lvalue_preserved:
-  forall en m t e loc ofs,
-  eval_lvalue ge en m t e loc ofs ->
-  eval_lvalue tge en m t e loc ofs.
+  forall en m t e loc ofs s,
+  eval_lvalue ge en m t e loc ofs s ->
+  eval_lvalue tge en m t e loc ofs s.
 Proof.
   intros.
   eapply evaluation_preserved; eauto.
@@ -228,7 +228,7 @@ Proof.
   exists (State (transf_function f) Sskip t k' e m').
   split.
   generalize (eval_expr_preserved _ _ _ _ _ H0); intro.
-  generalize (eval_lvalue_preserved _ _ _ _ _ _ H); intro.
+  generalize (eval_lvalue_preserved _ _ _ _ _ _ _ H); intro.
   econstructor; eauto. inversion H2.
   eapply assign_loc_value; eauto.
   econstructor; eauto.
