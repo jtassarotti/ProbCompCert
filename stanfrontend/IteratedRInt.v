@@ -381,6 +381,15 @@ Definition in_list_rectangle (x: list R) (r: rectangle_list) :=
 Definition rectangle_list_subset (r1 r2: rectangle_list) :=
   List.Forall2 interval_subset r1 r2.
 
+Lemma in_list_rectangle_wf_rectangle p l :
+  in_list_rectangle p l ->
+  wf_rectangle_list l.
+Proof.
+  induction 1.
+  - econstructor.
+  - econstructor; eauto.
+    destruct H. eapply Rbar_lt_trans; eauto.
+Qed.
 
 Fixpoint IIRInt_list (f: list R -> R) (r: rectangle_list) : R :=
   match r with

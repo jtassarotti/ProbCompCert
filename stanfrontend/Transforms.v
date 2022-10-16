@@ -2,7 +2,7 @@ Require Export RelationClasses Morphisms Utf8.
 From mathcomp Require Import ssreflect ssrbool eqtype.
 From Coquelicot Require Import Hierarchy Markov Rcomplements Rbar Lub Lim_seq SF_seq Continuity Hierarchy RInt RInt_analysis Derive AutoDerive.
 Require Import RealsExt.
-Require Import Reals.
+Require Export Reals.
 Require Import Coqlib.
 Require Import Psatz.
 Import Rbar.
@@ -110,6 +110,13 @@ Proof.
   rewrite exp_ln; nra.
 Qed.
 
+Lemma unconstrain_lb_inv :
+  forall a x, unconstrain_lb a (constrain_lb a x) = x.
+Proof.
+  intros a x. rewrite /constrain_lb/unconstrain_lb.
+  rewrite -{2}(ln_exp (x)). f_equal. ring.
+Qed.
+
 Lemma constrain_lb_spec_strict a x :
   a < constrain_lb a x.
 Proof.
@@ -164,6 +171,15 @@ Proof.
   intros b x Hrange. rewrite /constrain_ub/unconstrain_ub.
   rewrite Ropp_involutive.
   rewrite exp_ln; nra.
+Qed.
+
+Lemma unconstrain_ub_inv :
+  forall b x, unconstrain_ub b (constrain_ub b x) = x.
+Proof.
+  intros b x. rewrite /constrain_ub/unconstrain_ub.
+  transitivity (- ln (exp (-x))).
+  { do 2 f_equal. ring. }
+  rewrite ln_exp. nra.
 Qed.
 
 Lemma constrain_ub_spec_strict b x :
@@ -254,6 +270,16 @@ Proof.
   { apply Rdiv_lt_0_compat; nra. }
 Qed.
 
+Lemma logit_inv_spec2 x :
+  logit (logit_inv x) = x.
+Proof.
+  intros.
+  rewrite /logit_inv/logit. rewrite -[a in _ = a](ln_exp x).
+  f_equal. field_simplify.
+  { rewrite exp_Ropp. field. specialize (exp_pos x); nra. }
+  specialize (exp_pos (-x)). nra.
+Qed.
+
 Lemma constrain_lb_ub_inv :
   forall a b x, a < x < b -> constrain_lb_ub a b (unconstrain_lb_ub a b x) = x.
 Proof.
@@ -263,6 +289,15 @@ Proof.
   split.
   { apply Rdiv_lt_0_compat; nra. }
   { apply Rlt_div_l; nra. }
+Qed.
+
+Lemma unconstrain_lb_ub_inv :
+  forall a b x, a ≠ b -> unconstrain_lb_ub a b (constrain_lb_ub a b x) = x.
+Proof.
+  intros a b x. rewrite /constrain_lb_ub/unconstrain_lb_ub.
+  transitivity (logit (logit_inv x)).
+  { f_equal. field. nra. }
+  rewrite logit_inv_spec2 //.
 Qed.
 
 Lemma constrain_lb_ub_spec_strict a b x :

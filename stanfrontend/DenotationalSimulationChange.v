@@ -41,6 +41,7 @@ Qed.
 Variable dimen_preserved: parameter_dimension tprog = parameter_dimension prog.
 
 Variable wf_paramter_rect_tprog :
+  wf_rectangle_list (parameter_list_rect prog) ->
   wf_rectangle_list (parameter_list_rect tprog).
 
 Variable param_map_unmap :
@@ -48,7 +49,9 @@ Variable param_map_unmap :
        param_map (param_unmap x) = x.
 
 Variable param_unmap_map :
-  ∀ x, in_list_rectangle x (parameter_list_rect tprog) ->
+  ∀ x,
+       wf_rectangle_list (parameter_list_rect prog) ->
+       in_list_rectangle x (parameter_list_rect tprog) ->
        param_unmap (param_map x) = x.
 
 Variable param_unmap_in_dom :
@@ -56,7 +59,8 @@ Variable param_unmap_in_dom :
        in_list_rectangle (param_unmap x) (parameter_list_rect tprog).
 
 Variable param_map_in_dom :
-  ∀ x, in_list_rectangle x (parameter_list_rect tprog) ->
+  ∀ x,
+       in_list_rectangle x (parameter_list_rect tprog) ->
        in_list_rectangle (param_map x) (parameter_list_rect prog).
 
 Variable param_unmap_out_inv :
@@ -156,6 +160,8 @@ Proof.
   rewrite /safe_data. intros params Hin.
   assert (Hin': in_list_rectangle (param_map params) (parameter_list_rect prog)).
   { apply param_map_in_dom. auto. }
+  assert (Hwf: wf_rectangle_list (parameter_list_rect prog)).
+  {  eapply in_list_rectangle_wf_rectangle; eauto. }
   specialize (Hsafe _ Hin').
   rewrite /is_safe. split.
   { intros t.

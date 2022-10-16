@@ -87,15 +87,15 @@ Fixpoint transf_statement (pmap: AST.ident -> option expr) (s: Stanlight.stateme
     Stilde e d el
   end. 
 
-Definition transf_function (pmap: AST.ident -> option expr) (correction: expr) (id: AST.ident) (f: Stanlight.function): Stanlight.function :=
+Definition transf_function (pmap: AST.ident -> option expr) (correction: expr) (f: Stanlight.function): Stanlight.function :=
   let body := transf_statement pmap f.(fn_body) in
   let body := Ssequence body (Starget correction) in 
   mkfunction body f.(fn_vars). 
 
-Definition transf_fundef (pmap: AST.ident -> option expr) (correction: expr) (id: AST.ident) (fd: Stanlight.fundef) : Errors.res Stanlight.fundef :=
+Definition transf_fundef (pmap: AST.ident -> option expr) (correction: expr) (fd: Stanlight.fundef) : Errors.res Stanlight.fundef :=
   match fd with
   | Ctypes.Internal f =>
-      let tf := transf_function pmap correction id f in 
+      let tf := transf_function pmap correction f in
       Errors.OK (Ctypes.Internal tf)
   | Ctypes.External ef targs tres cc => Errors.OK (Ctypes.External ef targs tres cc)
   end.
@@ -201,7 +201,7 @@ Definition transf_program(p: Stanlight.program): Errors.res Stanlight.program :=
                                  (id, vd_type v,
                                  fun x => f (unconstrained_to_constrained_fun (vd_constraint v) x))) parameters in
 
-  do p1 <- AST.transform_partial_program2 (transf_fundef pmap correction) transf_variable p;
+  do p1 <- AST.transform_partial_program2 (fun id => transf_fundef pmap correction) transf_variable p;
   Errors.OK {|
       Stanlight.pr_defs := AST.prog_defs p1;
       Stanlight.pr_parameters_vars := pr_parameters_vars';
