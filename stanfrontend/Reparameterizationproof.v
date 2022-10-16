@@ -148,32 +148,43 @@ Proof.
     apply constrain_unconstrain; auto.
 Qed.
 
-Lemma find_parameter_ident_match {A} i' b (e' : A) i v e :
-  find_parameter (pr_defs prog) (i', b, e') = OK (i, v, e) ->
+Lemma find_parameter_ident_match {A} l i' b (e' : A) i v e :
+  find_parameter l (i', b, e') = OK (i, v, e) ->
   i' = i /\ e' = e.
 Proof.
-  induction (pr_defs prog) as [| (?&?) l] => //=.
+  induction l as [| (?&?) l] => //=.
   - destruct g; eauto.
     destruct (Pos.eq_dec _ _); subst; eauto.
     inversion 1; eauto.
 Qed.
 
-Set Nested Proofs Allowed.
 Lemma find_parameter_lookup_def_ident_gen (a : AST.ident * basic * (expr -> expr)) i v e :
   find_parameter (pr_defs prog) a = OK (i, v, e) ->
-  match List.find (fun '(id', _) => positive_eq_dec i id') (pr_defs prog) with
+  match List.find (fun '(id', v) => positive_eq_dec i id' && is_gvar v) (pr_defs prog) with
   | Some (_, AST.Gvar v') => (i, AST.gvar_info v') = (i, v)
   | _ =>  False
   end.
 Proof.
-Admitted.
+  induction (pr_defs prog) as [| x l].
+  - rewrite //=. destruct a as ((?&?)&?). inversion 1.
+  - rewrite //=. destruct a as ((?&?)&?).
+    destruct x as (id&def). destruct def.
+    * rewrite andb_false_r; eauto.
+    * destruct (Pos.eq_dec id i0).
+      ** inversion 1; subst. rewrite //=. destruct (Pos.eq_dec i i) => /=; by eauto.
+      ** intros Hfind.
+         exploit (find_parameter_ident_match l i0 b e0); eauto. intros (->&->). subst.
+         destruct (Pos.eq_dec i id).
+         { congruence. }
+         rewrite //=. eapply IHl. eauto.
+Qed.
 
 Lemma find_parameter_lookup_def_ident_prog (a : AST.ident * basic * (expr -> expr)) i v e :
   find_parameter (pr_defs prog) a = OK (i, v, e) ->
   lookup_def_ident prog i = (i, v).
 Proof.
   intros Hfind%find_parameter_lookup_def_ident_gen.
-  rewrite /lookup_def_ident. destruct (find (λ '(id', _), Pos.eq_dec i id') (pr_defs _)) as [p|].
+  rewrite /lookup_def_ident. destruct (find (λ '(id', _), Pos.eq_dec i id' && _) (pr_defs _)) as [p|].
   * destruct p as (?&[]); intuition.
   * intuition.
 Qed.
@@ -189,9 +200,11 @@ Proof.
   destruct TRANSL as (x&HOK&Hmatch&?).
   destruct Hmatch as (Hforall2&?).
   edestruct (@list_find_fst_forall2 _ (AST.globdef fundef variable)
-               ((fun '(id', _) => Pos.eq_dec i id'))) as [Hleft|Hright]; first eauto.
+               ((fun '(id', v) => Pos.eq_dec i id' && is_gvar v))) as [Hleft|Hright]; first eauto.
   { intros ?? (?&?); auto. }
-  { intros (?&?) (?&?). simpl; intros; subst. auto. }
+  { intros (?&?) (?&?). simpl. intros Hmatch. inversion Hmatch as [Hfst Hglob].
+    simpl in Hfst, Hglob. inversion Hglob; subst => //=.
+  }
   { simpl. destruct Hleft as (id'&g1&g2&Heq1&Heq2&Hident).
     rewrite Heq2. rewrite Heq1 in Hlook.
     inversion Hident as [Hfst_eq Hglob]. simpl in Hglob.

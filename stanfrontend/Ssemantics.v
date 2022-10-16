@@ -664,8 +664,14 @@ Section DENOTATIONAL.
   Definition default_var : variable :=
     {| vd_type := Breal; vd_constraint := Cidentity |}.
 
+  Definition is_gvar {F V: Type} (vd: globdef F V) :=
+    match vd with
+    | Gvar _ => true
+    | _ => false
+    end.
+
   Definition lookup_def_ident (p: program) (id: ident) :=
-    match List.find (fun '(id', _) => positive_eq_dec id id') (pr_defs p) with
+    match List.find (fun '(id', v) => positive_eq_dec id id' && is_gvar v) (pr_defs p) with
     | Some (_, Gvar v) => (id, gvar_info v)
     | _ => (id, default_var)
     end.
@@ -674,13 +680,13 @@ Section DENOTATIONAL.
     (Q: (A * B) -> (A * B) -> Prop):
     list_forall2 Q l1 l2 ->
     (forall x1 x2, Q x1 x2 -> fst x1 = fst x2) ->
-    (forall x1 x2, fst x1 = fst x2 -> P x1 = P x2) ->
+    (forall x1 x2, Q x1 x2 -> P x1 = P x2) ->
     (exists a b1 b2, find P l1 = Some (a, b1) /\ find P l2 = Some (a, b2) /\ Q (a, b1) (a, b2)) \/
      (find P l1 = None /\ find P l2 = None).
   Proof.
     induction 1.
     - intros. right => //=.
-    - intros HQ HP. simpl.
+    - intros HQ HQP. simpl.
       destruct a1 as (a&b).
       destruct b1 as (a'&b').
       assert (a'= a).
@@ -688,10 +694,10 @@ Section DENOTATIONAL.
       subst.
       destruct (P (a, b)) eqn:HPa1.
       * assert (P (a, b') = true) as ->.
-        { rewrite -HPa1; eauto. }
+        { rewrite -HPa1. symmetry. eapply HQP; eauto. }
         left. exists a, b, b'. repeat split; auto.
       * assert (P (a, b') = false) as ->.
-        { rewrite -HPa1; eauto. }
+        { rewrite -HPa1. symmetry. eapply HQP; eauto. }
         eapply IHlist_forall2; eauto.
   Qed.
 

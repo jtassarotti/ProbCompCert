@@ -61,9 +61,13 @@ Proof.
     destruct Hmatch as (H1&H2).
     simpl in H1.
     edestruct (@list_find_fst_forall2 _ (AST.globdef fundef variable)
-               ((fun '(id', _) => Pos.eq_dec id id'))) as [Hleft|Hright]; first eauto.
+               ((fun '(id', v) => Pos.eq_dec id id' && is_gvar v))) as [Hleft|Hright]; first eauto.
     { intros ?? (?&?); auto. }
-    { intros (?&?) (?&?). simpl; intros; subst. auto. }
+    { intros (?&?) (?&?). inversion 1 as [Hfst Hglob].
+      simpl in Hfst; subst. simpl in Hglob. inversion Hglob. subst.
+      * rewrite //=.
+      * subst. rewrite //=.
+    }
     { simpl. destruct Hleft as (id'&g1&g2&->&->&Hident).
       inversion Hident as [Hfst_eq Hglob]. simpl in Hglob.
       inversion Hglob; auto.
