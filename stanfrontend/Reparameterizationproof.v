@@ -28,9 +28,10 @@ Definition match_prog (p: program) (tp: program) : Prop :=
   exists parameters,
   OK parameters = Errors.mmap (find_parameter p.(pr_defs)) p.(pr_parameters_vars) /\
   match_program_gen match_fundef match_varinfo p p tp /\
-  pr_parameters_vars tp = List.map (fun '(id, v, f) =>
+  pr_parameters_vars tp = List.map (fun '(id, v, _) =>
                                  (id, vd_type v,
-                                 fun x => f (unconstrained_to_constrained_fun (vd_constraint v) x))) parameters.
+                                   Some (fun x => (unconstrained_to_constrained_fun (vd_constraint v) x))))
+                            parameters.
 
 Lemma program_of_program_eq p tp :
   pr_defs p = pr_defs tp -> (program_of_program p) = (program_of_program tp).
@@ -101,14 +102,12 @@ Section PRESERVATION.
 
 Variable prog: Stanlight.program.
 Variable tprog: Stanlight.program.
-Variable data : list Values.val.
-Variable params : list Values.val.
 Variable TRANSL: match_prog prog tprog.
 
 (* This is really round about and ugly, maybe I should have just made "parameters" an index of
    match_prog? But I don't know if that's compatible with the linker machinery *)
 Definition found_parameters_aux :
-  { x: list (AST.ident * variable * (expr -> expr)) |
+  { x: list (AST.ident * variable * option (expr -> expr)) |
     (Errors.mmap (find_parameter prog.(pr_defs)) prog.(pr_parameters_vars)) = OK x}.
 Proof.
   destruct (Errors.mmap (find_parameter prog.(pr_defs)) prog.(pr_parameters_vars)) as [l|] eqn:Heq.
@@ -158,7 +157,7 @@ Proof.
     inversion 1; eauto.
 Qed.
 
-Lemma find_parameter_lookup_def_ident_gen (a : AST.ident * basic * (expr -> expr)) i v e :
+Lemma find_parameter_lookup_def_ident_gen (a : AST.ident * basic * option (expr -> expr)) i v e :
   find_parameter (pr_defs prog) a = OK (i, v, e) ->
   match List.find (fun '(id', v) => positive_eq_dec i id' && is_gvar v) (pr_defs prog) with
   | Some (_, AST.Gvar v') => (i, AST.gvar_info v') = (i, v)
@@ -173,13 +172,13 @@ Proof.
     * destruct (Pos.eq_dec id i0).
       ** inversion 1; subst. rewrite //=. destruct (Pos.eq_dec i i) => /=; by eauto.
       ** intros Hfind.
-         exploit (find_parameter_ident_match l i0 b e0); eauto. intros (->&->). subst.
+         exploit (find_parameter_ident_match l i0 b o); eauto. intros (->&->). subst.
          destruct (Pos.eq_dec i id).
          { congruence. }
          rewrite //=. eapply IHl. eauto.
 Qed.
 
-Lemma find_parameter_lookup_def_ident_prog (a : AST.ident * basic * (expr -> expr)) i v e :
+Lemma find_parameter_lookup_def_ident_prog (a : AST.ident * basic * option (expr -> expr)) i v e :
   find_parameter (pr_defs prog) a = OK (i, v, e) ->
   lookup_def_ident prog i = (i, v).
 Proof.
@@ -189,7 +188,7 @@ Proof.
   * intuition.
 Qed.
 
-Lemma find_parameter_lookup_def_ident_tprog (a : AST.ident * basic * (expr -> expr)) i b' e' v e :
+Lemma find_parameter_lookup_def_ident_tprog (a : AST.ident * basic * option (expr -> expr)) i b' e' v e :
   In (i, b', e') (pr_parameters_vars prog) ->
   find_parameter (pr_defs prog) a = OK (i, v, e) ->
   lookup_def_ident tprog i = (i, mkvariable (v.(vd_type)) Cidentity).
@@ -226,7 +225,7 @@ Qed.
 Lemma flatten_parameter_variables_tprog:
   flatten_parameter_variables tprog = map (λ '(id, vd, f),
                                     (id, mkvariable (vd_type vd) Cidentity,
-                                      fun x => f (unconstrained_to_constrained_fun (vd_constraint vd) x)))
+                                      Some (fun x => (unconstrained_to_constrained_fun (vd_constraint vd) x))))
                                     (flatten_parameter_variables prog).
 Proof.
   rewrite /flatten_parameter_variables/flatten_ident_variable_list.
@@ -257,7 +256,7 @@ Proof.
     f_equal; last first.
     { eapply IHl; eauto. intros. intuition. }
     destruct a as ((?&?)&?).
-    exploit (@find_parameter_ident_match (expr -> expr)); eauto. simpl. intros (?&?); subst.
+    exploit (@find_parameter_ident_match (option (expr -> expr))); eauto. simpl. intros (?&?); subst.
     exploit (find_parameter_lookup_def_ident_prog); eauto. intros ->.
     exploit (find_parameter_lookup_def_ident_tprog); eauto.
     { eapply Hsub; eauto. left; eauto. }
@@ -350,6 +349,43 @@ Proof.
     eapply IHl; eauto.
     inversion Hwf; eauto.
 Qed.
+
+(*
+Lemma external_funct_preserved:
+  match_external_funct (globalenv prog) (globalenv tprog).
+
+Lemma global_env_equiv :
+  Senv.equiv (globalenv prog) (globalenv tprog).
+*)
+
+Lemma param_unmap_out_inv :
+  ∀ d p, is_safe prog d (map R2val p) ->
+                 eval_param_map_list prog p = eval_param_map_list tprog (param_unmap p).
+Proof.
+  rewrite /eval_param_map_list.
+  intros d p _.
+  rewrite /flatten_parameter_out.
+  rewrite /param_unmap.
+  rewrite flatten_parameter_variables_tprog.
+  rewrite /flatten_parameter_constraints.
+  remember (flatten_parameter_variables prog) as pvars eqn:Heq. clear Heq.
+  revert pvars.
+  induction p => pvars.
+  { rewrite /eval_param_map_list /=//. }
+  destruct pvars => //=.
+  f_equal.
+  { f_equal.
+    rewrite (eval_expr_fun_match prog tprog); swap 1 3.
+    { admit. }
+    { admit. }
+
+    destruct p0 as ((?&?)&f).
+    destruct (vd_constraint v).
+    * simpl.
+Abort.
+
+Variable data : list Values.val.
+Variable params : list Values.val.
 
 (* TODO: Joe: this doesn't make sense, because we ought to be remapping data/params in target *)
 Theorem transf_program_correct tval:

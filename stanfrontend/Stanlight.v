@@ -78,7 +78,7 @@ Record program := mkprogram {
   pr_defs: list (ident * globdef fundef variable);
   (* Last part of tuple is an expression showing how to map a paramter from internal representation to
      user displayable output *)
-  pr_parameters_vars: list (ident * basic * (expr -> expr));
+  pr_parameters_vars: list (ident * basic * option (expr -> expr));
   pr_data_vars: list (ident * basic);
 }.
 

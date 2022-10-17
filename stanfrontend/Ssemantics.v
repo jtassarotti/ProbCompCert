@@ -278,7 +278,7 @@ Definition data_basic_to_list (ib : ident * basic) : list (ident * basic * Ptrof
   | _ => nil
   end.
 
-Definition parameter_basic_to_list (ibf : ident * basic * (expr -> expr)) : list (ident * basic * Ptrofs.int) :=
+Definition parameter_basic_to_list (ibf : ident * basic * option (expr -> expr)) : list (ident * basic * Ptrofs.int) :=
   data_basic_to_list (fst ibf).
 
 Definition variable_to_list {A} (ib : ident * variable * A) : list (ident * variable * A) :=
@@ -294,7 +294,7 @@ Definition flatten_data_list (ibs: list (ident * basic)) :
   list (ident * basic * Ptrofs.int) :=
   List.concat (map data_basic_to_list ibs).
 
-Definition flatten_parameter_list (ibs: list (ident * basic * (expr -> expr))) :
+Definition flatten_parameter_list (ibs: list (ident * basic * option (expr -> expr))) :
   list (ident * basic * Ptrofs.int) :=
   List.concat (map parameter_basic_to_list ibs).
 
@@ -311,6 +311,13 @@ Inductive assign_global_locs (ge: genv) : list (ident * basic * Ptrofs.int) -> m
       assign_global_locs ge ((id, ty, ofs) :: bs) m1 (v :: vs) m3.
 
 (* Joe: TODO: this initial state loading here may not be correct for array data/params *)
+
+Definition default {A : Type} (x : A) (o: option A) :=
+  match o with
+  | None => x
+  | Some a => a
+  end.
+
 Inductive initial_state (p: program) (data : list val) (params: list val) : state -> Prop :=
   | initial_state_intro: forall b f m0 m1 m2 m3 e,
       let ge := globalenv p in
@@ -708,7 +715,7 @@ Section DENOTATIONAL.
     map (fun '(id, v, _) => vd_constraint v) (flatten_parameter_variables p).
 
   Definition flatten_parameter_out (p: program) : list (expr -> expr) :=
-    map (fun '(id, v, f) => f) (flatten_parameter_variables p).
+    map (fun '(_, v, f) => default (fun x => x) f) (flatten_parameter_variables p).
 
   Definition parameter_dimension (p: program) : nat :=
     List.length (map (constraint_to_interval) (flatten_parameter_constraints p)).

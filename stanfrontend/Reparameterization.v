@@ -199,7 +199,8 @@ Definition transf_program(p: Stanlight.program): Errors.res Stanlight.program :=
   let correction := collect_corrections parameters in
   let pr_parameters_vars' := List.map (fun '(id, v, f) =>
                                  (id, vd_type v,
-                                 fun x => f (unconstrained_to_constrained_fun (vd_constraint v) x))) parameters in
+                                   Some (fun x => (unconstrained_to_constrained_fun (vd_constraint v) x))))
+                               parameters in
 
   do p1 <- AST.transform_partial_program2 (fun id => transf_fundef pmap correction) transf_variable p;
   Errors.OK {|
