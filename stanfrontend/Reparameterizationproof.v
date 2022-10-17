@@ -11,6 +11,12 @@ Require Import Coqlib.
 Require Import Transforms.
 Require Import IteratedRInt.
 
+Local Open Scope string_scope.
+Require Import Clightdefs.
+Import Clightdefs.ClightNotations.
+
+Local Open Scope clight_scope.
+
 Inductive match_fundef (p: program) : fundef -> fundef -> Prop :=
   | match_fundef_internal: forall f tf parameters pmap correction,
       OK parameters = Errors.mmap (find_parameter p.(pr_defs)) p.(pr_parameters_vars) ->
@@ -26,6 +32,7 @@ Definition match_varinfo (v: variable) (tv: variable) :=
 
 Definition match_prog (p: program) (tp: program) : Prop :=
   exists parameters,
+  List.Forall (fun '(id, _, ofun) => ofun = None) p.(pr_parameters_vars) /\
   OK parameters = Errors.mmap (find_parameter p.(pr_defs)) p.(pr_parameters_vars) /\
   match_program_gen match_fundef match_varinfo p p tp /\
   pr_parameters_vars tp = List.map (fun '(id, v, _) =>
@@ -43,6 +50,7 @@ Lemma transf_program_match:
   forall p tp: program, transf_program p = OK tp ->  match_prog p tp.
 Proof.
   unfold transf_program, match_prog; intros p tp Htransf.
+  eapply bind_inversion in Htransf as (?&Hcheck&Htransf).
   eapply bind_inversion in Htransf as (parameters&Heq&Htransf).
   eapply bind_inversion in Htransf as (tp'&Heq'&HOK).
   assert (program_of_program tp = tp') as ->.
@@ -52,6 +60,10 @@ Proof.
     inversion H'. inversion HOK. subst. simpl. eauto.
   }
   eexists; split; eauto.
+  { apply mmap_inversion in Hcheck.
+    clear -Hcheck. induction Hcheck => //=.
+    econstructor; eauto. destruct a1 as ((?&?)&[]); simpl in H; eauto; congruence. }
+  split; eauto.
   split.
   {
     eapply match_transform_partial_program2; eauto.
@@ -196,7 +208,7 @@ Proof.
   intros Hin Hfind. exploit find_parameter_lookup_def_ident_gen; eauto.
   rewrite /lookup_def_ident.
   intros Hlook.
-  destruct TRANSL as (x&HOK&Hmatch&?).
+  destruct TRANSL as (x&Hnone&HOK&Hmatch&?).
   destruct Hmatch as (Hforall2&?).
   edestruct (@list_find_fst_forall2 _ (AST.globdef fundef variable)
                ((fun '(id', v) => Pos.eq_dec i id' && is_gvar v))) as [Hleft|Hright]; first eauto.
@@ -213,7 +225,7 @@ Proof.
       clear -H1.
       destruct H1. rewrite /=. destruct H as (H1&H2). rewrite H1. destruct i2. simpl in *. congruence.
   }
-  destruct Hright as (Hnone&Hnone'). rewrite Hnone in Hlook. intuition.
+  destruct Hright as (Hnone1&Hnone2). rewrite Hnone1 in Hlook. intuition.
 Qed.
 
 Lemma map_repeat {A B} (f: A -> B) (a : A) (i : nat) :
@@ -232,14 +244,14 @@ Proof.
   rewrite concat_map.
   f_equal.
   rewrite ?map_map.
-  destruct TRANSL as (x&Heqx&Hmatch&Heq).
+  destruct TRANSL as (x&Hnone&Heqx&Hmatch&Heq).
   rewrite Heq.
   clear Heq.
   revert x Heqx.
   remember (pr_parameters_vars prog) as prs eqn:Heqprs.
   assert (∀ x, In x prs -> In x (pr_parameters_vars prog)) as Hsub.
   { subst. eauto. }
-  clear Heqprs.
+  clear Heqprs Hnone.
   induction prs as [| a l].
   - intros x Heq. inversion Heq. subst. rewrite //=.
   - intros x Heqx.
@@ -358,6 +370,59 @@ Lemma global_env_equiv :
   Senv.equiv (globalenv prog) (globalenv tprog).
 *)
 
+Lemma Forall_repeat {A: Type} (a : A) (n: nat) (P : A -> Prop) :
+  P a -> Forall P (repeat a n).
+Proof.
+  intros. induction n; econstructor; eauto.
+Qed.
+
+Lemma flatten_parameter_variables_out_none :
+  List.Forall (fun '(id, _, ofun) => ofun = None) (flatten_parameter_variables prog).
+Proof.
+  rewrite /flatten_parameter_variables. rewrite /flatten_ident_variable_list.
+  destruct TRANSL as (?&Hnone&_).
+  induction (pr_parameters_vars).
+  { rewrite //=. }
+  { rewrite //=. apply Forall_app; split; last first.
+    { eapply IHl. inversion Hnone; eauto. }
+    { destruct a as ((?&?)&?) => /=.
+      inversion Hnone; subst.
+      destruct (lookup_def_ident prog i) as (?&?).
+      destruct (vd_type _); try (econstructor; eauto; done).
+      apply Forall_repeat; eauto.
+    }
+  }
+Qed.
+
+Definition exp_ef_external :=
+  (AST.EF_external "exp" (AST.mksignature (AST.Tfloat :: nil) (AST.Tret AST.Tfloat)
+                            (AST.mkcallconv None false false))).
+
+Axiom global_env_exp :
+  exists loc,
+  Globalenvs.Genv.find_symbol (globalenv tprog) ($"exp") = Some loc /\
+  Globalenvs.Genv.find_funct (globalenv tprog) (Values.Vptr loc Integers.Ptrofs.zero) =
+    Some (Ctypes.External
+            exp_ef_external
+            (Ctypes.Tcons tdouble Ctypes.Tnil)
+            tdouble
+            (AST.mkcallconv None false false)).
+
+Axiom exp_ext_spec v :
+  forall a ge m,
+  Events.external_call exp_ef_external ge
+    (Values.Vfloat (IRF a) :: nil) m Events.E0 (Values.Vfloat (IRF (exp a))) m.
+
+Axiom IFR_IRF_inv :
+  ∀ x, IFR (IRF x) = x.
+Axiom IRF_IFR_inv :
+  ∀ x, IRF (IFR x) = x.
+
+Axiom float_add_irf: forall a b,
+  (Floats.Float.add (IRF a) (IRF b)) = IRF (a + b).
+Axiom float_sub_irf: forall a b,
+  (Floats.Float.sub (IRF a) (IRF b)) = IRF (a - b).
+
 Lemma param_unmap_out_inv :
   ∀ d p, is_safe prog d (map R2val p) ->
                  eval_param_map_list prog p = eval_param_map_list tprog (param_unmap p).
@@ -368,20 +433,83 @@ Proof.
   rewrite /param_unmap.
   rewrite flatten_parameter_variables_tprog.
   rewrite /flatten_parameter_constraints.
+  specialize (flatten_parameter_variables_out_none) => Hnone.
   remember (flatten_parameter_variables prog) as pvars eqn:Heq. clear Heq.
-  revert pvars.
-  induction p => pvars.
+  revert pvars Hnone.
+  induction p => pvars Hnone.
   { rewrite /eval_param_map_list /=//. }
   destruct pvars => //=.
   f_equal.
   { f_equal.
-    rewrite (eval_expr_fun_match prog tprog); swap 1 3.
-    { admit. }
-    { admit. }
+    destruct p0 as ((?&?)&?). inversion Hnone; subst.
+    rewrite /=.
+    transitivity (Values.Vfloat (IRF a)).
+    { apply eval_expr_fun_spec. econstructor. }
+    symmetry.
 
-    destruct p0 as ((?&?)&f).
-    destruct (vd_constraint v).
-    * simpl.
+    destruct (vd_constraint).
+    { apply eval_expr_fun_spec; econstructor. }
+    { apply eval_expr_fun_spec. rewrite /unconstrained_to_constrained_fun.
+      edestruct (global_env_exp) as (expl&?&?).
+      simpl.
+      econstructor.
+      { econstructor.
+        econstructor.
+        eapply eval_Evar_global; eauto.
+        { eapply deref_loc_reference; eauto. }
+        { repeat econstructor. }
+        { eauto. }
+        2:{  eauto. }
+        rewrite /exp_ef_external; reflexivity.
+        eapply exp_ext_spec.
+      }
+      { econstructor. }
+
+      simpl.
+      rewrite /unconstrain_lb.
+      rewrite exp_ln.
+      2: { admit. }
+
+      rewrite /Cop.sem_add//=.
+      rewrite /Cop.sem_binarith//=.
+
+      replace f with (IRF (IFR f)) at 2 by (apply IRF_IFR_inv).
+      do 2 f_equal.
+      rewrite float_add_irf. f_equal. nra.
+    }
+    { apply eval_expr_fun_spec. rewrite /unconstrained_to_constrained_fun.
+      edestruct (global_env_exp) as (expl&?&?).
+      simpl.
+      econstructor.
+      { econstructor. }
+      {
+        econstructor.
+        econstructor.
+        eapply eval_Evar_global; eauto.
+        { eapply deref_loc_reference; eauto. }
+        { repeat econstructor. }
+        { eauto. }
+        2:{  eauto. }
+        rewrite /exp_ef_external; reflexivity.
+        eapply exp_ext_spec.
+      }
+      simpl.
+      rewrite /Cop.sem_sub//=.
+      rewrite /Cop.sem_binarith//=.
+      rewrite /unconstrain_ub.
+      rewrite exp_Ropp.
+      rewrite exp_ln.
+      2: { admit. }
+      do 2 f_equal.
+      replace f with (IRF (IFR f)) at 1 by (apply IRF_IFR_inv).
+      do 2 f_equal.
+      rewrite float_sub_irf. f_equal.
+      admit.
+      (* TODO: we switched to using a monotone transform, so have to change code emitted as well *)
+    }
+    { admit. }
+  }
+  eapply IHp; eauto. inversion Hnone; eauto.
 Abort.
 
 Variable data : list Values.val.
