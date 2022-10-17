@@ -296,6 +296,60 @@ Proof.
     * eapply IHHin; eauto. inversion Hwf; eauto.
 Qed.
 
+Lemma dimen_preserved: parameter_dimension tprog = parameter_dimension prog.
+Proof.
+  rewrite /parameter_dimension flatten_parameter_constraints_tprog ?map_length //.
+Qed.
+
+Lemma wf_paramter_rect_tprog :
+  wf_rectangle_list (parameter_list_rect prog) ->
+  wf_rectangle_list (parameter_list_rect tprog).
+Proof.
+  clear 1.
+  rewrite /parameter_list_rect flatten_parameter_constraints_tprog.
+  induction (flatten_parameter_constraints prog).
+  - rewrite //=.
+  - simpl. econstructor; eauto. split; auto.
+Qed.
+
+Lemma param_unmap_in_dom :
+  ∀ x, in_list_rectangle x (parameter_list_rect prog) ->
+       in_list_rectangle (param_unmap x) (parameter_list_rect tprog).
+Proof.
+  rewrite /parameter_list_rect flatten_parameter_constraints_tprog.
+  rewrite /param_unmap.
+  induction (flatten_parameter_constraints prog).
+  - intros x. inversion 1. subst. econstructor.
+  - intros x. inversion 1; subst. simpl.
+    econstructor.
+    { split; auto => //=. }
+    { eapply IHl. eauto. }
+Qed.
+
+Lemma param_map_in_dom :
+  ∀ x,
+    wf_rectangle_list (parameter_list_rect prog) ->
+    in_list_rectangle x (parameter_list_rect tprog) ->
+    in_list_rectangle (param_map x) (parameter_list_rect prog).
+Proof.
+  rewrite /parameter_list_rect flatten_parameter_constraints_tprog.
+  rewrite /param_map.
+  induction (flatten_parameter_constraints prog).
+  - intros x Hwf. inversion 1. subst. econstructor.
+  - intros x Hwf. inversion 1; subst. simpl.
+    econstructor.
+    { destruct a.
+      * rewrite /=; split => //=.
+      * rewrite /=; split => //=.
+        apply constrain_lb_spec_strict.
+      * rewrite /=; split => //=.
+        apply constrain_ub_spec_strict.
+      * simpl in Hwf. inversion Hwf.
+        rewrite /=; split => //=; apply constrain_lb_ub_spec_strict; auto.
+    }
+    eapply IHl; eauto.
+    inversion Hwf; eauto.
+Qed.
 
 (* TODO: Joe: this doesn't make sense, because we ought to be remapping data/params in target *)
 Theorem transf_program_correct tval:

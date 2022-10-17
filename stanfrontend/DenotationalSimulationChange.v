@@ -60,6 +60,7 @@ Variable param_unmap_in_dom :
 
 Variable param_map_in_dom :
   ∀ x,
+       wf_rectangle_list (parameter_list_rect prog) ->
        in_list_rectangle x (parameter_list_rect tprog) ->
        in_list_rectangle (param_map x) (parameter_list_rect prog).
 
@@ -154,14 +155,12 @@ Proof.
 Qed.
 
 Lemma safe_data_preserved :
-  ∀ data, safe_data prog data -> safe_data tprog data.
+  ∀ data, wf_rectangle_list (parameter_list_rect prog) -> safe_data prog data -> safe_data tprog data.
 Proof.
-  intros data Hsafe.
+  intros data Hwf Hsafe.
   rewrite /safe_data. intros params Hin.
   assert (Hin': in_list_rectangle (param_map params) (parameter_list_rect prog)).
-  { apply param_map_in_dom. auto. }
-  assert (Hwf: wf_rectangle_list (parameter_list_rect prog)).
-  {  eapply in_list_rectangle_wf_rectangle; eauto. }
+  { apply param_map_in_dom; auto. }
   specialize (Hsafe _ Hin').
   rewrite /is_safe. split.
   { intros t.
@@ -234,7 +233,7 @@ Lemma denotational_preserved :
 Proof.
   exists (dimen_preserved).
   split.
-  - intros data Hsafe. apply safe_data_preserved; auto.
+  - intros data Hwf Hsafe. apply safe_data_preserved; auto.
   - intros data rt vt Hsafe Hwf Hsubset.
     rewrite /is_program_distribution/is_program_normalizing_constant/is_unnormalized_program_distribution.
     intros (vnum&vnorm&Hneq0&His_norm&His_num&Hdiv).

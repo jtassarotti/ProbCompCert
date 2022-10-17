@@ -881,7 +881,9 @@ Section DENOTATIONAL.
 
   Definition denotational_refinement (p1 p2: program) :=
     ∃ (Hpf: parameter_dimension p1 = parameter_dimension p2),
-    (∀ data, safe_data p2 data -> safe_data p1 data) /\
+      (∀ data, wf_rectangle_list (parameter_list_rect p2) ->
+               safe_data p2 data ->
+               safe_data p1 data) /\
       (∀ data rt vt, safe_data p2 data ->
                   wf_rectangle_list (parameter_list_rect p2) ->
                   rectangle_list_subset rt (parameter_list_rect p2) ->
