@@ -413,6 +413,44 @@ Axiom exp_ext_spec v :
   Events.external_call exp_ef_external ge
     (Values.Vfloat (IRF a) :: nil) m Events.E0 (Values.Vfloat (IRF (exp a))) m.
 
+Definition expit_ef_external :=
+  (AST.EF_external "expit" (AST.mksignature (AST.Tfloat :: nil) (AST.Tret AST.Tfloat)
+                            (AST.mkcallconv None false false))).
+
+Axiom global_env_expit :
+  exists loc,
+  Globalenvs.Genv.find_symbol (globalenv tprog) ($"expit") = Some loc /\
+  Globalenvs.Genv.find_funct (globalenv tprog) (Values.Vptr loc Integers.Ptrofs.zero) =
+    Some (Ctypes.External
+            expit_ef_external
+            (Ctypes.Tcons tdouble Ctypes.Tnil)
+            tdouble
+            (AST.mkcallconv None false false)).
+
+Axiom expit_ext_spec :
+  forall a ge m,
+  Events.external_call expit_ef_external ge
+    (Values.Vfloat (IRF a) :: nil) m Events.E0 (Values.Vfloat (IRF (logit_inv a))) m.
+
+Definition log_ef_external :=
+  (AST.EF_external "log" (AST.mksignature (AST.Tfloat :: nil) (AST.Tret AST.Tfloat)
+                            (AST.mkcallconv None false false))).
+
+Axiom global_env_log :
+  exists loc,
+  Globalenvs.Genv.find_symbol (globalenv tprog) ($"log") = Some loc /\
+  Globalenvs.Genv.find_funct (globalenv tprog) (Values.Vptr loc Integers.Ptrofs.zero) =
+    Some (Ctypes.External
+            log_ef_external
+            (Ctypes.Tcons tdouble Ctypes.Tnil)
+            tdouble
+            (AST.mkcallconv None false false)).
+
+Axiom log_ext_spec :
+  forall a ge m,
+  Events.external_call log_ef_external ge
+    (Values.Vfloat (IRF a) :: nil) m Events.E0 (Values.Vfloat (IRF (ln a))) m.
+
 Axiom IFR_IRF_inv :
   ∀ x, IFR (IRF x) = x.
 Axiom IRF_IFR_inv :
@@ -422,6 +460,22 @@ Axiom float_add_irf: forall a b,
   (Floats.Float.add (IRF a) (IRF b)) = IRF (a + b).
 Axiom float_sub_irf: forall a b,
   (Floats.Float.sub (IRF a) (IRF b)) = IRF (a - b).
+Axiom float_mul_irf: forall a b,
+  (Floats.Float.mul (IRF a) (IRF b)) = IRF (a * b).
+Axiom IFR_zero :
+  IFR (Floats.Float.zero) = 0.
+
+Lemma float_add_irf': forall a b,
+  (Floats.Float.add a b) = IRF (IFR a + IFR b).
+Proof. intros a b. rewrite -float_add_irf ?IRF_IFR_inv //. Qed.
+
+Lemma float_sub_irf': forall a b,
+  (Floats.Float.sub a b) = IRF (IFR a - IFR b).
+Proof. intros a b. rewrite -float_sub_irf ?IRF_IFR_inv //. Qed.
+
+Lemma float_mul_irf': forall a b,
+  (Floats.Float.mul a b) = IRF (IFR a * IFR b).
+Proof. intros a b. rewrite -float_mul_irf ?IRF_IFR_inv //. Qed.
 
 Lemma param_unmap_out_inv :
   ∀ d p, is_safe prog d (map R2val p) ->
@@ -478,8 +532,6 @@ Proof.
       rewrite float_add_irf. f_equal. nra.
     }
     {
-      admit.
-      (*
       apply eval_expr_fun_spec. rewrite /unconstrained_to_constrained_fun.
       edestruct (global_env_exp) as (expl&?&?).
       simpl.
@@ -494,24 +546,58 @@ Proof.
         { eauto. }
         2:{  eauto. }
         rewrite /exp_ef_external; reflexivity.
+        assert ((Floats.Float.sub Floats.Float.zero (IRF (unconstrain_ub (IFR f) a)))
+               = (IRF (-unconstrain_ub (IFR f) a))) as ->.
+        { rewrite -(IRF_IFR_inv (Floats.Float.zero)).
+          rewrite float_sub_irf. f_equal. rewrite IFR_zero. nra.
+        }
         eapply exp_ext_spec.
       }
       simpl.
       rewrite /Cop.sem_sub//=.
       rewrite /Cop.sem_binarith//=.
       rewrite /unconstrain_ub.
-      rewrite exp_Ropp.
+      rewrite Ropp_involutive.
       rewrite exp_ln.
       2: { admit. }
       do 2 f_equal.
       replace f with (IRF (IFR f)) at 1 by (apply IRF_IFR_inv).
-      do 2 f_equal.
-      rewrite float_sub_irf. f_equal.
-      admit.
-      (* TODO: we switched to using a monotone transform, so have to change code emitted as well *)
-       *)
+      rewrite float_sub_irf. f_equal. nra.
     }
-    { admit. }
+    {
+      apply eval_expr_fun_spec. rewrite /unconstrained_to_constrained_fun.
+      edestruct (global_env_expit) as (expl&?&?).
+      simpl.
+      econstructor.
+      { econstructor. }
+      econstructor.
+      { repeat econstructor. }
+      {
+        econstructor.
+        econstructor.
+        eapply eval_Evar_global; eauto.
+        { eapply deref_loc_reference; eauto. }
+        { repeat econstructor. }
+        { eauto. }
+        2:{  eauto. }
+        rewrite /expit_ef_external; reflexivity.
+        eapply expit_ext_spec.
+      }
+      simpl.
+      rewrite //=.
+      rewrite /Cop.sem_binarith//=.
+      rewrite /Cop.sem_add//=.
+      rewrite /Cop.sem_binarith//=.
+      rewrite /unconstrain_ub.
+      do 2 f_equal.
+      rewrite float_add_irf'.
+      rewrite float_mul_irf'.
+      rewrite float_sub_irf'.
+      rewrite ?IFR_IRF_inv.
+      f_equal.
+      apply constrain_lb_ub_inv. 
+      { admit. }
+    }
   }
   eapply IHp; eauto. inversion Hnone; eauto.
 Abort.
