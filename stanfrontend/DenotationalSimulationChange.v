@@ -26,11 +26,18 @@ Variable param_unmap : list R -> list R.
 (* constrain *)
 Variable param_map : list R -> list R.
 
-Variable target_map : R -> R.
-Variable target_unmap : R -> R.
+(* Input:
+   - data
+   - unconstrained parameters 
+   - original target
+   Output:
+   - corrected target *)
 
-Variable target_map_unmap : ∀ x, target_map (target_unmap x) = x.
-Variable target_map_zero : target_map (IFR Float.zero) = IFR Float.zero.
+Variable target_map : list val -> list val -> R -> R.
+Variable target_unmap : list val -> list val -> R -> R.
+
+Variable target_map_unmap : ∀ d p x, target_map d p (target_unmap d p x) = x.
+Variable target_map_zero : ∀ d p, target_map d p (IFR Float.zero) = IFR Float.zero.
 
 Lemma inhabited_initial :
   ∀ data params t, is_safe prog data params -> ∃ s, Smallstep.initial_state (semantics prog data params t) s.
@@ -64,15 +71,12 @@ Variable param_map_in_dom :
        in_list_rectangle x (parameter_list_rect tprog) ->
        in_list_rectangle (param_map x) (parameter_list_rect prog).
 
-Variable param_unmap_out_inv :
-  ∀ data params, is_safe prog data (map R2val params) ->
-                 eval_param_map_list prog params = eval_param_map_list tprog (param_unmap params).
-
 Variable transf_correct:
   forall data params t,
     is_safe prog data (map R2val params) ->
     forward_simulation (Ssemantics.semantics prog data (map R2val params) (IRF t))
-      (Ssemantics.semantics tprog data (map R2val (param_unmap params)) (IRF (target_map t))).
+      (Ssemantics.semantics tprog data (map R2val (param_unmap params))
+         (IRF (target_map data (map R2val (param_unmap params)) t))).
 
 Variable IFR_IRF_inv :
   ∀ x, IFR (IRF x) = x.
@@ -91,7 +95,9 @@ Proof. rewrite /parameter_dimension/flatten_parameter_constraints. rewrite param
 Lemma returns_target_value_fsim data params t:
   is_safe prog data (map R2val params) ->
   returns_target_value prog data (map R2val params) (IRF t) ->
-  returns_target_value tprog data (map R2val (param_unmap params)) (IRF (target_map t)).
+  returns_target_value tprog data
+    (map R2val (param_unmap params))
+    (IRF (target_map data (map R2val (param_unmap params)) t)).
 Proof.
   intros Hsafe.
   intros (s1&s2&Hinit&Hstar&Hfinal).
@@ -104,7 +110,8 @@ Qed.
 
 Lemma returns_target_value_bsim data params t:
   is_safe prog data (map R2val params) ->
-  returns_target_value tprog data (map R2val (param_unmap params)) (IRF (target_map t)) ->
+  returns_target_value tprog data (map R2val (param_unmap params))
+    (IRF (target_map data (map R2val (param_unmap params)) t)) ->
   returns_target_value prog data (map R2val params) (IRF t).
 Proof.
   intros Hsafe (s1&s2&Hinit&Hstar&Hfinal).
@@ -125,7 +132,7 @@ Qed.
 
 Lemma  log_density_map data params :
   is_safe prog data (map R2val params) ->
-  target_map (log_density_of_program prog data (map R2val params)) =
+  target_map data (map R2val (param_unmap params)) (log_density_of_program prog data (map R2val params)) =
   log_density_of_program tprog data (map R2val (param_unmap params)).
 Proof.
   intros HP.
@@ -146,11 +153,13 @@ Proof.
   destruct (ClassicalEpsilon.excluded_middle_informative) as [(v&Hreturns)|Hne']; auto.
   {
     exfalso.
-    replace v with (IRF (target_map (target_unmap (IFR v)))) in Hreturns; last first.
+    replace v with (IRF (target_map data (map R2val (param_unmap params))
+                           (target_unmap data (map R2val (param_unmap params)) (IFR v))))
+      in Hreturns; last first.
     { rewrite target_map_unmap IRF_IFR_inv //. }
     apply Hne.
-    exists (IRF (target_unmap (IFR v))).
-    apply returns_target_value_bsim; auto.
+    eexists (IRF (target_unmap data (map R2val (param_unmap params)) (IFR v))).
+    apply returns_target_value_bsim; eauto.
   }
 Qed.
 
@@ -165,12 +174,14 @@ Proof.
   rewrite /is_safe. split.
   { intros t.
     edestruct Hsafe as ((s&Hinit)&_).
-    specialize (transf_correct data (param_map params) (target_unmap (IFR t)) Hsafe) as Hfsim.
+    specialize (transf_correct data (param_map params) (target_unmap data (map R2val params) (IFR t)) Hsafe)
+      as Hfsim.
     destruct Hfsim. edestruct fsim_match_initial_states as (ind&s'&?); eauto.
     exists s'. rewrite param_unmap_map in H; intuition.
   }
   intros t s Hinit.
-  epose proof (transf_correct data (param_map params) ((target_unmap (IFR t)))) as Hfsim.
+  epose proof (transf_correct data (param_map params) ((target_unmap data (map R2val params)
+                                                          (IFR t)))) as Hfsim.
   apply forward_to_backward_simulation in Hfsim as Hbsim;
     auto using semantics_determinate, semantics_receptive.
   edestruct Hbsim as [index order match_states props].
@@ -195,7 +206,7 @@ Variable param_map_gs :
        list_apply gs x = param_map x.
 Variable target_map_dgs :
   ∀ data x, in_list_rectangle x (parameter_list_rect tprog) ->
-  target_map (log_density_of_program prog data (map R2val (param_map x))) =
+  target_map data (map R2val x) (log_density_of_program prog data (map R2val (param_map x))) =
   list_plus (list_apply log_dgs x) + log_density_of_program prog data (map R2val (param_map x)).
 Variable gs_monotone : Forall2 strict_monotone_on_interval (parameter_list_rect tprog) gs.
 Variable gs_image :
@@ -253,6 +264,7 @@ Proof.
       replace x with (param_unmap (param_map x)) at 1; last first.
       { rewrite param_unmap_map //. }
       rewrite -log_density_map; eauto.
+      rewrite param_unmap_map //.
       rewrite target_map_dgs; eauto.
       rewrite exp_plus.
       rewrite exp_list_plus.
@@ -275,6 +287,7 @@ Proof.
       replace x with (param_unmap (param_map x)) at 1; last first.
       { rewrite param_unmap_map //. }
       rewrite -log_density_map; eauto.
+      rewrite param_unmap_map //.
       rewrite target_map_dgs; eauto.
       rewrite exp_plus.
       rewrite exp_list_plus.

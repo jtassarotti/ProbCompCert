@@ -81,6 +81,14 @@ Definition constrain_fn (c: constraint) : R -> R :=
   | Cupper a => constrain_ub (IFR a)
   end.
 
+Definition log_deriv_constrain_fn (c: constraint) x : R :=
+  match c with
+  | Cidentity => 0
+  | Clower_upper a b => ln (deriv_constrain_lb_ub (IFR a) (IFR b) x)
+  | Clower a => ln (deriv_constrain_lb (IFR a) x)
+  | Cupper a => ln (deriv_constrain_ub (IFR a) x)
+  end.
+
 Definition unconstrain_fn (c: constraint) : R -> R :=
   match c with
   | Cidentity => id
@@ -135,6 +143,12 @@ Proof. unfold found_parameters. destruct found_parameters_aux; eauto. Qed.
 
 Definition found_constraints :=
   map (fun '(id, var, f) =>  vd_constraint var) found_parameters.
+
+Definition gs :=
+  map (constrain_fn) (flatten_parameter_constraints prog).
+
+Definition log_dgs :=
+  map (log_deriv_constrain_fn) (flatten_parameter_constraints prog).
 
 Definition param_map (rs : list R) :=
   map (fun '(r, constraint) => constrain_fn constraint r) (combine rs (flatten_parameter_constraints prog)).
@@ -394,6 +408,17 @@ Proof.
   }
 Qed.
 
+Lemma param_map_gs :
+  ∀ x, in_list_rectangle x (parameter_list_rect tprog) ->
+       list_apply gs x = param_map x.
+Proof.
+  rewrite /param_map/gs/list_apply//=.
+  intros x. clear 1. revert x.
+  induction (flatten_parameter_constraints prog) as [| c l]; intros x.
+  { rewrite //=. destruct x => //=. }
+  { destruct x => //=. f_equal; auto. }
+Qed.
+
 Definition exp_ef_external :=
   (AST.EF_external "exp" (AST.mksignature (AST.Tfloat :: nil) (AST.Tret AST.Tfloat)
                             (AST.mkcallconv None false false))).
@@ -477,20 +502,24 @@ Lemma float_mul_irf': forall a b,
   (Floats.Float.mul a b) = IRF (IFR a * IFR b).
 Proof. intros a b. rewrite -float_mul_irf ?IRF_IFR_inv //. Qed.
 
+(*
 Lemma param_unmap_out_inv :
-  ∀ d p, is_safe prog d (map R2val p) ->
-                 eval_param_map_list prog p = eval_param_map_list tprog (param_unmap p).
+  ∀ d p,
+    wf_rectangle_list (parameter_list_rect prog) ->
+    is_safe prog d (map R2val p) ->
+    eval_param_map_list prog p = eval_param_map_list tprog (param_unmap p).
 Proof.
-  rewrite /eval_param_map_list.
-  intros d p _.
+  rewrite /eval_param_map_list/parameter_list_rect.
+  intros d p Hwf _.
   rewrite /flatten_parameter_out.
   rewrite /param_unmap.
   rewrite flatten_parameter_variables_tprog.
   rewrite /flatten_parameter_constraints.
+  rewrite /flatten_parameter_constraints in Hwf.
   specialize (flatten_parameter_variables_out_none) => Hnone.
   remember (flatten_parameter_variables prog) as pvars eqn:Heq. clear Heq.
-  revert pvars Hnone.
-  induction p => pvars Hnone.
+  revert pvars Hwf Hnone.
+  induction p => pvars Hwf Hnone.
   { rewrite /eval_param_map_list /=//. }
   destruct pvars => //=.
   f_equal.
@@ -500,8 +529,9 @@ Proof.
     transitivity (Values.Vfloat (IRF a)).
     { apply eval_expr_fun_spec. econstructor. }
     symmetry.
+    inversion Hwf. subst.
 
-    destruct (vd_constraint).
+    destruct (vd_constraint _).
     { apply eval_expr_fun_spec; econstructor. }
     { apply eval_expr_fun_spec. rewrite /unconstrained_to_constrained_fun.
       edestruct (global_env_exp) as (expl&?&?).
@@ -601,6 +631,7 @@ Proof.
   }
   eapply IHp; eauto. inversion Hnone; eauto.
 Abort.
+*)
 
 Variable data : list Values.val.
 Variable params : list Values.val.
