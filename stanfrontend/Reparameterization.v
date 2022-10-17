@@ -129,7 +129,8 @@ Definition unconstrained_to_constrained_fun (c: constraint) : expr -> expr :=
     (Ebinop call Plus a Breal)
   | Cupper b =>
     let b := Econst_float b Breal in
-    let call := Ecall (Evar $"exp" (Bfunction (Bcons Breal Bnil) Breal)) (Econs i Enil) Breal in
+    let negi := Ebinop (Econst_float Floats.Float.zero Breal) Minus i Breal in
+    let call := Ecall (Evar $"exp" (Bfunction (Bcons Breal Bnil) Breal)) (Econs negi Enil) Breal in
     (Ebinop b Minus call Breal)
   end.
 
@@ -172,7 +173,7 @@ Definition change_of_variable_correction (i: AST.ident) (v: variable): option ex
     | Clower a =>
       Some (Evar i typ)
     | Cupper b =>
-      Some (Evar i typ)
+      Some (Ebinop (Econst_float Floats.Float.zero Breal) Minus (Evar i typ) Breal)
     end
   | Barray Breal _ =>
     match constraint with

@@ -243,7 +243,7 @@ let generate_constrained_to_unconstrained vs =
             let x = "constrained->" ^ name in
             let b = Float.to_string (Camlcoq.camlfloat_of_coqfloat upper) in
             let t = "(" ^ b ^ " - " ^ x ^ ")" in
-            let y = "log(" ^ t ^")" in
+            let y = "-log(" ^ t ^")" in
             " constrained->" ^ name ^ " = " ^ y ^ ";"
          | Stanlight.Bint -> raise (NIY_gen "Typechecker failed, parameter cannot be int")
          | _ -> raise (NIY_gen "Constraints are currently only supported for scalars")
@@ -290,7 +290,7 @@ let generate_unconstrained_to_constrained vs =
          | Stanlight.Breal ->
             let y = "unconstrained->" ^ name in
             let b = Float.to_string (Camlcoq.camlfloat_of_coqfloat upper) in
-            let x = b ^ " - " ^ "expit(" ^ y ^ ")" in
+            let x = b ^ " - " ^ "exp(-" ^ y ^ ")" in
             " unconstrained->" ^ name ^ " = " ^ x ^ ";"
          | Stanlight.Bint -> raise (NIY_gen "Typechecker failed, parameter cannot be int")
          | _ -> raise (NIY_gen "Constraints are currently only supported for scalars")

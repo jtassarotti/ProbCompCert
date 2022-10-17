@@ -477,7 +477,10 @@ Proof.
       do 2 f_equal.
       rewrite float_add_irf. f_equal. nra.
     }
-    { apply eval_expr_fun_spec. rewrite /unconstrained_to_constrained_fun.
+    {
+      admit.
+      (*
+      apply eval_expr_fun_spec. rewrite /unconstrained_to_constrained_fun.
       edestruct (global_env_exp) as (expl&?&?).
       simpl.
       econstructor.
@@ -506,6 +509,7 @@ Proof.
       rewrite float_sub_irf. f_equal.
       admit.
       (* TODO: we switched to using a monotone transform, so have to change code emitted as well *)
+       *)
     }
     { admit. }
   }
