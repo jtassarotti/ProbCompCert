@@ -88,6 +88,10 @@ Lemma deriv_constrain_lb_pos a x:
   0 < deriv_constrain_lb a x.
 Proof. rewrite /deriv_constrain_lb. apply exp_pos. Qed.
 
+Lemma deriv_constrain_lb_continuous a x:
+  continuous (deriv_constrain_lb a) x.
+Proof. rewrite /deriv_constrain_lb. apply ElemFct.continuous_exp. Qed.
+
 Lemma constrain_lb_strict_increasing a :
   strict_increasing (constrain_lb a).
 Proof.
@@ -214,8 +218,16 @@ Proof.
 Qed.
 
 Lemma deriv_constrain_ub_pos b x:
-  0 < deriv_constrain_lb b x.
+  0 < deriv_constrain_ub b x.
 Proof. rewrite /deriv_constrain_ub. apply exp_pos. Qed.
+
+Lemma deriv_constrain_ub_continuous b x:
+  continuous (deriv_constrain_ub b) x.
+Proof.
+  rewrite /deriv_constrain_ub. apply: continuous_comp.
+  * apply: continuous_opp. apply continuous_id.
+  * apply ElemFct.continuous_exp.
+Qed.
 
 Lemma constrain_ub_strict_increasing a :
   strict_increasing (constrain_ub a).
@@ -284,6 +296,15 @@ Proof.
   assert (1 + exp (- x) ≠ 0).
   { specialize (exp_pos (- x)). nra. }
   auto_derive; auto. field; auto.
+Qed.
+
+Lemma deriv_constrain_lb_ub_continuous a b x:
+  continuous (deriv_constrain_lb_ub a b) x.
+Proof.
+  assert (1 + exp (- x) ≠ 0).
+  { specialize (exp_pos (- x)). nra. }
+  rewrite /deriv_constrain_lb_ub/logit_inv.
+  { apply: ex_derive_continuous. eexists. rewrite /logit_inv. auto_derive; eauto. }
 Qed.
 
 Lemma continuous_constrain_lb_ub a b r :

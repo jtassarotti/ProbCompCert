@@ -500,6 +500,47 @@ Proof.
   }
 Qed.
 
+Lemma gs_deriv :
+  wf_rectangle_list (parameter_list_rect prog) ->
+  Forall3 continuous_derive_on_interval (parameter_list_rect tprog) gs
+    (map (λ (f : R → R) (x : R), exp (f x)) log_dgs).
+Proof.
+  rewrite /log_dgs/gs/parameter_list_rect.
+  intros Hwf.
+  rewrite flatten_parameter_constraints_tprog.
+  induction (flatten_parameter_constraints prog) as [| c l].
+  { econstructor. }
+  {  simpl. econstructor; last first.
+     { eapply IHl. inversion Hwf; eauto. }
+     rewrite /continuous_derive_on_interval. intros x (Hlt1&Hlt2).
+     destruct c.
+     - rewrite //=. split.
+       { rewrite exp_0. apply: Derive.is_derive_id. }
+       { apply continuous_const. }
+     - split.
+       { rewrite /=. rewrite exp_ln; last apply deriv_constrain_lb_pos.
+         apply deriv_constrain_lb_correct. }
+       rewrite /=.
+       eapply continuous_ext.
+       { intros ?. rewrite exp_ln; last apply deriv_constrain_lb_pos. reflexivity. }
+       { eapply deriv_constrain_lb_continuous. }
+     - split.
+       { rewrite /=. rewrite exp_ln; last apply deriv_constrain_ub_pos.
+         apply deriv_constrain_ub_correct. }
+       rewrite /=.
+       eapply continuous_ext.
+       { intros ?. rewrite exp_ln; last apply deriv_constrain_ub_pos. reflexivity. }
+       { eapply deriv_constrain_ub_continuous. }
+     - split.
+       { rewrite /=. rewrite exp_ln; last apply deriv_constrain_lb_ub_pos.
+         apply deriv_constrain_lb_ub_correct. inversion Hwf; eauto. }
+       rewrite /=.
+       eapply continuous_ext.
+       { intros ?. inversion Hwf. rewrite exp_ln; last apply deriv_constrain_lb_ub_pos; auto. }
+       { eapply deriv_constrain_lb_ub_continuous. }
+  }
+Qed.
+
 Definition exp_ef_external :=
   (AST.EF_external "exp" (AST.mksignature (AST.Tfloat :: nil) (AST.Tret AST.Tfloat)
                             (AST.mkcallconv None false false))).

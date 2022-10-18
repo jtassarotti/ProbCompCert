@@ -211,7 +211,9 @@ Variable gs_monotone :
 Variable gs_image :
   wf_rectangle_list (parameter_list_rect prog) ->
   Forall3 is_interval_image gs (parameter_list_rect tprog) (parameter_list_rect prog).
-Variable gs_deriv :  Forall3 continuous_derive_on_interval (parameter_list_rect tprog) gs
+Variable gs_deriv :
+  wf_rectangle_list (parameter_list_rect prog) ->
+  Forall3 continuous_derive_on_interval (parameter_list_rect tprog) gs
     (map (λ (f : R → R) (x : R), exp (f x)) log_dgs).
 Variable eval_param_map_list_preserved :
   ∀ x,
