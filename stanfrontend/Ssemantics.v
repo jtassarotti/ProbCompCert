@@ -871,7 +871,8 @@ Section DENOTATIONAL.
   Definition is_safe p data params : Prop :=
     (forall t, exists s, Smallstep.initial_state (semantics p data params t) s) /\
     (forall t s, Smallstep.initial_state (semantics p data params t) s ->
-                 safe (semantics p data params t) s).
+                 safe (semantics p data params t) s) /\
+    (exists t, returns_target_value p data params t).
 
   Definition safe_data p data : Prop :=
     (forall params,

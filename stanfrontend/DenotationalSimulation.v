@@ -171,16 +171,23 @@ Proof.
     destruct Hfsim. edestruct fsim_match_initial_states as (ind&s'&?); eauto.
     exists s'. intuition.
   }
-  intros t s Hinit.
-  specialize (transf_correct data (map (λ r, Vfloat (IRF r)) params) t) as Hfsim.
-  apply forward_to_backward_simulation in Hfsim as Hbsim;
-    auto using semantics_determinate, semantics_receptive.
-  edestruct Hbsim as [index order match_states props].
-  assert (∃ s10, Smallstep.initial_state (semantics prog data (map (λ r, Vfloat (IRF r)) params) t) s10) as (s10&?).
-  { apply inhabited_initial; eauto. }
-  edestruct (bsim_match_initial_states) as (?&s1'&Hinit'&Hmatch1); eauto.
-  eapply bsim_safe; eauto.
-  apply Hsafe; eauto.
+  split.
+  {
+    intros t s Hinit.
+    specialize (transf_correct data (map (λ r, Vfloat (IRF r)) params) t) as Hfsim.
+    apply forward_to_backward_simulation in Hfsim as Hbsim;
+      auto using semantics_determinate, semantics_receptive.
+    edestruct Hbsim as [index order match_states props].
+    assert (∃ s10, Smallstep.initial_state (semantics prog data (map (λ r, Vfloat (IRF r)) params) t) s10) as (s10&?).
+    { apply inhabited_initial; eauto. }
+    edestruct (bsim_match_initial_states) as (?&s1'&Hinit'&Hmatch1); eauto.
+    eapply bsim_safe; eauto.
+    apply Hsafe; eauto.
+  }
+  {
+    edestruct Hsafe as (?&?&Hret). destruct Hret as (t&?).
+    eexists. apply returns_target_value_fsim; eauto.
+  }
 Qed.
 
 Lemma parameter_list_rect_preserved :

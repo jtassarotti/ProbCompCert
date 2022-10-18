@@ -2,7 +2,7 @@ Require Import Utf8.
 
 Inductive Forall3 {A B C : Type} (P : A → B → C → Prop) : list A → list B → list C → Prop :=
     Forall3_nil : Forall3 P (nil) (nil) (nil)
-  | Forall3_cons : ∀ (m : nat) (x1 : A) (x2 : B) (x3 :C) (v1 : list A) (v2 : list B) (v3: list C),
+  | Forall3_cons : ∀ (x1 : A) (x2 : B) (x3 :C) (v1 : list A) (v2 : list B) (v3: list C),
                      P x1 x2 x3 → Forall3 P v1 v2 v3 →
                      Forall3 P (cons x1 v1) (cons x2 v2) (cons x3 v3).
 

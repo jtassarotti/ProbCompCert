@@ -47,7 +47,7 @@ Proof.
       * apply continuous_const.
     }
   - intros ?. congruence.
-  - intros _. 
+  - intros _.
     replace a with (0 + a) at 2; last nra.
     rewrite /constrain_lb.
     apply (is_right_lim_plus' exp (λ _, a)).
@@ -67,7 +67,7 @@ Proof.
       * apply ElemFct.continuous_exp.
       * apply continuous_const.
     }
-  - intros _. 
+  - intros _.
     rewrite /constrain_lb.
     apply (is_left_lim_plus exp (λ _, a) p_infty p_infty a p_infty).
     * apply is_lim_left_lim; first congruence.
@@ -131,12 +131,80 @@ Proof. left. apply constrain_lb_spec_strict. Qed.
 (* Upper bounded scalar *)
 
 (* NOTE: stan uses lb (b - x) instead, but that is not monotone increasing, and instead is monotone decreasing.
-   This is a slight incompatiblity, but it should not matter. 
+   This is a slight incompatiblity, but it should not matter.
  *)
 
 Definition unconstrain_ub b x := - ln (b - x).
 Definition constrain_ub b x := b - exp (- x).
 Definition deriv_constrain_ub (b: R) x := exp (- x).
+
+Definition constrain_ub_lim (a: R) (x : Rbar) : Rbar :=
+  match x with
+  | m_infty => m_infty
+  | Finite x => constrain_ub a x
+  | p_infty => a
+  end.
+
+Lemma continuous_constrain_ub a r :
+  continuous (constrain_ub a) r.
+Proof.
+  apply: continuous_plus.
+  * apply continuous_const.
+  * apply: continuous_opp. apply continuous_comp.
+    { apply: continuous_opp. apply continuous_id. }
+    apply ElemFct.continuous_exp.
+Qed.
+
+Lemma constrain_ub_lim_right_correct a x :
+  x <> p_infty ->
+  is_right_lim (constrain_ub a) x (constrain_ub_lim a x).
+Proof.
+  destruct x => /=.
+  - intros _. apply is_lim_right_lim; first congruence.
+    { apply is_lim_continuity', continuous_constrain_ub. }
+  - intros ?. congruence.
+  - intros _.
+    replace a with (a - 0) at 2; last nra.
+    rewrite /constrain_ub.
+    rewrite /Rminus.
+    apply (is_right_lim_plus (λ _, a) (λ x, - exp (- x)) m_infty a m_infty m_infty).
+    * apply is_right_lim_const. congruence.
+    * apply is_lim_right_lim; first congruence.
+      replace (m_infty) with (Rbar_opp p_infty); auto.
+      apply is_lim_opp; simpl.
+      eapply is_lim_comp.
+      { apply ElemFct.is_lim_exp_p. }
+      { replace (p_infty) with (Rbar_opp m_infty); auto. apply: is_lim_opp.
+        apply is_lim_id. }
+      { simpl => //=. exists 0. intros ??. congruence. }
+      rewrite //=.
+Qed.
+
+Lemma constrain_ub_lim_left_correct a x :
+  x <> m_infty ->
+  is_left_lim (constrain_ub a) x (constrain_ub_lim a x).
+Proof.
+  destruct x => /=.
+  - intros _. apply is_lim_left_lim; first congruence.
+    { apply is_lim_continuity', continuous_constrain_ub. }
+  - intros _.
+    rewrite /constrain_ub.
+    replace a with (a - 0) at 1; last nra.
+    rewrite /Rminus.
+    apply (is_left_lim_plus (λ _, a) (λ x, - exp (- x)) p_infty a 0 (a - 0)).
+    * apply is_left_lim_const; congruence.
+    * apply is_lim_left_lim; first congruence.
+      replace (Finite 0) with (Rbar_opp 0); last (rewrite //=; f_equal; nra).
+      apply is_lim_opp; simpl.
+      eapply is_lim_comp.
+      { apply ElemFct.is_lim_exp_m. }
+      { replace (m_infty) with (Rbar_opp p_infty); auto. apply: is_lim_opp.
+        apply is_lim_id. }
+      { simpl => //=. exists 0. intros ??. congruence. }
+      rewrite /Rminus.
+      rewrite /is_Rbar_plus/=. do 2 f_equal. nra.
+  - intros ?. congruence.
+Qed.
 
 Lemma deriv_constrain_ub_correct b x :
   is_derive (constrain_ub b) x (deriv_constrain_ub b x).
@@ -202,6 +270,13 @@ Definition constrain_lb_ub a b x :=
 Definition deriv_constrain_lb_ub a b x :=
   (b - a) * logit_inv x * (1 - logit_inv x).
 
+Definition constrain_lb_ub_lim (a b: R) (x : Rbar) : Rbar :=
+  match x with
+  | m_infty => a
+  | Finite x => constrain_lb_ub a b x
+  | p_infty => b
+  end.
+
 Lemma deriv_constrain_lb_ub_correct a b x:
   is_derive (constrain_lb_ub a b) x (deriv_constrain_lb_ub a b x).
 Proof.
@@ -209,6 +284,94 @@ Proof.
   assert (1 + exp (- x) ≠ 0).
   { specialize (exp_pos (- x)). nra. }
   auto_derive; auto. field; auto.
+Qed.
+
+Lemma continuous_constrain_lb_ub a b r :
+  continuous (constrain_lb_ub a b) r.
+Proof. apply: ex_derive_continuous. eexists. eapply deriv_constrain_lb_ub_correct. Qed.
+
+Lemma is_lim_logit_inv_m :
+  is_lim logit_inv m_infty 0.
+Proof.
+  rewrite /logit_inv.
+  replace (Finite 0) with (Rbar_div 1 (Rbar_plus 1 p_infty)); last first.
+  { rewrite //=. f_equal. field. }
+  apply: is_lim_div.
+  { apply is_lim_const. }
+  { apply: is_lim_plus.
+    { apply is_lim_const. }
+    { eapply is_lim_comp.
+      { apply ElemFct.is_lim_exp_p. }
+      { replace (p_infty) with (Rbar_opp m_infty); auto. apply: is_lim_opp.
+        apply is_lim_id. }
+      { simpl => //=. exists 0. intros ??. congruence. } }
+    { rewrite //=. }
+  }
+  { rewrite //=. }
+  { rewrite //=. }
+Qed.
+
+Lemma is_lim_logit_inv_p :
+  is_lim logit_inv p_infty 1.
+Proof.
+  rewrite /logit_inv.
+  replace (Finite 1) with (Rbar_div 1 (Rbar_plus 1 0)); last first.
+  { rewrite //=. f_equal. field. }
+  apply: is_lim_div.
+  { apply is_lim_const. }
+  { apply: is_lim_plus.
+    { apply is_lim_const. }
+    { eapply is_lim_comp.
+      { apply ElemFct.is_lim_exp_m. }
+      { replace (m_infty) with (Rbar_opp p_infty); auto. apply: is_lim_opp.
+        apply is_lim_id. }
+      { simpl => //=. exists 0. intros ??. congruence. } }
+    { rewrite //=. }
+  }
+  { rewrite //=. inversion 1. nra. }
+  { rewrite //=. }
+Qed.
+
+Lemma constrain_lb_ub_lim_right_correct a b x :
+  x <> p_infty ->
+  is_right_lim (constrain_lb_ub a b) x (constrain_lb_ub_lim a b x).
+Proof.
+  destruct x => /=.
+  - intros _. apply is_lim_right_lim; first congruence.
+    { apply is_lim_continuity', continuous_constrain_lb_ub. }
+  - intros ?. congruence.
+  - intros _.
+    replace a with (a + 0) at 2; last nra.
+    apply (is_right_lim_plus (λ _, a) (λ x, (b - a) * logit_inv x) m_infty a 0).
+    { apply is_right_lim_const. congruence. }
+    { apply is_lim_right_lim; first congruence.
+      replace (Finite 0) with (Rbar_mult (b - a) 0); last first.
+      { rewrite /=. f_equal. field. }
+      apply is_lim_mult.
+      { apply is_lim_const. }
+      { apply is_lim_logit_inv_m. }
+      { rewrite //=. } }
+    { rewrite //=. }
+Qed.
+
+Lemma constrain_lb_ub_lim_left_correct a b x :
+  x <> m_infty ->
+  is_left_lim (constrain_lb_ub a b) x (constrain_lb_ub_lim a b x).
+Proof.
+  destruct x => /=.
+  - intros _. apply is_lim_left_lim; first congruence.
+    { apply is_lim_continuity', continuous_constrain_lb_ub. }
+  - intros _.
+    replace b with (a + ((b - a) * 1)) at 2; last nra.
+    apply (is_left_lim_plus (λ _, a) _ p_infty a (Rbar_mult (b - a) 1)).
+    { apply is_left_lim_const; congruence. }
+    { apply is_lim_left_lim; first congruence.
+      apply is_lim_mult.
+      { apply is_lim_const. }
+      { apply is_lim_logit_inv_p. }
+      { rewrite //=. } }
+    { rewrite //=. }
+  - intros ?. congruence.
 Qed.
 
 Lemma logit_inv_range x :
@@ -313,4 +476,3 @@ Lemma constrain_lb_ub_spec a b x :
 Proof.
   rewrite /constrain_lb_ub. specialize (logit_inv_range x); nra.
 Qed.
-

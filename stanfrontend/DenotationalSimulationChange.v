@@ -37,7 +37,6 @@ Variable target_map : list val -> list val -> R -> R.
 Variable target_unmap : list val -> list val -> R -> R.
 
 Variable target_map_unmap : ∀ d p x, target_map d p (target_unmap d p x) = x.
-Variable target_map_zero : ∀ d p, target_map d p (IFR Float.zero) = IFR Float.zero.
 
 Lemma inhabited_initial :
   ∀ data params t, is_safe prog data params -> ∃ s, Smallstep.initial_state (semantics prog data params t) s.
@@ -148,19 +147,7 @@ Proof.
     }
     rewrite IFR_IRF_inv //.
   }
-  rewrite {1}/log_density_of_program.
-  rewrite /pred_to_default_fun.
-  destruct (ClassicalEpsilon.excluded_middle_informative) as [(v&Hreturns)|Hne']; auto.
-  {
-    exfalso.
-    replace v with (IRF (target_map data (map R2val (param_unmap params))
-                           (target_unmap data (map R2val (param_unmap params)) (IFR v))))
-      in Hreturns; last first.
-    { rewrite target_map_unmap IRF_IFR_inv //. }
-    apply Hne.
-    eexists (IRF (target_unmap data (map R2val (param_unmap params)) (IFR v))).
-    apply returns_target_value_bsim; eauto.
-  }
+  exfalso. eapply Hne. eapply HP.
 Qed.
 
 Lemma safe_data_preserved :
@@ -179,21 +166,31 @@ Proof.
     destruct Hfsim. edestruct fsim_match_initial_states as (ind&s'&?); eauto.
     exists s'. rewrite param_unmap_map in H; intuition.
   }
-  intros t s Hinit.
-  epose proof (transf_correct data (param_map params) ((target_unmap data (map R2val params)
-                                                          (IFR t)))) as Hfsim.
-  apply forward_to_backward_simulation in Hfsim as Hbsim;
-    auto using semantics_determinate, semantics_receptive.
-  edestruct Hbsim as [index order match_states props].
-  eassert (∃ s10, Smallstep.initial_state (semantics prog data (map (λ r, Vfloat (IRF r)) (param_map params)) _) s10)
-    as (s10&?).
-  { apply inhabited_initial; eauto. }
-  edestruct (bsim_match_initial_states) as (?&s1'&Hinit'&Hmatch1); eauto.
-  { rewrite param_unmap_map //. eauto. }
-  eapply bsim_safe; eauto.
-  rewrite param_unmap_map in props; auto.
-  rewrite target_map_unmap IRF_IFR_inv /R2val in props; eauto.
-  apply Hsafe; eauto.
+  split.
+  {
+    intros t s Hinit.
+    epose proof (transf_correct data (param_map params) ((target_unmap data (map R2val params)
+                                                            (IFR t)))) as Hfsim.
+    apply forward_to_backward_simulation in Hfsim as Hbsim;
+      auto using semantics_determinate, semantics_receptive.
+    edestruct Hbsim as [index order match_states props].
+    eassert (∃ s10, Smallstep.initial_state (semantics prog data (map (λ r, Vfloat (IRF r)) (param_map params)) _) s10)
+      as (s10&?).
+    { apply inhabited_initial; eauto. }
+    edestruct (bsim_match_initial_states) as (?&s1'&Hinit'&Hmatch1); eauto.
+    { rewrite param_unmap_map //. eauto. }
+    eapply bsim_safe; eauto.
+    rewrite param_unmap_map in props; auto.
+    rewrite target_map_unmap IRF_IFR_inv /R2val in props; eauto.
+    apply Hsafe; eauto.
+  }
+  {
+    edestruct Hsafe as (?&?&Hret). destruct Hret as (t&?).
+    exists ((IRF (target_map data (map R2val (param_unmap (param_map params))) (IFR t)))).
+    replace params with (param_unmap (param_map params)) at 1.
+    { eapply returns_target_value_fsim; eauto. rewrite IRF_IFR_inv; eauto. }
+    { rewrite param_unmap_map //. }
+  }
 Qed.
 
 (* The last lemma assumes that the transformation actually in fact
@@ -208,8 +205,11 @@ Variable target_map_dgs :
   ∀ data x, in_list_rectangle x (parameter_list_rect tprog) ->
   target_map data (map R2val x) (log_density_of_program prog data (map R2val (param_map x))) =
   list_plus (list_apply log_dgs x) + log_density_of_program prog data (map R2val (param_map x)).
-Variable gs_monotone : Forall2 strict_monotone_on_interval (parameter_list_rect tprog) gs.
+Variable gs_monotone :
+  wf_rectangle_list (parameter_list_rect prog) ->
+  Forall2 strict_monotone_on_interval (parameter_list_rect tprog) gs.
 Variable gs_image :
+  wf_rectangle_list (parameter_list_rect prog) ->
   Forall3 is_interval_image gs (parameter_list_rect tprog) (parameter_list_rect prog).
 Variable gs_deriv :  Forall3 continuous_derive_on_interval (parameter_list_rect tprog) gs
     (map (λ (f : R → R) (x : R), exp (f x)) log_dgs).

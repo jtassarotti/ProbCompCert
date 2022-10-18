@@ -17,6 +17,10 @@ Import Clightdefs.ClightNotations.
 
 Local Open Scope clight_scope.
 
+Require Import RealsExt.
+Import Continuity.
+
+
 Inductive match_fundef (p: program) : fundef -> fundef -> Prop :=
   | match_fundef_internal: forall f tf parameters pmap correction,
       OK parameters = Errors.mmap (find_parameter p.(pr_defs)) p.(pr_parameters_vars) ->
@@ -419,6 +423,83 @@ Proof.
   { destruct x => //=. f_equal; auto. }
 Qed.
 
+Axiom IFR_IRF_inv :
+  ∀ x, IFR (IRF x) = x.
+Axiom IRF_IFR_inv :
+  ∀ x, IRF (IFR x) = x.
+
+Definition target_map (d p : list Values.val) x := list_plus (list_apply log_dgs (map val2R p)) + x.
+Definition target_unmap (d p : list Values.val) x := x - list_plus (list_apply log_dgs (map val2R p)).
+
+Lemma target_map_unmap : ∀ d p x, target_map d p (target_unmap d p x) = x.
+Proof. intros d p x. rewrite /target_map/target_unmap. field. Qed.
+
+Lemma target_map_dgs :
+  ∀ data x, in_list_rectangle x (parameter_list_rect tprog) ->
+  target_map data (map R2val x) (log_density_of_program prog data (map R2val (param_map x))) =
+    list_plus (list_apply log_dgs x) + log_density_of_program prog data (map R2val (param_map x)).
+Proof.
+  rewrite /target_map. intros. f_equal. f_equal. f_equal.
+  rewrite map_map. etransitivity; last eapply map_id.
+  eapply map_ext. intros. rewrite //= IFR_IRF_inv //.
+Qed.
+
+Lemma gs_monotone :
+  wf_rectangle_list (parameter_list_rect prog) ->
+  Forall2 strict_monotone_on_interval (parameter_list_rect tprog) gs.
+Proof.
+  rewrite /gs/parameter_list_rect.
+  intros Hwf.
+  rewrite flatten_parameter_constraints_tprog.
+  induction (flatten_parameter_constraints prog) as [| c l].
+  { econstructor. }
+  {  simpl. econstructor; last first.
+     { eapply IHl. inversion Hwf; eauto. }
+     rewrite /strict_monotone_on_interval. intros x y (_&Hlt&_).
+     destruct c.
+     - rewrite //=.
+     - apply constrain_lb_strict_increasing. auto.
+     - apply constrain_ub_strict_increasing. auto.
+     - apply constrain_lb_ub_strict_increasing; auto.
+       inversion Hwf. subst. eauto.
+  }
+Qed.
+
+Lemma gs_image :
+  wf_rectangle_list (parameter_list_rect prog) ->
+  Forall3 is_interval_image gs (parameter_list_rect tprog) (parameter_list_rect prog).
+Proof.
+  rewrite /gs/parameter_list_rect.
+  intros Hwf.
+  rewrite flatten_parameter_constraints_tprog.
+  induction (flatten_parameter_constraints prog) as [| c l].
+  { econstructor. }
+  {  simpl. econstructor; last first.
+     { eapply IHl. inversion Hwf; eauto. }
+     rewrite /is_interval_image/=.
+     destruct c.
+     - split; auto.
+       split.
+       { simpl. apply is_lim_right_lim; first congruence. apply is_lim_id. }
+       { simpl. apply is_lim_left_lim; first congruence. apply is_lim_id. }
+     - split; auto.
+       { simpl. intros. split; auto. apply constrain_lb_spec_strict. }
+       split.
+       { apply constrain_lb_lim_right_correct; congruence. }
+       { apply constrain_lb_lim_left_correct; congruence. }
+     - split; auto.
+       { simpl. intros. split; auto. apply constrain_ub_spec_strict. }
+       split.
+       { apply constrain_ub_lim_right_correct; congruence. }
+       { apply constrain_ub_lim_left_correct; congruence. }
+     - split; auto.
+       { simpl. intros; apply constrain_lb_ub_spec_strict; inversion Hwf; auto. }
+       split.
+       { apply constrain_lb_ub_lim_right_correct; congruence. }
+       { apply constrain_lb_ub_lim_left_correct; congruence. }
+  }
+Qed.
+
 Definition exp_ef_external :=
   (AST.EF_external "exp" (AST.mksignature (AST.Tfloat :: nil) (AST.Tret AST.Tfloat)
                             (AST.mkcallconv None false false))).
@@ -475,11 +556,6 @@ Axiom log_ext_spec :
   forall a ge m,
   Events.external_call log_ef_external ge
     (Values.Vfloat (IRF a) :: nil) m Events.E0 (Values.Vfloat (IRF (ln a))) m.
-
-Axiom IFR_IRF_inv :
-  ∀ x, IFR (IRF x) = x.
-Axiom IRF_IFR_inv :
-  ∀ x, IRF (IFR x) = x.
 
 Axiom float_add_irf: forall a b,
   (Floats.Float.add (IRF a) (IRF b)) = IRF (a + b).
@@ -625,7 +701,7 @@ Proof.
       rewrite float_sub_irf'.
       rewrite ?IFR_IRF_inv.
       f_equal.
-      apply constrain_lb_ub_inv. 
+      apply constrain_lb_ub_inv.
       { admit. }
     }
   }
