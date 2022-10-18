@@ -20,14 +20,17 @@ Notation "'do' X <- A ; B" := (Errors.bind A (fun X => B))
 Local Open Scope gensym_monad_scope.
 
 
-
-Fixpoint transf_expr (pmap: AST.ident -> option expr) (e: Stanlight.expr) {struct e}: Stanlight.expr :=
+Fixpoint transf_expr (pmap: AST.ident -> option (expr -> expr)) (e: Stanlight.expr) {struct e}: Stanlight.expr :=
   match e with
   | Evar id ty =>
-    match pmap id with
-    | Some e => e
-    | None => (Evar id ty)
-    end
+      match ty with
+      | Breal =>
+          match pmap id with
+          | Some fe => fe (Evar id ty)
+          | None => (Evar id ty)
+          end
+      | _ => (Evar id ty)
+      end
   | Ecall e el ty =>
     let e := transf_expr pmap e in
     let el := transf_exprlist pmap el in
@@ -42,11 +45,18 @@ Fixpoint transf_expr (pmap: AST.ident -> option expr) (e: Stanlight.expr) {struc
   | Eindexed e el ty =>
     let e := transf_expr pmap e in
     let el := transf_exprlist pmap el in
-    Eindexed e el ty
+    match e with
+    | Evar id _ =>
+          match pmap id with
+          | Some fe => fe (Eindexed e el ty)
+          | None => Eindexed e el ty
+          end
+    | _ => Eindexed e el ty
+    end
   | _ => e
   end
 
-with transf_exprlist (pmap: AST.ident -> option expr) (el: exprlist) {struct el} : exprlist :=
+with transf_exprlist (pmap: AST.ident -> option (expr -> expr)) (el: exprlist) {struct el} : exprlist :=
   match el with
   | Enil => Enil
   | Econs e el =>
@@ -56,7 +66,8 @@ with transf_exprlist (pmap: AST.ident -> option expr) (el: exprlist) {struct el}
   end.
 
 (* WARNING: missing lists *)
-Fixpoint transf_statement (pmap: AST.ident -> option expr) (s: Stanlight.statement) {struct s} : Stanlight.statement :=
+Fixpoint transf_statement (pmap: AST.ident -> option (expr -> expr))
+  (s: Stanlight.statement) {struct s} : Stanlight.statement :=
   match s with
   | Sskip => Sskip
   | Sassign e1 o e2 =>
@@ -87,12 +98,12 @@ Fixpoint transf_statement (pmap: AST.ident -> option expr) (s: Stanlight.stateme
     Stilde e d el
   end.
 
-Definition transf_function (pmap: AST.ident -> option expr) (correction: expr) (f: Stanlight.function): Stanlight.function :=
+Definition transf_function (pmap: AST.ident -> option _) (correction: expr) (f: Stanlight.function): Stanlight.function :=
   let body := transf_statement pmap f.(fn_body) in
   let body := Ssequence body (Starget correction) in
   mkfunction body f.(fn_vars).
 
-Definition transf_fundef (pmap: AST.ident -> option expr) (correction: expr) (fd: Stanlight.fundef) : Errors.res Stanlight.fundef :=
+Definition transf_fundef (pmap: AST.ident -> option _) (correction: expr) (fd: Stanlight.fundef) : Errors.res Stanlight.fundef :=
   match fd with
   | Ctypes.Internal f =>
       let tf := transf_function pmap correction f in
@@ -134,26 +145,18 @@ Definition unconstrained_to_constrained_fun (c: constraint) : expr -> expr :=
     (Ebinop b Minus call Breal)
   end.
 
-Definition unconstrained_to_constrained (i: AST.ident) (v: variable) : option expr :=
+Definition unconstrained_to_constrained (v: variable) : option (expr -> expr) :=
   let typ := v.(vd_type) in
   let constraint := v.(vd_constraint) in
-  match typ with
-  | Breal => Some (unconstrained_to_constrained_fun constraint (Evar i typ))
-  | Barray Breal _ =>
-    match constraint with
-    | Cidentity => Some (Evar i typ)
-    | _ => None
-    end
-  | _ => None
-  end.
+  Some (unconstrained_to_constrained_fun constraint).
 
-Fixpoint u_to_c_rewrite_map {A} (parameters: list (AST.ident * variable * A)) {struct parameters}: (AST.ident -> option expr) :=
+Fixpoint u_to_c_rewrite_map {A} (parameters: list (AST.ident * variable * A)) {struct parameters}: (AST.ident -> option (expr -> expr)) :=
   match parameters with
   | nil => fun x => None
   | (id, v, _) :: parameters =>
     let inner_map := u_to_c_rewrite_map parameters in
       fun param =>
-        if positive_eq_dec id param then (unconstrained_to_constrained id v) else (inner_map param)
+        if positive_eq_dec id param then (unconstrained_to_constrained v) else (inner_map param)
   end.
 
 Definition change_of_variable_correction (i: AST.ident) (v: variable): option expr :=

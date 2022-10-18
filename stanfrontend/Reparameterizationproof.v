@@ -2,6 +2,7 @@ From Coq Require Import Reals Psatz ssreflect Utf8.
 Require Import Smallstep.
 Require Import Errors.
 Require Import Linking.
+Require Import Globalenvs.
 
 Require Import Stanlight.
 Require Import Ssemantics.
@@ -21,6 +22,8 @@ Require Import RealsExt.
 Import Continuity.
 
 
+(* TODO: it seems to have been annoying to have defined this this way,
+   probably would have been better to make parameters be a parameter rather than existentially quantifying? *)
 Inductive match_fundef (p: program) : fundef -> fundef -> Prop :=
   | match_fundef_internal: forall f tf parameters pmap correction,
       OK parameters = Errors.mmap (find_parameter p.(pr_defs)) p.(pr_parameters_vars) ->
@@ -619,34 +622,33 @@ Lemma float_mul_irf': forall a b,
   (Floats.Float.mul a b) = IRF (IFR a * IFR b).
 Proof. intros a b. rewrite -float_mul_irf ?IRF_IFR_inv //. Qed.
 
-(*
-Lemma param_unmap_out_inv :
-  ∀ d p,
-    wf_rectangle_list (parameter_list_rect prog) ->
-    is_safe prog d (map R2val p) ->
-    eval_param_map_list prog p = eval_param_map_list tprog (param_unmap p).
+Set Nested Proofs Allowed.
+Lemma eval_expr_fun_const pr v :
+  eval_expr_fun pr (Econst_float v Breal) = (Values.Vfloat v).
+Proof.
+  apply eval_expr_fun_spec. econstructor.
+Qed.
+
+Lemma eval_param_map_list_preserved :
+  ∀ x,
+    in_list_rectangle x (parameter_list_rect tprog) ->
+    eval_param_map_list tprog x = eval_param_map_list prog (param_map x).
 Proof.
   rewrite /eval_param_map_list/parameter_list_rect.
-  intros d p Hwf _.
+  intros x.
   rewrite /flatten_parameter_out.
-  rewrite /param_unmap.
-  rewrite flatten_parameter_variables_tprog.
+  rewrite /param_map.
   rewrite /flatten_parameter_constraints.
-  rewrite /flatten_parameter_constraints in Hwf.
+  rewrite flatten_parameter_variables_tprog.
   specialize (flatten_parameter_variables_out_none) => Hnone.
   remember (flatten_parameter_variables prog) as pvars eqn:Heq. clear Heq.
-  revert pvars Hwf Hnone.
-  induction p => pvars Hwf Hnone.
+  revert pvars Hnone.
+  induction x => pvars Hnone Hin.
   { rewrite /eval_param_map_list /=//. }
   destruct pvars => //=.
   f_equal.
   { f_equal.
-    destruct p0 as ((?&?)&?). inversion Hnone; subst.
-    rewrite /=.
-    transitivity (Values.Vfloat (IRF a)).
-    { apply eval_expr_fun_spec. econstructor. }
-    symmetry.
-    inversion Hwf. subst.
+    destruct p as ((?&?)&?). inversion Hnone; subst. rewrite eval_expr_fun_const /=.
 
     destruct (vd_constraint _).
     { apply eval_expr_fun_spec; econstructor. }
@@ -667,16 +669,10 @@ Proof.
       { econstructor. }
 
       simpl.
-      rewrite /unconstrain_lb.
-      rewrite exp_ln.
-      2: { admit. }
-
       rewrite /Cop.sem_add//=.
       rewrite /Cop.sem_binarith//=.
-
-      replace f with (IRF (IFR f)) at 2 by (apply IRF_IFR_inv).
-      do 2 f_equal.
-      rewrite float_add_irf. f_equal. nra.
+      rewrite /constrain_lb.
+      rewrite -float_add_irf. repeat f_equal. rewrite IRF_IFR_inv //.
     }
     {
       apply eval_expr_fun_spec. rewrite /unconstrained_to_constrained_fun.
@@ -693,8 +689,8 @@ Proof.
         { eauto. }
         2:{  eauto. }
         rewrite /exp_ef_external; reflexivity.
-        assert ((Floats.Float.sub Floats.Float.zero (IRF (unconstrain_ub (IFR f) a)))
-               = (IRF (-unconstrain_ub (IFR f) a))) as ->.
+        assert ((Floats.Float.sub Floats.Float.zero (IRF a))
+               = (IRF (- a))) as ->.
         { rewrite -(IRF_IFR_inv (Floats.Float.zero)).
           rewrite float_sub_irf. f_equal. rewrite IFR_zero. nra.
         }
@@ -703,13 +699,8 @@ Proof.
       simpl.
       rewrite /Cop.sem_sub//=.
       rewrite /Cop.sem_binarith//=.
-      rewrite /unconstrain_ub.
-      rewrite Ropp_involutive.
-      rewrite exp_ln.
-      2: { admit. }
-      do 2 f_equal.
       replace f with (IRF (IFR f)) at 1 by (apply IRF_IFR_inv).
-      rewrite float_sub_irf. f_equal. nra.
+      rewrite float_sub_irf. f_equal.
     }
     {
       apply eval_expr_fun_spec. rewrite /unconstrained_to_constrained_fun.
@@ -735,27 +726,244 @@ Proof.
       rewrite /Cop.sem_binarith//=.
       rewrite /Cop.sem_add//=.
       rewrite /Cop.sem_binarith//=.
-      rewrite /unconstrain_ub.
       do 2 f_equal.
-      rewrite float_add_irf'.
+      rewrite /constrain_lb_ub.
+      rewrite float_add_irf'; repeat f_equal.
       rewrite float_mul_irf'.
       rewrite float_sub_irf'.
       rewrite ?IFR_IRF_inv.
       f_equal.
-      apply constrain_lb_ub_inv.
-      { admit. }
     }
   }
-  eapply IHp; eauto. inversion Hnone; eauto.
-Abort.
-*)
+  eapply IHx; eauto.
+  { inversion Hnone; eauto. }
+  { inversion Hin; subst. eauto. }
+Qed.
 
 Variable data : list Values.val.
-Variable params : list Values.val.
+Variable params : list R.
+
+Let ge := globalenv prog.
+Let tge := globalenv tprog.
+
+Definition fpmap := u_to_c_rewrite_map found_parameters.
+Definition fcorrection := collect_corrections found_parameters.
+
+Inductive match_fundef' (p: program) : fundef -> fundef -> Prop :=
+  | match_fundef_internal': forall f tf ,
+      transf_function fpmap fcorrection f = tf ->
+      match_fundef' p (Ctypes.Internal f) (Ctypes.Internal tf)
+  | match_fundef_external': forall ef args res cc,
+      match_fundef' p (Ctypes.External ef args res cc) (Ctypes.External ef args res cc).
+
+Definition match_prog' : Prop :=
+  match_program_gen match_fundef' match_varinfo prog prog tprog /\
+  pr_parameters_vars tprog = List.map (fun '(id, v, _) =>
+                                 (id, vd_type v,
+                                   Some (fun x => (unconstrained_to_constrained_fun (vd_constraint v) x))))
+                            found_parameters.
+
+Lemma match_fundef_fundef' f tf :
+  match_fundef prog f tf ->
+  match_fundef' prog f tf.
+Proof.
+  inversion 1.
+  - subst. assert (parameters = found_parameters) as ->.
+    { specialize (found_parameters_spec) => Heq. congruence. }
+    econstructor; eauto.
+  - subst. econstructor; eauto.
+Qed.
+
+Lemma TRANSL' : match_prog'.
+Proof.
+  destruct TRANSL as (params'&?&?&?&?).
+  subst. assert (params' = found_parameters) as ->.
+  { specialize (found_parameters_spec) => Heq. congruence. }
+  split; last by eauto.
+  inversion H1.
+  split; eauto.
+
+  clear -H3. induction H3.
+  { econstructor. }
+  { econstructor; last by eauto.
+    inversion H; econstructor; eauto.
+    inversion H1; subst; econstructor; eauto.
+    inversion H5. subst.
+    eapply match_fundef_fundef'.
+    eauto.
+  }
+Qed.
+
+Lemma functions_translated:
+  forall v f,
+  Genv.find_funct ge v = Some f ->
+  ∃ f', Genv.find_funct tge v = Some f' /\ transf_fundef fpmap fcorrection f = OK f'.
+Proof.
+  intros. destruct TRANSL' as (Hmatch&Hrest).
+  eapply (Genv.find_funct_match) in Hmatch as (?&tfun&Htfun); eauto.
+  intuition.
+  eexists; split; eauto.
+  inversion H2; eauto.
+  rewrite /=. subst. auto.
+Qed.
+
+Lemma function_ptr_translated:
+  forall v f,
+  Genv.find_funct_ptr ge v = Some f ->
+  ∃ f', Genv.find_funct_ptr tge v = Some f' /\ transf_fundef fpmap fcorrection f = OK f'.
+Proof.
+  intros. destruct TRANSL' as (Hmatch&Hrest).
+  eapply (Genv.find_funct_ptr_match) in Hmatch as (?&tfun&Htfun); eauto.
+  intuition.
+  eexists; split; eauto.
+  inversion H2; eauto.
+  rewrite /=. subst. auto.
+Qed.
+
+Lemma symbols_preserved:
+  forall id,
+  Genv.find_symbol tge id = Genv.find_symbol ge id.
+Proof.
+  intros. destruct TRANSL'.
+  eapply Genv.find_symbol_match; intuition eauto.
+Qed.
+
+Lemma senv_preserved:
+  Senv.equiv ge tge.
+Proof.
+  intros. destruct TRANSL'.
+  eapply Genv.senv_match; eauto.
+Qed.
+
+Scheme eval_expr_rec := Minimality for eval_expr Sort Prop
+  with eval_lvalue_rec := Minimality for eval_lvalue Sort Prop
+  with eval_exprlist_rec := Minimality for eval_exprlist Sort Prop.
+
+Combined Scheme eval_expr_mutind from eval_expr_rec, eval_lvalue_rec, eval_exprlist_rec.
+
+Lemma typeof_fpmap :
+  ∀ i fe efill, fpmap i = Some fe -> typeof efill = Breal -> typeof (fe efill) = Breal.
+Proof.
+  rewrite /fpmap.
+  induction found_parameters as [| ((?&?)&?)] => //=.
+  intros i' fe efill.
+  destruct (Pos.eq_dec _ _).
+  { rewrite /unconstrained_to_constrained.
+    inversion 1. subst. intros Hefill.
+    destruct (vd_constraint _) => //=.
+  }
+  intros. eauto.
+Qed.
+
+Lemma typeof_transf_expr a :
+  typeof (transf_expr fpmap a) = typeof a.
+Proof.
+  induction a => //=.
+  destruct b => //=.
+  destruct (fpmap i) as [fe|] eqn:Heq.
+  { eapply (typeof_fpmap i fe (Evar i Breal)); eauto. }
+  { rewrite //=. }
+Abort.
+
+(*
+Lemma evaluation_preserved:
+  forall en m t,
+      (forall e v, eval_expr ge en m t e v -> eval_expr tge en m t (transf_expr fpmap e) v)
+  /\  (forall e loc ofs s, eval_lvalue ge en m t e loc ofs s ->
+                           eval_lvalue tge en m t (transf_expr fpmap e) loc ofs s)
+  /\  (forall el vl, eval_exprlist ge en m t el vl -> eval_exprlist tge en m t (transf_exprlist fpmap el) vl).
+Proof.
+  intros.
+  set (P1 := fun e v => eval_expr ge en m t e v -> eval_expr tge en m t (transf_expr fpmap e) v).
+  set (P2 := fun e loc ofs s => eval_lvalue ge en m t e loc ofs s ->
+                                eval_lvalue tge en m t (transf_expr fpmap e) loc ofs s).
+  set (P3 := fun el vl => eval_exprlist ge en m t el vl ->
+                          eval_exprlist tge en m t (transf_exprlist fpmap el) vl).
+  generalize (eval_expr_mutind ge en m t P1 P2 P3); intro IND.
+
+  (* Evaluation of expressions *)
+  split.
+  intros e v EVAL.
+  eapply IND; eauto; intros; subst; subst P1; subst P2; subst P3; simpl; intros.
+  { econstructor; eauto. }
+  { econstructor; eauto. }
+  { econstructor; eauto.
+    Set Nested Proofs Allowed.
+
+
+{
+
+
+    transf_type (typeof (transf_expr fpmap a)) = transf_type
+
+
+  {  rewrite //=.
+  econstructor; eauto.
+  econstructor; eauto.
+  generalize (functions_translated _ _ H3); intro FUN. eauto.
+  eapply Events.external_call_symbols_preserved; eauto. apply senv_preserved.
+  econstructor; eauto.
+  econstructor; eauto.
+  econstructor; eauto.
+  eapply eval_Evar_global; eauto.
+  rewrite symbols_preserved; auto.
+  econstructor; eauto.
+  econstructor; eauto.
+  econstructor; eauto.
+
+  (* Evaluation of lvalues *)
+  split.
+  intros e loc ofs s EVAL.
+  eapply IND; eauto; intros; subst; subst P1; subst P2; subst P3; simpl; intros.
+  econstructor; eauto.
+  econstructor; eauto.
+  econstructor; eauto.
+  econstructor; eauto.
+  econstructor; eauto.
+  generalize (functions_translated _ _ H3); intro FUN. eauto.
+  eapply Events.external_call_symbols_preserved; eauto. apply senv_preserved.
+  econstructor; eauto.
+  econstructor; eauto.
+  econstructor; eauto.
+  eapply eval_Evar_global; eauto.
+  rewrite symbols_preserved; auto.
+  econstructor; eauto.
+  econstructor; eauto.
+  econstructor; eauto.
+
+  (* Evaluation of list of expressions *)
+  intros el vl EVAL.
+  eapply IND; eauto; intros; subst; subst P1; subst P2; subst P3; simpl; intros.
+  econstructor; eauto.
+  econstructor; eauto.
+  econstructor; eauto.
+  econstructor; eauto.
+  econstructor; eauto.
+  generalize (functions_translated _ _ H3); intro FUN. eauto.
+  eapply Events.external_call_symbols_preserved; eauto. apply senv_preserved.
+  econstructor; eauto.
+  econstructor; eauto.
+  econstructor; eauto.
+  eapply eval_Evar_global; eauto.
+  rewrite symbols_preserved; auto.
+  econstructor; eauto.
+  econstructor; eauto.
+  econstructor; eauto.
+Qed.
+*)
+
+Theorem transf_program_correct_change t:
+    is_safe prog data (map R2val params) ->
+    forward_simulation (Ssemantics.semantics prog data (map R2val params) (IRF t))
+      (Ssemantics.semantics tprog data (map R2val (param_unmap params))
+         (IRF (target_map data (map R2val (param_unmap params)) t))).
+Proof.
+  intros Hsafe.
+Admitted.
 
 (* TODO: Joe: this doesn't make sense, because we ought to be remapping data/params in target *)
-Theorem transf_program_correct tval:
-  forward_simulation (Ssemantics.semantics prog data params tval) (Ssemantics.semantics tprog data params tval).
+Theorem transf_program_correct tval params':
+  forward_simulation (Ssemantics.semantics prog data params' tval) (Ssemantics.semantics tprog data params' tval).
 Proof.
 Admitted.
 
