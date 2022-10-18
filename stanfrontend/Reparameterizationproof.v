@@ -863,94 +863,54 @@ Proof.
   destruct (fpmap i) as [fe|] eqn:Heq.
   { eapply (typeof_fpmap i fe (Evar i Breal)); eauto. }
   { rewrite //=. }
-Abort.
+  destruct (transf_expr fpmap a) eqn:Htransf => //=.
+  destruct (fpmap i) as [fe|] eqn:Heq.
+  { destruct b => //=. eapply typeof_fpmap; eauto. }
+  destruct b => //=.
+Qed.
 
-(*
+
 Lemma evaluation_preserved:
   forall en m t,
       (forall e v, eval_expr ge en m t e v -> eval_expr tge en m t (transf_expr fpmap e) v)
+  /\  (forall el vl, eval_exprlist ge en m t el vl -> eval_exprlist tge en m t (transf_exprlist fpmap el) vl)
   /\  (forall e loc ofs s, eval_lvalue ge en m t e loc ofs s ->
-                           eval_lvalue tge en m t (transf_expr fpmap e) loc ofs s)
-  /\  (forall el vl, eval_exprlist ge en m t el vl -> eval_exprlist tge en m t (transf_exprlist fpmap el) vl).
+                           eval_lvalue tge en m t e loc ofs s).
 Proof.
-  intros.
-  set (P1 := fun e v => eval_expr ge en m t e v -> eval_expr tge en m t (transf_expr fpmap e) v).
-  set (P2 := fun e loc ofs s => eval_lvalue ge en m t e loc ofs s ->
-                                eval_lvalue tge en m t (transf_expr fpmap e) loc ofs s).
-  set (P3 := fun el vl => eval_exprlist ge en m t el vl ->
-                          eval_exprlist tge en m t (transf_exprlist fpmap el) vl).
-  generalize (eval_expr_mutind ge en m t P1 P2 P3); intro IND.
-
-  (* Evaluation of expressions *)
-  split.
-  intros e v EVAL.
-  eapply IND; eauto; intros; subst; subst P1; subst P2; subst P3; simpl; intros.
+  intros en m t.
+  apply (eval_exprs_ind ge en m t); intros.
   { econstructor; eauto. }
   { econstructor; eauto. }
+  { simpl. econstructor; eauto.
+    rewrite typeof_transf_expr. eauto. }
   { econstructor; eauto.
-    Set Nested Proofs Allowed.
+    rewrite ?typeof_transf_expr. eauto. }
+  { edestruct (functions_translated) as (ef'&?&Htransf'); eauto.
+    subst. econstructor; eauto.
+    { rewrite /= in Htransf'. inversion Htransf'; eauto. }
+    (* TODO: this is gonna break when we actually remap mem, the key is we have to add
+       a hypothesis to ecalls saying they can't depend on memory at all *)
+    eapply Events.external_call_symbols_preserved; eauto. apply senv_preserved.
+  }
+  { econstructor. }
+  {
+    admit.
+    (*
+    inversion H. subst. simpl.
+    admit. *)
+  }
 
+  (* list *)
+  { simpl. econstructor; eauto. }
+  { simpl. econstructor; eauto. }
 
-{
+  (* lvalue *)
+  { simpl. econstructor; eauto. }
+  { simpl. econstructor; eauto. rewrite symbols_preserved; auto. }
 
+  { simpl. econstructor; eauto. admit. }
+Abort.
 
-    transf_type (typeof (transf_expr fpmap a)) = transf_type
-
-
-  {  rewrite //=.
-  econstructor; eauto.
-  econstructor; eauto.
-  generalize (functions_translated _ _ H3); intro FUN. eauto.
-  eapply Events.external_call_symbols_preserved; eauto. apply senv_preserved.
-  econstructor; eauto.
-  econstructor; eauto.
-  econstructor; eauto.
-  eapply eval_Evar_global; eauto.
-  rewrite symbols_preserved; auto.
-  econstructor; eauto.
-  econstructor; eauto.
-  econstructor; eauto.
-
-  (* Evaluation of lvalues *)
-  split.
-  intros e loc ofs s EVAL.
-  eapply IND; eauto; intros; subst; subst P1; subst P2; subst P3; simpl; intros.
-  econstructor; eauto.
-  econstructor; eauto.
-  econstructor; eauto.
-  econstructor; eauto.
-  econstructor; eauto.
-  generalize (functions_translated _ _ H3); intro FUN. eauto.
-  eapply Events.external_call_symbols_preserved; eauto. apply senv_preserved.
-  econstructor; eauto.
-  econstructor; eauto.
-  econstructor; eauto.
-  eapply eval_Evar_global; eauto.
-  rewrite symbols_preserved; auto.
-  econstructor; eauto.
-  econstructor; eauto.
-  econstructor; eauto.
-
-  (* Evaluation of list of expressions *)
-  intros el vl EVAL.
-  eapply IND; eauto; intros; subst; subst P1; subst P2; subst P3; simpl; intros.
-  econstructor; eauto.
-  econstructor; eauto.
-  econstructor; eauto.
-  econstructor; eauto.
-  econstructor; eauto.
-  generalize (functions_translated _ _ H3); intro FUN. eauto.
-  eapply Events.external_call_symbols_preserved; eauto. apply senv_preserved.
-  econstructor; eauto.
-  econstructor; eauto.
-  econstructor; eauto.
-  eapply eval_Evar_global; eauto.
-  rewrite symbols_preserved; auto.
-  econstructor; eauto.
-  econstructor; eauto.
-  econstructor; eauto.
-Qed.
-*)
 
 Theorem transf_program_correct_change t:
     is_safe prog data (map R2val params) ->
