@@ -891,7 +891,14 @@ Proof.
     eapply typeof_fpmap; eauto. }
 Qed.
 
-Definition match_mem m0 m1 :=
+Definition match_mem_locals en m0 m1 :=
+  forall id l ty chunk ofs v,
+    Maps.PTree.get id en = Some (l, ty) ->
+    access_mode ty = Ctypes.By_value chunk ->
+    Mem.loadv chunk m0 (Values.Vptr l ofs) = Some v ->
+    Mem.loadv chunk m1 (Values.Vptr l ofs) = Some v.
+
+Definition match_mem_globals m0 m1 :=
   forall id l ty chunk ofs v,
     Genv.find_symbol ge id = Some l ->
     access_mode ty = Ctypes.By_value chunk ->
@@ -909,10 +916,17 @@ Definition match_mem m0 m1 :=
         end
     end.
 
+Definition match_mem en m0 m1 :=
+  match_mem_locals en m0 m1 /\
+  match_mem_globals m0 m1.
+
+Definition valid_env (en : env) :=
+  forall id, Maps.PTree.get id en <> None -> fpmap id = None.
 
 Lemma evaluation_preserved:
   forall en m0 m1 t,
-    match_mem m0 m1 ->
+    valid_env en ->
+    match_mem en m0 m1 ->
       (forall e v, eval_expr ge en m0 t e v ->
                    forall e', transf_expr fpmap e = OK e' ->
                               eval_expr tge en m1 t e' v)
@@ -928,7 +942,7 @@ Lemma evaluation_preserved:
                            | _ => eval_lvalue tge en m1 t e loc ofs s
                            end).
 Proof.
-  intros en m0 m1 t Hmatch.
+  intros en m0 m1 t Hval Hmatch.
   apply (eval_exprs_ind ge en m0 t); intros.
   { simpl in H; inversion H; econstructor; eauto. }
   { simpl in H; inversion H; econstructor; eauto. }
@@ -951,10 +965,15 @@ Proof.
   {
     inversion H; subst.
     { simpl in H2.
-      destruct (fpmap id) as [fe|]; last first.
-      { inversion H2; subst. econstructor; eauto. admit. }
-      destruct ty; try congruence.
-      admit.
+      rewrite Hval in H2; last by congruence.
+      { inversion H2; subst. econstructor; eauto.
+        inversion H1. subst.
+        { econstructor; eauto.
+          destruct Hmatch as (Hloc&Hglo).
+          eapply Hloc; eauto.
+        }
+        { eapply deref_loc_reference; eauto. }
+      }
     }
     { simpl in H2.
       destruct (fpmap id) as [fe|] eqn:Hfpe; last first.
