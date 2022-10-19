@@ -859,15 +859,9 @@ Lemma typeof_transf_expr a :
   typeof (transf_expr fpmap a) = typeof a.
 Proof.
   induction a => //=.
-  destruct b => //=.
-  destruct (fpmap i) as [fe|] eqn:Heq.
-  { eapply (typeof_fpmap i fe (Evar i Breal)); eauto. }
-  { rewrite //=. }
-  destruct a => //=.
-  destruct b => //=.
-  destruct (fpmap i) as [fe|] eqn:Heq.
-  { eapply typeof_fpmap; eauto. }
-  rewrite //=.
+  destruct (fpmap i) => //=.
+  destruct a => //=. 
+  destruct (fpmap i) => //=.
 Qed.
 
 Lemma evaluation_preserved:

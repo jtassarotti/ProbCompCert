@@ -23,13 +23,9 @@ Local Open Scope gensym_monad_scope.
 Fixpoint transf_expr (pmap: AST.ident -> option (expr -> expr)) (e: Stanlight.expr) {struct e}: Stanlight.expr :=
   match e with
   | Evar id ty =>
-      match ty with
-      | Breal =>
-          match pmap id with
-          | Some fe => fe (Evar id ty)
-          | None => (Evar id ty)
-          end
-      | _ => (Evar id ty)
+      match pmap id with
+      | Some fe => Ecast (fe (Evar id Breal)) ty
+      | None => (Evar id ty)
       end
   | Ecall e el ty =>
     let e := transf_expr pmap e in
@@ -46,13 +42,9 @@ Fixpoint transf_expr (pmap: AST.ident -> option (expr -> expr)) (e: Stanlight.ex
     let el := transf_exprlist pmap el in
     match e with
     | Evar id _ =>
-        match ty with
-        | Breal =>
-          match pmap id with
-          | Some fe => fe (Eindexed e el ty)
-          | None => Eindexed e el ty
-          end
-        | _ => Eindexed e el ty
+        match pmap id with
+        | Some fe => Ecast (fe (Eindexed e el Breal)) ty
+        | None => Eindexed e el ty
         end
     | _ => Eindexed e el ty
     end
