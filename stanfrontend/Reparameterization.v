@@ -19,92 +19,109 @@ Notation "'do' X <- A ; B" := (Errors.bind A (fun X => B))
 
 Local Open Scope gensym_monad_scope.
 
-
-Fixpoint transf_expr (pmap: AST.ident -> option (expr -> expr)) (e: Stanlight.expr) {struct e}: Stanlight.expr :=
+Fixpoint transf_expr (pmap: AST.ident -> option (expr -> expr)) (e: Stanlight.expr) {struct e}: Errors.res Stanlight.expr :=
   match e with
   | Evar id ty =>
       match pmap id with
-      | Some fe => Ecast (fe (Evar id Breal)) ty
-      | None => (Evar id ty)
+      | Some fe => 
+          match ty with
+          | Breal => Errors.OK (fe (Evar id Breal))
+          | _ =>  Errors.Error (Errors.msg "Reparameterization: parameter loaded with non real type")
+          end
+      | None => Errors.OK (Evar id ty)
       end
   | Ecall e el ty =>
-    let e := transf_expr pmap e in
-    let el := transf_exprlist pmap el in
-    Ecall e el ty
+    do e <- transf_expr pmap e;
+    do el <- transf_exprlist pmap el;
+    Errors.OK (Ecall e el ty)
   | Eunop o e ty =>
-    let e := transf_expr pmap e in
-    Eunop o e ty
+    do e <- transf_expr pmap e;
+    Errors.OK (Eunop o e ty)
   | Ebinop e1 o e2 ty =>
-    let e1 := transf_expr pmap e1 in
-    let e2 := transf_expr pmap e2 in
-    Ebinop e1 o e2 ty
+    do e1 <- transf_expr pmap e1;
+    do e2 <- transf_expr pmap e2;
+    Errors.OK (Ebinop e1 o e2 ty)
   | Eindexed e el ty =>
-    let el := transf_exprlist pmap el in
+    do el <- transf_exprlist pmap el;
     match e with
     | Evar id _ =>
         match pmap id with
-        | Some fe => Ecast (fe (Eindexed e el Breal)) ty
-        | None => Eindexed e el ty
+        | Some fe =>
+          match ty with
+          | Breal => Errors.OK (fe (Eindexed e el Breal))
+          | _ =>  Errors.Error (Errors.msg "Reparameterization: parameter loaded with non real type")
+          end
+        | None => Errors.OK (Eindexed e el ty)
         end
-    | _ => Eindexed e el ty
+    | _ => Errors.OK (Eindexed e el ty)
     end
-  | Ecast e ty => Ecast (transf_expr pmap e) ty
-  | Econst_int a b => Econst_int a b
-  | Econst_float a b => Econst_float a b
-  | Etarget b => Etarget b
+  | Ecast e ty => 
+      do e <- transf_expr pmap e;
+      Errors.OK (Ecast e ty)
+  | Econst_int a b => Errors.OK (Econst_int a b)
+  | Econst_float a b => Errors.OK (Econst_float a b)
+  | Etarget b => Errors.OK (Etarget b)
   end
 
-with transf_exprlist (pmap: AST.ident -> option (expr -> expr)) (el: exprlist) {struct el} : exprlist :=
+with transf_exprlist (pmap: AST.ident -> option (expr -> expr)) (el: exprlist) {struct el} : Errors.res exprlist :=
   match el with
-  | Enil => Enil
+  | Enil => Errors.OK Enil
   | Econs e el =>
-      let e := transf_expr pmap e in
-      let el := transf_exprlist pmap el in
-      Econs e el
+      do e <- transf_expr pmap e;
+      do el <- transf_exprlist pmap el;
+      Errors.OK (Econs e el)
   end.
 
 (* WARNING: missing lists *)
 Fixpoint transf_statement (pmap: AST.ident -> option (expr -> expr))
-  (s: Stanlight.statement) {struct s} : Stanlight.statement :=
+  (s: Stanlight.statement) {struct s} : Errors.res (Stanlight.statement) :=
   match s with
-  | Sskip => Sskip
+  | Sskip => Errors.OK (Sskip)
   | Sassign e1 o e2 =>
-    let e1 := transf_expr pmap e1 in
-    let e2 := transf_expr pmap e2 in
-    Sassign e1 o e2
+    do e1 <- transf_expr pmap e1;
+    do e2 <- transf_expr pmap e2;
+    Errors.OK (Sassign e1 o e2)
   | Ssequence s1 s2 =>
-    let s1 := (transf_statement pmap s1) in
-    let s2 := (transf_statement pmap s2) in
-    Ssequence s1 s2
+    do s1 <- (transf_statement pmap s1);
+    do s2 <- (transf_statement pmap s2);
+    Errors.OK (Ssequence s1 s2)
   | Sifthenelse e s1 s2 =>
-    let e := (transf_expr pmap e) in
-    let s1 := (transf_statement pmap s1) in
-    let s2 := (transf_statement pmap s2) in
-    Sifthenelse e s1 s2
+    do e <- (transf_expr pmap e);
+    do s1 <- (transf_statement pmap s1);
+    do s2 <- (transf_statement pmap s2);
+    Errors.OK (Sifthenelse e s1 s2)
   | Sfor i e1 e2 s =>
-    let e1 := transf_expr pmap e1 in
-    let e2 := transf_expr pmap e2 in
-    let s := transf_statement pmap s in
-    Sfor i e1 e2 s
+    do e1 <- transf_expr pmap e1;
+    do e2 <- transf_expr pmap e2;
+    do s <- transf_statement pmap s;
+    Errors.OK (Sfor i e1 e2 s)
   | Starget e =>
-    let e := transf_expr pmap e in
-    Starget e
+    do e <- transf_expr pmap e;
+    Errors.OK (Starget e)
   | Stilde e d el =>
-    let e := transf_expr pmap e in
-    let el := transf_exprlist pmap el in
-    let d := transf_expr pmap d in
-    Stilde e d el
+    do e <- transf_expr pmap e;
+    do el <- transf_exprlist pmap el;
+    do d <- transf_expr pmap d;
+    Errors.OK (Stilde e d el)
   end.
 
-Definition transf_function (pmap: AST.ident -> option _) (correction: expr) (f: Stanlight.function): Stanlight.function :=
-  let body := transf_statement pmap f.(fn_body) in
+Definition check_non_param (pmap: AST.ident -> option (expr -> expr)) (v: AST.ident * basic) : Errors.res unit :=
+  match pmap (fst v) with
+  | Some _ => Errors.Error (Errors.msg "Reparameterization: function's local shadows a parameter")
+  | None => Errors.OK tt
+  end.
+
+Definition transf_function (pmap: AST.ident -> option _) (correction: expr) (f: Stanlight.function): Errors.res
+ (Stanlight.function) :=
+  do _ <- Errors.mmap (check_non_param pmap) (f.(fn_vars));
+  do body <- transf_statement pmap f.(fn_body);
   let body := Ssequence body (Starget correction) in
-  mkfunction body f.(fn_vars).
+  Errors.OK (mkfunction body f.(fn_vars)).
 
 Definition transf_fundef (pmap: AST.ident -> option _) (correction: expr) (fd: Stanlight.fundef) : Errors.res Stanlight.fundef :=
   match fd with
   | Ctypes.Internal f =>
-      let tf := transf_function pmap correction f in
+      do tf <- transf_function pmap correction f;
       Errors.OK (Ctypes.Internal tf)
   | Ctypes.External ef targs tres cc => Errors.OK (Ctypes.External ef targs tres cc)
   end.

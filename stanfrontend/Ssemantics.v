@@ -1,10 +1,11 @@
 Require Import Coqlib Errors Maps String.
 Local Open Scope string_scope.
 Require Import Integers Floats Values AST Memory Builtins Events Globalenvs.
-Require Import Ctypes Cop Stanlight.
+Require Import Ctypes Stanlight.
 Require Import Smallstep.
 Require Import Linking.
 Require Import IteratedRInt.
+Require Import Sop.
 Require Vector.
 
 Set Bullet Behavior "Strict Subproofs".
@@ -21,6 +22,8 @@ Definition globalenv (p: program) := Genv.globalenv p.
 Definition env := PTree.t (block * basic).
 
 Definition empty_env: env := (PTree.empty (block * basic)).
+
+Definition stenv := PTree.t val.
 
 Inductive scope :=
   | Sglobal
@@ -134,12 +137,12 @@ Inductive eval_expr: expr -> val -> Prop :=
       eval_expr (Econst_float f ty) (Vfloat f)
   | eval_Eunop: forall op a ty v1 v,
       eval_expr a v1 ->
-      sem_unary_operation (unary_op_conversion op) v1 (transf_type (typeof a)) m = Some v ->
+      sem_unary_operation (unary_op_conversion op) v1 (transf_type (typeof a)) = Some v ->
       eval_expr (Eunop op a ty) v
   | eval_Ebinop: forall op a1 a2 ty v1 v2 v,
       eval_expr a1 v1 ->
       eval_expr a2 v2 ->
-      sem_binary_operation (PTree.empty composite) (binary_op_conversion op) v1 (transf_type (typeof a1)) v2 (transf_type (typeof a2)) m = Some v ->
+      sem_binary_operation (PTree.empty composite) (binary_op_conversion op) v1 (transf_type (typeof a1)) v2 (transf_type (typeof a2)) = Some v ->
       eval_expr (Ebinop a1 op a2 ty) v
   | eval_Ecall: forall a al vf ef name sig fd vargs tyargs ty vres tyres cconv,
       eval_expr a vf ->
@@ -154,7 +157,7 @@ Inductive eval_expr: expr -> val -> Prop :=
       eval_expr (Etarget ty) (Vfloat t)
   | eval_Ecast:   forall a ty v1 v,
       eval_expr a v1 ->
-      sem_cast v1 (transf_type (typeof a)) (transf_type ty) m = Some v ->
+      sem_cast v1 (transf_type (typeof a)) (transf_type ty) = Some v ->
       eval_expr (Ecast a ty) v
   | eval_Elvalue: forall a loc ofs v s,
       eval_lvalue a loc ofs s ->
@@ -221,14 +224,14 @@ Inductive step: state -> trace -> state -> Prop :=
   | step_assign: forall f t a1 a2 k e m loc ofs v2 v m',
       eval_lvalue e m t a1 loc ofs Slocal ->
       eval_expr e m t a2 v2 ->
-      sem_cast v2 (transf_type (typeof a2)) (transf_type (typeof a1)) m = Some v ->
+      sem_cast v2 (transf_type (typeof a2)) (transf_type (typeof a1)) = Some v ->
       assign_loc ge (typeof a1) m loc ofs v m' ->
       step (State f (Sassign a1 None a2) t k e m)
         E0 (State f Sskip t k e m')
 
   | step_ifthenelse: forall f t a s1 s2 k e m v1 b,
     eval_expr e m t a v1 ->
-    bool_val v1 (transf_type (typeof a)) m = Some b ->
+    bool_val v1 (transf_type (typeof a)) = Some b ->
     step (State f (Sifthenelse a s1 s2) t k e m) E0 (State f (if b then s1 else s2) t k e m)
 
   | step_target: forall f t a v k e m,

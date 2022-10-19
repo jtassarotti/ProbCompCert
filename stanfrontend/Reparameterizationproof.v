@@ -11,6 +11,7 @@ Require Import DenotationalSimulationChange.
 Require Import Coqlib.
 Require Import Transforms.
 Require Import IteratedRInt.
+Require Import Memory.
 
 Local Open Scope string_scope.
 Require Import Clightdefs.
@@ -29,7 +30,7 @@ Inductive match_fundef (p: program) : fundef -> fundef -> Prop :=
       OK parameters = Errors.mmap (find_parameter p.(pr_defs)) p.(pr_parameters_vars) ->
       pmap = u_to_c_rewrite_map parameters ->
       correction = collect_corrections parameters ->
-      transf_function pmap correction f = tf ->
+      transf_function pmap correction f = OK tf ->
       match_fundef p (Ctypes.Internal f) (Ctypes.Internal tf)
   | match_fundef_external: forall ef args res cc,
       match_fundef p (Ctypes.External ef args res cc) (Ctypes.External ef args res cc).
@@ -74,7 +75,10 @@ Proof.
   split.
   {
     eapply match_transform_partial_program2; eauto.
-    - intros. destruct f; inversion H; econstructor; eauto.
+    - intros. destruct f; inversion H.
+      {  apply bind_inversion in H1 as (?&?&Heq''). inversion Heq''; subst; eauto.
+         econstructor; eauto. }
+      { subst. econstructor. }
     - intros. inversion H. subst. econstructor; eauto.
   }
   inversion HOK; subst. simpl. eauto.
@@ -669,8 +673,8 @@ Proof.
       { econstructor. }
 
       simpl.
-      rewrite /Cop.sem_add//=.
-      rewrite /Cop.sem_binarith//=.
+      rewrite /Sop.sem_add//=.
+      rewrite /Sop.sem_binarith//=.
       rewrite /constrain_lb.
       rewrite -float_add_irf. repeat f_equal. rewrite IRF_IFR_inv //.
     }
@@ -697,8 +701,8 @@ Proof.
         eapply exp_ext_spec.
       }
       simpl.
-      rewrite /Cop.sem_sub//=.
-      rewrite /Cop.sem_binarith//=.
+      rewrite /Sop.sem_sub//=.
+      rewrite /Sop.sem_binarith//=.
       replace f with (IRF (IFR f)) at 1 by (apply IRF_IFR_inv).
       rewrite float_sub_irf. f_equal.
     }
@@ -723,9 +727,9 @@ Proof.
       }
       simpl.
       rewrite //=.
-      rewrite /Cop.sem_binarith//=.
-      rewrite /Cop.sem_add//=.
-      rewrite /Cop.sem_binarith//=.
+      rewrite /Sop.sem_binarith//=.
+      rewrite /Sop.sem_add//=.
+      rewrite /Sop.sem_binarith//=.
       do 2 f_equal.
       rewrite /constrain_lb_ub.
       rewrite float_add_irf'; repeat f_equal.
@@ -751,7 +755,7 @@ Definition fcorrection := collect_corrections found_parameters.
 
 Inductive match_fundef' (p: program) : fundef -> fundef -> Prop :=
   | match_fundef_internal': forall f tf ,
-      transf_function fpmap fcorrection f = tf ->
+      transf_function fpmap fcorrection f = OK tf ->
       match_fundef' p (Ctypes.Internal f) (Ctypes.Internal tf)
   | match_fundef_external': forall ef args res cc,
       match_fundef' p (Ctypes.External ef args res cc) (Ctypes.External ef args res cc).
@@ -804,7 +808,7 @@ Proof.
   intuition.
   eexists; split; eauto.
   inversion H2; eauto.
-  rewrite /=. subst. auto.
+  rewrite /=. subst. rewrite H1 => //=.
 Qed.
 
 Lemma function_ptr_translated:
@@ -817,7 +821,7 @@ Proof.
   intuition.
   eexists; split; eauto.
   inversion H2; eauto.
-  rewrite /=. subst. auto.
+  rewrite /=. subst. rewrite H1 => //=.
 Qed.
 
 Lemma symbols_preserved:
@@ -855,53 +859,98 @@ Proof.
   intros. eauto.
 Qed.
 
-Lemma typeof_transf_expr a :
-  typeof (transf_expr fpmap a) = typeof a.
+Lemma typeof_transf_expr a a' :
+  transf_expr fpmap a = OK a' ->
+  typeof a' = typeof a.
 Proof.
-  induction a => //=.
-  destruct (fpmap i) => //=.
-  destruct a => //=. 
-  destruct (fpmap i) => //=.
+  induction a => //=; intros HEQ; try monadInv HEQ; subst => //=.
+  { destruct (fpmap i) as [fe|] eqn:Hfe => //=; try (by inversion HEQ).
+    destruct b; inversion HEQ => //=.
+    eapply typeof_fpmap; eauto. }
+  { destruct a => //=; try monadInv EQ0; subst => //=.
+    destruct (fpmap i) as [fe|] eqn:Hfe => //=; try (by inversion HEQ);
+    destruct b; inversion EQ0 => //=.
+    eapply typeof_fpmap; eauto. }
 Qed.
 
+Definition match_mem m0 m1 :=
+  forall id l ty chunk ofs v,
+    Genv.find_symbol ge id = Some l ->
+    access_mode ty = Ctypes.By_value chunk ->
+    Mem.loadv chunk m0 (Values.Vptr l ofs) = Some v ->
+    Genv.find_symbol tge id = Some l /\
+    match fpmap id with
+    | None =>
+        Mem.loadv chunk m1 (Values.Vptr l ofs) = Some v
+    | Some fe =>
+        match ty with
+        | Breal => 
+            exists fl, Mem.loadv chunk m1 (Values.Vptr l ofs) = Some (Values.Vfloat fl) /\
+                       (∀ en' m' t', eval_expr tge en' m' t' (fe (Econst_float fl Breal)) v)
+        | _ => True
+        end
+    end.
+
+
 Lemma evaluation_preserved:
-  forall en m t,
-      (forall e v, eval_expr ge en m t e v -> eval_expr tge en m t (transf_expr fpmap e) v)
-  /\  (forall el vl, eval_exprlist ge en m t el vl -> eval_exprlist tge en m t (transf_exprlist fpmap el) vl)
-  /\  (forall e loc ofs s, eval_lvalue ge en m t e loc ofs s ->
+  forall en m0 m1 t,
+    match_mem m0 m1 ->
+      (forall e v, eval_expr ge en m0 t e v ->
+                   forall e', transf_expr fpmap e = OK e' ->
+                              eval_expr tge en m1 t e' v)
+  /\  (forall el vl, eval_exprlist ge en m0 t el vl ->
+                     forall el', transf_exprlist fpmap el = OK el' ->
+                                 eval_exprlist tge en m1 t el' vl)
+  /\  (forall e loc ofs s, eval_lvalue ge en m0 t e loc ofs s ->
                            match e with
-                           | Eindexed e el ty => eval_lvalue tge en m t (Eindexed e (transf_exprlist fpmap el) ty)
-                                                   loc ofs s
-                           | _ => eval_lvalue tge en m t e loc ofs s
+                           | Eindexed e el ty =>
+                               forall el', transf_exprlist fpmap el = OK el' ->
+                                           eval_lvalue tge en m1 t (Eindexed e el' ty)
+                                             loc ofs s
+                           | _ => eval_lvalue tge en m1 t e loc ofs s
                            end).
 Proof.
-  intros en m t.
-  apply (eval_exprs_ind ge en m t); intros.
-  { econstructor; eauto. }
-  { econstructor; eauto. }
-  { simpl. econstructor; eauto.
-    rewrite typeof_transf_expr. eauto. }
-  { econstructor; eauto.
-    rewrite ?typeof_transf_expr. eauto. }
-  { edestruct (functions_translated) as (ef'&?&Htransf'); eauto.
-    subst. econstructor; eauto.
-    { rewrite /= in Htransf'. inversion Htransf'; eauto. }
-    (* TODO: this is gonna break when we actually remap mem, the key is we have to add
-       a hypothesis to ecalls saying they can't depend on memory at all *)
-    eapply Events.external_call_symbols_preserved; eauto. apply senv_preserved.
+  intros en m0 m1 t Hmatch.
+  apply (eval_exprs_ind ge en m0 t); intros.
+  { simpl in H; inversion H; econstructor; eauto. }
+  { simpl in H; inversion H; econstructor; eauto. }
+  { monadInv H2. econstructor; eauto.
+    erewrite typeof_transf_expr; eauto. }
+  { monadInv H4. econstructor; eauto.
+    erewrite typeof_transf_expr; eauto.
+    erewrite (typeof_transf_expr _ x0); eauto.
   }
-  { econstructor. }
-  { simpl. econstructor; eauto.  rewrite ?typeof_transf_expr. eauto. }
+  { subst.
+    edestruct (functions_translated) as (ef'&?&Htransf'); eauto.
+    monadInv Htransf'.
+    monadInv H7.
+    econstructor; eauto.
+    eapply Events.external_call_symbols_preserved; eauto. apply senv_preserved.
+    admit.
+  }
+  { monadInv H. econstructor. }
+  { monadInv H2. econstructor; eauto. erewrite typeof_transf_expr; eauto. }
   {
-    inversion H. subst.
-    { admit. }
-    { subst. admit. }
+    inversion H; subst.
+    { simpl in H2.
+      destruct (fpmap id) as [fe|]; last first.
+      { inversion H2; subst. econstructor; eauto. admit. }
+      destruct ty; try congruence.
+      admit.
+    }
+    { simpl in H2.
+      destruct (fpmap id) as [fe|] eqn:Hfpe; last first.
+      { inversion H2; subst. econstructor; eauto. admit. }
+      destruct ty; try congruence.
+      inversion H2; subst.
+      admit.
+    }
     { subst. admit. }
   }
 
   (* list *)
-  { simpl. econstructor; eauto. }
-  { simpl. econstructor; eauto. }
+  { monadInv H. simpl. econstructor; eauto. }
+  { monadInv H3. simpl. econstructor; eauto. }
 
   (* lvalue *)
   { simpl. econstructor; eauto. }
