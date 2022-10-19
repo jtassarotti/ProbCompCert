@@ -6,6 +6,7 @@ Require Import Smallstep.
 Require Import Linking.
 Require Import IteratedRInt.
 Require Import Sop.
+Require Import ParamMap.
 Require Vector.
 
 Set Bullet Behavior "Strict Subproofs".
@@ -23,7 +24,8 @@ Definition env := PTree.t (block * basic).
 
 Definition empty_env: env := (PTree.empty (block * basic)).
 
-Definition stenv := PTree.t val.
+(* Global parameters, indexed by *name* of the identifier instead of via pointer
+   redirection *)
 
 Inductive scope :=
   | Sglobal
@@ -64,6 +66,7 @@ Section SEMANTICS.
 
 Variable ge: genv.
 
+
 Inductive alloc_variables: env -> mem ->
                            list (ident * basic) ->
                            env -> mem -> Prop :=
@@ -80,6 +83,8 @@ Section EXPR.
 
 Variable e: env.
 Variable m: mem.
+(* parameter mem indexed by id + offset rather than pointer indirection model *)
+Variable pm : param_mem.
 Variable t: float.
 
 Definition typeof (e: expr) : basic :=
@@ -157,7 +162,6 @@ Inductive eval_expr: expr -> val -> Prop :=
       fd = External ef tyargs tyres cconv ->
       (* External calls must not (1) modify memory or (2) emit an observable trace event *)
       external_call ef ge vargs m E0 vres m ->
-      no_mem_dep ef ge vargs m vres ->
       eval_expr (Ecall a al ty) vres
   | eval_Etarget: forall ty,
       eval_expr (Etarget ty) (Vfloat t)
@@ -165,10 +169,25 @@ Inductive eval_expr: expr -> val -> Prop :=
       eval_expr a v1 ->
       sem_cast v1 (transf_type (typeof a)) (transf_type ty) = Some v ->
       eval_expr (Ecast a ty) v
+  | eval_Eplvalue: forall a loc ofs f,
+      eval_plvalue a loc ofs ->
+      ParamMap.get pm loc (Ptrofs.intval ofs) = Some f ->
+      eval_expr a (Vfloat f)
   | eval_Elvalue: forall a loc ofs v s,
       eval_lvalue a loc ofs s ->
       deref_loc (typeof a) m loc ofs v ->
       eval_expr a v
+
+with eval_plvalue: expr -> ident -> ptrofs -> Prop :=
+  | eval_Evar_st: forall id ty,
+      e!id = None ->
+      Genv.find_symbol ge id = None ->
+      eval_plvalue (Evar id ty) id Ptrofs.zero
+  | eval_Eindexed_st: forall id al tya ty v,
+      e!id = None ->
+      Genv.find_symbol ge id = None ->
+      eval_exprlist al ((Vint v) :: nil) ->
+      eval_plvalue (Eindexed (Evar id tya) al ty) id (Ptrofs.of_int v)
 
 with eval_lvalue: expr -> block -> ptrofs -> scope -> Prop :=
   | eval_Evar_local: forall id l ty,
@@ -194,8 +213,9 @@ with eval_exprlist: exprlist -> list val -> Prop :=
 
 Scheme eval_expr_ind2 := Minimality for eval_expr Sort Prop
   with eval_exprlist_ind2 := Minimality for eval_exprlist Sort Prop
+  with eval_plvalue_ind2 := Minimality for eval_plvalue Sort Prop
   with eval_lvalue_ind2 := Minimality for eval_lvalue Sort Prop.
-Combined Scheme eval_exprs_ind from eval_expr_ind2, eval_exprlist_ind2, eval_lvalue_ind2.
+Combined Scheme eval_exprs_ind from eval_expr_ind2, eval_exprlist_ind2, eval_plvalue_ind2, eval_lvalue_ind2.
 
 End EXPR.
 
@@ -214,47 +234,48 @@ Inductive state: Type :=
       (t: float)
       (k: cont)
       (e: env)
-      (m: mem) : state.
+      (m: mem)
+      (pm: param_mem)
+    : state.
 
 Definition var_names (vars: list(ident * basic)) : list ident :=
   List.map (@fst ident basic) vars.
 
 Inductive step: state -> trace -> state -> Prop :=
-  | step_skip_seq: forall f t s k e m,
-      step (State f Sskip t (Kseq s k) e m)
-        E0 (State f s t k e m)
+  | step_skip_seq: forall f t s k e m pm,
+      step (State f Sskip t (Kseq s k) e m pm)
+        E0 (State f s t k e m pm)
 
-  | step_seq: forall f t s1 s2 k e m,
-    step (State f (Ssequence s1 s2) t k e m) E0 (State f s1 t (Kseq s2 k) e m)
+  | step_seq: forall f t s1 s2 k e m pm,
+    step (State f (Ssequence s1 s2) t k e m pm) E0 (State f s1 t (Kseq s2 k) e m pm)
 
-  | step_assign: forall f t a1 a2 k e m loc ofs v2 v m',
-      eval_lvalue e m t a1 loc ofs Slocal ->
-      eval_expr e m t a2 v2 ->
+  | step_assign: forall f t a1 a2 k e m pm loc ofs v2 v m',
+      eval_lvalue e m pm t a1 loc ofs Slocal ->
+      eval_expr e m pm t a2 v2 ->
       sem_cast v2 (transf_type (typeof a2)) (transf_type (typeof a1)) = Some v ->
       assign_loc ge (typeof a1) m loc ofs v m' ->
-      step (State f (Sassign a1 None a2) t k e m)
-        E0 (State f Sskip t k e m')
+      step (State f (Sassign a1 None a2) t k e m pm)
+        E0 (State f Sskip t k e m' pm)
 
-  | step_ifthenelse: forall f t a s1 s2 k e m v1 b,
-    eval_expr e m t a v1 ->
+  | step_ifthenelse: forall f t a s1 s2 k e m pm v1 b,
+    eval_expr e m pm t a v1 ->
     bool_val v1 (transf_type (typeof a)) = Some b ->
-    step (State f (Sifthenelse a s1 s2) t k e m) E0 (State f (if b then s1 else s2) t k e m)
+    step (State f (Sifthenelse a s1 s2) t k e m pm) E0 (State f (if b then s1 else s2) t k e m pm)
 
-  | step_target: forall f t a v k e m,
-    eval_expr e m t a (Vfloat v) ->
-    step (State f (Starget a) t k e m) E0 (State f Sskip (Floats.Float.add t v) k e m)
+  | step_target: forall f t a v k e m pm,
+    eval_expr e m pm t a (Vfloat v) ->
+    step (State f (Starget a) t k e m pm) E0 (State f Sskip (Floats.Float.add t v) k e m pm)
 
-  | step_tilde: forall f t a ad al v k e m vf vargs vres ef name sig tyargs tyres cconv fd,
-    eval_expr e m t ad vf ->
-    eval_expr e m t a v ->
-    eval_exprlist e m t al vargs ->
+  | step_tilde: forall f t a ad al v k e m pm vf vargs vres ef name sig tyargs tyres cconv fd,
+    eval_expr e m pm t ad vf ->
+    eval_expr e m pm t a v ->
+    eval_exprlist e m pm t al vargs ->
     Genv.find_funct ge vf = Some fd ->
     ef = EF_external name sig ->
     fd = External ef tyargs tyres cconv ->
     (* External calls must not (1) modify memory or (2) emit an observable trace event *)
     external_call ef ge (v :: vargs) m E0 (Vfloat vres) m ->
-    no_mem_dep ef ge (v :: vargs) m (Vfloat vres) ->
-    step (State f (Stilde a ad al) t k e m) E0 (State f Sskip (Floats.Float.add t vres) k e m)
+    step (State f (Stilde a ad al) t k e m pm) E0 (State f Sskip (Floats.Float.add t vres) k e m pm)
 .
 
 Fixpoint type_of_basic (b: basic) : Type :=
@@ -325,6 +346,25 @@ Inductive assign_global_locs (ge: genv) : list (ident * basic * Ptrofs.int) -> m
       assign_global_locs ge bs m2 vs m3 ->
       assign_global_locs ge ((id, ty, ofs) :: bs) m1 (v :: vs) m3.
 
+Inductive assign_global_params : list (ident * basic * Ptrofs.int) -> param_mem -> list val -> param_mem -> Prop :=
+  | assign_global_params_nil : forall m,
+      assign_global_params nil m nil m
+  | assign_global_params_cons : forall m1 m2 m3 id ty ofs f bs vs,
+      ParamMap.set m1 id (Ptrofs.intval ofs) f = m2 ->
+      assign_global_params bs m2 vs m3 ->
+      assign_global_params ((id, ty, ofs) :: bs) m1 ((Vfloat f) :: vs) m3.
+
+(*
+Inductive loaded_global_params : list (ident * basic * Ptrofs.int) -> mem -> list val -> Prop :=
+  | loaded_global_params_nil : forall m,
+      loaded_global_params nil m nil
+  | loaded_global_params_cons : forall m id ty ofs v bs vs,
+      Mem.loadv Mfloat64 m (Vptr id ofs) = Some v ->
+      loaded_global_params bs m vs ->
+      loaded_global_params ((id, ty, ofs) :: bs) m (v :: vs).
+*)
+
+
 (* Joe: TODO: this initial state loading here may not be correct for array data/params *)
 
 Definition default {A : Type} (x : A) (o: option A) :=
@@ -334,15 +374,15 @@ Definition default {A : Type} (x : A) (o: option A) :=
   end.
 
 Inductive initial_state (p: program) (data : list val) (params: list val) : state -> Prop :=
-  | initial_state_intro: forall b f m0 m1 m2 m3 e,
+  | initial_state_intro: forall b f m0 m1 m2 e pm,
       let ge := globalenv p in
       Genv.init_mem p = Some m0 ->
       Genv.find_symbol ge $"model" = Some b ->
       Genv.find_funct_ptr ge b = Some (Internal f) ->
       alloc_variables empty_env m0 f.(fn_vars) e m1 ->
       assign_global_locs ge (flatten_data_list p.(pr_data_vars)) m1 data m2 ->
-      assign_global_locs ge (flatten_parameter_list p.(pr_parameters_vars)) m2 params m3 ->
-      initial_state p data params (State f f.(fn_body) ((Floats.Float.of_int Integers.Int.zero)) Kstop e m3).
+      assign_global_params (flatten_parameter_list p.(pr_parameters_vars)) ParamMap.empty params pm ->
+      initial_state p data params (State f f.(fn_body) ((Floats.Float.of_int Integers.Int.zero)) Kstop e m2 pm).
 
 
 (* A final state returns 0 if the target matches testval and 1 otherwise,
@@ -350,18 +390,19 @@ Inductive initial_state (p: program) (data : list val) (params: list val) : stat
    (where 1 is true), but we are adhering to the unix tradition where "0" return value is "normal"
    and 1 is exceptional. It remains to be seen if this convention is confusing *)
 Inductive final_state (testval: float) : state -> int -> Prop :=
-  | final_state_match: forall f t e m,
+  | final_state_match: forall f t e m pm,
       testval = t ->
-      final_state testval (State f Sskip t Kstop e m) Integers.Int.zero
-  | final_state_nonmatch: forall f t e m,
+      final_state testval (State f Sskip t Kstop e m pm) Integers.Int.zero
+  | final_state_nonmatch: forall f t e m pm,
       testval <> t ->
-      final_state testval (State f Sskip t Kstop e m) Integers.Int.one.
+      final_state testval (State f Sskip t Kstop e m pm) Integers.Int.one.
 
 End SEMANTICS.
 
 Ltac determ_aux :=
     match goal with
-    | [ H: eval_lvalue _ _ _ _ _ _ _ _  |- _ ] => try (inversion H; fail)
+    | [ H: eval_plvalue _ _ _ _ _ _ _ _  |- _ ] => try (inversion H; fail)
+    | [ H: eval_lvalue _ _ _ _ _ _ _ _ _  |- _ ] => try (inversion H; fail)
     end.
 
 Lemma assign_loc_determ ce ty m0 b ofs v m m' :
@@ -381,34 +422,51 @@ Proof.
 Qed.
 
 Lemma eval_exprs_determ:
-  forall (ge : genv) (sp: env) (m: mem) (t: float),
-  (forall (e: expr) v, eval_expr ge sp m t e v ->
-                         forall v', eval_expr ge sp m t e v' -> v' = v) /\
-  (forall (e: exprlist) l, eval_exprlist ge sp m t e l ->
-                         forall l', eval_exprlist ge sp m t e l' -> l' = l) /\
-  (forall (e: expr) blk ofs s, eval_lvalue ge sp m t e blk ofs s ->
-                         forall blk' ofs' s', eval_lvalue ge sp m t e blk' ofs' s' -> blk' = blk /\ ofs' = ofs).
+  forall (ge : genv) (sp: env) (m: mem) pm (t: float),
+  (forall (e: expr) v, eval_expr ge sp m pm t e v ->
+                         forall v', eval_expr ge sp m pm t e v' -> v' = v) /\
+  (forall (e: exprlist) l, eval_exprlist ge sp m pm t e l ->
+                         forall l', eval_exprlist ge sp m pm t e l' -> l' = l) /\
+  (forall (e: expr) blk ofs, eval_plvalue ge sp m pm t e blk ofs ->
+                         forall blk' ofs', eval_plvalue ge sp m pm t e blk' ofs' -> blk' = blk /\ ofs' = ofs) /\
+  (forall (e: expr) blk ofs s, eval_lvalue ge sp m pm t e blk ofs s ->
+                         forall blk' ofs' s', eval_lvalue ge sp m pm t e blk' ofs' s' -> blk' = blk /\ ofs' = ofs).
 Proof.
-  intros ge sp m t.
-  apply (eval_exprs_ind ge sp m t); intros; try (inv H; auto; try determ_aux; auto; fail).
+  intros ge sp m pm t.
+  apply (eval_exprs_ind ge sp m pm t); intros; try (inv H; auto; try determ_aux; auto; fail).
   - inv H2; auto; try determ_aux; auto. assert (v0 = v1) by eauto. congruence.
   - inv H4; auto; try determ_aux; auto.
     assert (v0 = v1) by eauto.
     assert (v3 = v2) by eauto. congruence.
-  - inv H8; auto; try determ_aux; auto.
+  - inv H7; auto; try determ_aux; auto.
     assert (vargs0 = vargs) by eauto.
     assert (vf0 = vf) by eauto.
     assert (sig0 = sig) by congruence.
     assert (name0 = name) by congruence.
     subst.
-    exploit external_call_determ. eexact H6. eexact H18.
+    exploit external_call_determ. eexact H6. eexact H17.
     intros (?&Heq). symmetry; eapply Heq; auto.
   - inv H2; auto; try determ_aux; auto. assert (v0 = v1) by eauto. congruence.
+  - inv H2; auto; try determ_aux; auto.
+    { exploit H0; eauto. intros (->&->). congruence. }
+    { inv H; inv H3; subst; try congruence.
+      inv H13; congruence. }
   -  inv H2; auto; try determ_aux; auto.
-     exploit H0; eauto. intros (->&->).
-     eapply deref_loc_determ; eauto.
+     { 
+       exploit H0; eauto.
+       { inv H; inv H3; subst; try congruence.
+         inv H2; congruence. }
+     }
+     {
+       exploit H0; eauto.
+       intros (->&->).
+       eapply deref_loc_determ; eauto.
+     }
   - inv H3; auto; try determ_aux.
     f_equal; eauto.
+  - inv H1; split; congruence.
+  - inv H3; split; try determ_aux; exploit H2; eauto. 
+    inversion 1; subst. eauto.
   - inv H0; split; congruence.
   - inv H1; split; congruence.
   - inv H3. exploit H0; eauto. intros Heq. inv Heq.
@@ -416,22 +474,22 @@ Proof.
 Qed.
 
 Lemma eval_expr_determ:
-  forall ge sp e m a v, eval_expr ge sp e m a v ->
-  forall v', eval_expr ge sp e m a v' -> v' = v.
+  forall ge sp e m pm a v, eval_expr ge sp e m pm a v ->
+  forall v', eval_expr ge sp e m pm a v' -> v' = v.
 Proof.
   intros. eapply eval_exprs_determ; eauto.
 Qed.
 
 Lemma eval_exprlist_determ:
-  forall ge sp e m al vl, eval_exprlist ge sp e m al vl ->
-  forall vl', eval_exprlist ge sp e m al vl' -> vl' = vl.
+  forall ge sp e m pm al vl, eval_exprlist ge sp e m pm al vl ->
+  forall vl', eval_exprlist ge sp e m pm al vl' -> vl' = vl.
 Proof.
   intros. eapply eval_exprs_determ; eauto.
 Qed.
 
 Lemma eval_lvalue_determ:
-  forall ge sp e m t blk vl s, eval_lvalue ge sp e m t blk vl s ->
-  forall blk' vl' s', eval_lvalue ge sp e m t blk' vl' s' -> blk' = blk /\ vl' = vl.
+  forall ge sp e m pm t blk vl s, eval_lvalue ge sp e m pm t blk vl s ->
+  forall blk' vl' s', eval_lvalue ge sp e m pm t blk' vl' s' -> blk' = blk /\ vl' = vl.
 Proof.
   intros. eapply eval_exprs_determ; eauto.
 Qed.
@@ -456,6 +514,13 @@ Proof.
   eauto.
 Qed.
 
+Lemma assign_global_params_determ:
+  forall ids m0 vs m, assign_global_params ids m0 vs m ->
+  forall m', assign_global_params ids m0 vs m' -> m' = m.
+Proof.
+  induction 1; intros m' A; inv A; auto.
+Qed.
+
 Definition semantics (p: program) (data: list val) (params: list val) (testval: float) :=
   let ge := Genv.globalenv p in
   Semantics_gen step (initial_state p data params) (final_state testval) ge ge.
@@ -465,13 +530,13 @@ Ltac Determ :=
   match goal with
   | [ |- match_traces _ E0 E0 /\ (_ -> _) ]  =>
           split; [constructor|intros _; Determ]
-  | [ H1: eval_expr _ _ _ _ ?a ?v1, H2: eval_expr _ _ _ _ ?a ?v2 |- _ ] =>
+  | [ H1: eval_expr _ _ _ _ _ ?a ?v1, H2: eval_expr _ _ _ _ _ ?a ?v2 |- _ ] =>
           assert (v1 = v2) by (eapply eval_expr_determ; eauto);
           clear H1 H2; Determ
-  | [ H1: eval_exprlist _ _ _ _ ?a ?v1, H2: eval_exprlist _ _ _ _ ?a ?v2 |- _ ] =>
+  | [ H1: eval_exprlist _ _ _ _ _ ?a ?v1, H2: eval_exprlist _ _ _ _ _ ?a ?v2 |- _ ] =>
           assert (v1 = v2) by (eapply eval_exprlist_determ; eauto);
           clear H1 H2; Determ
-  | [ H1: eval_lvalue _ _ _ _ ?a ?blk1 ?v1 ?s1, H2: eval_lvalue _ _ _ _ ?a ?blk2 ?v2 ?s2 |- _ ] =>
+  | [ H1: eval_lvalue _ _ _ _ _ ?a ?blk1 ?v1 ?s1, H2: eval_lvalue _ _ _ _ _ ?a ?blk2 ?v2 ?s2 |- _ ] =>
           assert (blk1 = blk2 /\ v1 = v2) as (?&?) by (eapply eval_lvalue_determ; eauto);
           clear H1 H2; Determ
   | _ => idtac
@@ -505,13 +570,13 @@ Proof.
   eapply external_call_trace_length; eauto.
 - (* initial states *)
   inv H; inv H0.
-  assert (m0 = m4) by congruence; subst.
+  assert (m0 = m3) by congruence; subst.
   unfold ge0, ge1 in *.
   assert (b0 = b) by congruence; subst.
   assert (f0 = f) by congruence; subst.
   exploit alloc_variables_determ. eexact H4. eexact H9. intros (?&?); subst.
   exploit assign_global_locs_determ. eexact H5. eexact H10. intros; subst.
-  exploit assign_global_locs_determ. eexact H6. eexact H11. intros; subst.
+  exploit assign_global_params_determ. eexact H6. eexact H11. intros; subst.
   eauto.
 - (* nostep final state *)
   red; intros; red; intros. inv H; inv H0.
@@ -748,10 +813,11 @@ Section DENOTATIONAL.
    *)
 
   Definition eval_expr_fun p a :=
-    pred_to_default_fun (eval_expr (globalenv p) empty_env Mem.empty (Float.zero) a) (Vfloat (Float.zero)).
+    pred_to_default_fun (eval_expr (globalenv p) empty_env Mem.empty ParamMap.empty
+                           (Float.zero) a) (Vfloat (Float.zero)).
 
   Lemma eval_expr_fun_spec p a v :
-    eval_expr (globalenv p) empty_env Mem.empty (Float.zero) a v ->
+    eval_expr (globalenv p) empty_env Mem.empty ParamMap.empty (Float.zero) a v ->
     eval_expr_fun p a = v.
   Proof.
     intros Hexp. rewrite /eval_expr_fun/pred_to_default_fun.
@@ -772,26 +838,32 @@ Section DENOTATIONAL.
   Definition match_find_symbol {F V} (ge1 ge2 : Genv.t F V) :=
     ∀ s : ident, Genv.find_symbol ge1 s = Genv.find_symbol ge2 s.
 
-  Lemma eval_expr_match_aux ge1 e m x:
-    (∀ a v, eval_expr ge1 e m x a v ->
+  Lemma eval_expr_match_aux ge1 e m pm x:
+    (∀ a v, eval_expr ge1 e m pm x a v ->
             (∀ ge2, match_external_funct ge1 ge2 ->
                     Senv.equiv ge1 ge2 ->
-                    eval_expr ge2 e m x a v)) /\
-    (∀ als vs, eval_exprlist ge1 e m x als vs ->
+                    eval_expr ge2 e m pm x a v)) /\
+    (∀ als vs, eval_exprlist ge1 e m pm x als vs ->
                (∀ ge2, match_external_funct ge1 ge2 ->
                        Senv.equiv ge1 ge2 ->
-                       eval_exprlist ge2 e m x als vs)) /\
-    (∀ a blk ofs s, eval_lvalue ge1 e m x a blk ofs s ->
+                       eval_exprlist ge2 e m pm x als vs)) /\
+    (∀ a blk ofs, eval_plvalue ge1 e m pm x a blk ofs ->
                   (∀ ge2, match_external_funct ge1 ge2 ->
                           Senv.equiv ge1 ge2 ->
-                          eval_lvalue ge2 e m x a blk ofs s)).
+                          eval_plvalue ge2 e m pm x a blk ofs)) /\
+    (∀ a blk ofs s, eval_lvalue ge1 e m pm x a blk ofs s ->
+                  (∀ ge2, match_external_funct ge1 ge2 ->
+                          Senv.equiv ge1 ge2 ->
+                          eval_lvalue ge2 e m pm x a blk ofs s)).
   Proof.
-    apply (eval_exprs_ind ge1 e m x); intros; try (econstructor; eauto; done).
+    apply (eval_exprs_ind ge1 e m pm x); intros; try (econstructor; eauto; done).
     - econstructor; eauto.
-      { subst. eapply H8; eauto. }
+      { subst. eapply H7; eauto. }
       { eapply external_call_symbols_preserved; eauto. }
-      { unfold no_mem_dep. intros. 
-        eapply external_call_symbols_preserved; eauto. }
+    - econstructor; eauto.
+      destruct H2 as (H2a&H2b&H2c). rewrite /Senv.find_symbol/= in H2a. rewrite H2a. eauto.
+    - econstructor; eauto.
+      destruct H4 as (H2a&H2b&H2c). rewrite /Senv.find_symbol/= in H2a. rewrite H2a. eauto.
     - eapply eval_Evar_global; eauto.
       destruct H2 as (H2a&H2b&H2c). rewrite /Senv.find_symbol/= in H2a. rewrite H2a. eauto.
   Qed.
@@ -806,11 +878,11 @@ Section DENOTATIONAL.
     Senv.equiv ge2 ge1.
   Proof. rewrite /Senv.equiv; intuition. Qed.
 
-  Lemma eval_expr_match ge1 ge2 e m x a v:
-    eval_expr ge1 e m x a v ->
+  Lemma eval_expr_match ge1 ge2 e m pm x a v:
+    eval_expr ge1 e m pm x a v ->
     match_external_funct ge1 ge2 ->
     Senv.equiv ge1 ge2 ->
-    eval_expr ge2 e m x a v.
+    eval_expr ge2 e m pm x a v.
   Proof. intros. eapply eval_expr_match_aux; eauto. Qed.
 
   Lemma eval_expr_fun_match p1 p2 a :
@@ -819,7 +891,7 @@ Section DENOTATIONAL.
     eval_expr_fun p1 a = eval_expr_fun p2 a.
   Proof.
     intros. rewrite {1}/eval_expr_fun. symmetry.
-    destruct (pred_to_default_fun_spec1 (eval_expr (globalenv p1) empty_env Mem.empty Float.zero a)
+    destruct (pred_to_default_fun_spec1 (eval_expr (globalenv p1) empty_env Mem.empty ParamMap.empty Float.zero a)
                 (Vfloat Float.zero)) as [(v&Hv&Heq)|(Hnex&Heq)].
     - rewrite Heq. apply eval_expr_fun_spec; eauto.
       eapply eval_expr_match; eauto.

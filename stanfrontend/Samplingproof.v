@@ -71,21 +71,24 @@ Qed.
 
 Scheme eval_expr_rec := Minimality for eval_expr Sort Prop
   with eval_lvalue_rec := Minimality for eval_lvalue Sort Prop
+  with eval_plvalue_rec := Minimality for eval_plvalue Sort Prop
   with eval_exprlist_rec := Minimality for eval_exprlist Sort Prop.
 
-Combined Scheme eval_expr_mutind from eval_expr_rec, eval_lvalue_rec, eval_exprlist_rec.
+Combined Scheme eval_expr_mutind from eval_expr_rec, eval_lvalue_rec, eval_plvalue_rec, eval_exprlist_rec.
 
 Lemma evaluation_preserved:
-  forall en m t,
-      (forall e v, eval_expr ge en m t e v -> eval_expr tge en m t e v)
-  /\  (forall e loc ofs s, eval_lvalue ge en m t e loc ofs s -> eval_lvalue tge en m t e loc ofs s)
-  /\  (forall el vl, eval_exprlist ge en m t el vl -> eval_exprlist tge en m t el vl).
+  forall en m pm t,
+      (forall e v, eval_expr ge en m pm t e v -> eval_expr tge en m pm t e v)
+  /\  (forall e loc ofs s, eval_lvalue ge en m pm t e loc ofs s -> eval_lvalue tge en m pm t e loc ofs s)
+  /\  (forall e loc ofs, eval_plvalue ge en m pm t e loc ofs -> eval_plvalue tge en m pm t e loc ofs)
+  /\  (forall el vl, eval_exprlist ge en m pm t el vl -> eval_exprlist tge en m pm t el vl).
 Proof.
   intros.
-  set (P1 := fun e v => eval_expr ge en m t e v -> eval_expr tge en m t e v).
-  set (P2 := fun e loc ofs s => eval_lvalue ge en m t e loc ofs s -> eval_lvalue tge en m t e loc ofs s).
-  set (P3 := fun el vl => eval_exprlist ge en m t el vl -> eval_exprlist tge en m t el vl).
-  generalize (eval_expr_mutind ge en m t P1 P2 P3); intro IND.
+  set (P1 := fun e v => eval_expr ge en m pm t e v -> eval_expr tge en m pm t e v).
+  set (P2 := fun e loc ofs s => eval_lvalue ge en m pm t e loc ofs s -> eval_lvalue tge en m pm t e loc ofs s).
+  set (P2b := fun e loc ofs => eval_plvalue ge en m pm t e loc ofs -> eval_plvalue tge en m pm t e loc ofs).
+  set (P3 := fun el vl => eval_exprlist ge en m pm t el vl -> eval_exprlist tge en m pm t el vl).
+  generalize (eval_expr_mutind ge en m pm t P1 P2 P2b P3); intro IND.
 
   (* Evaluation of expressions *)
   split.
@@ -98,15 +101,18 @@ Proof.
   econstructor; eauto.
   generalize (functions_translated _ _ H3); intro FUN. eauto.
   eapply Events.external_call_symbols_preserved; eauto. apply senv_preserved.
-  intros Hext m'.
-  eapply Events.external_call_symbols_preserved; eauto. apply senv_preserved.
   econstructor; eauto.
   econstructor; eauto.
   econstructor; eauto.
   econstructor; eauto.
-  eapply eval_Evar_global; eauto.
+  econstructor; eauto.
+  econstructor; eauto.
   rewrite symbols_preserved; auto.
   econstructor; eauto.
+  econstructor; eauto.
+  rewrite symbols_preserved; auto.
+  econstructor; eauto.
+  rewrite symbols_preserved; auto.
   econstructor; eauto.
   econstructor; eauto.
 
@@ -121,17 +127,46 @@ Proof.
   econstructor; eauto.
   generalize (functions_translated _ _ H3); intro FUN. eauto.
   eapply Events.external_call_symbols_preserved; eauto. apply senv_preserved.
-  intros Hext m'.
+  econstructor; eauto.
+  econstructor; eauto.
+  econstructor; eauto.
+  econstructor; eauto.
+  econstructor; eauto.
+  econstructor; eauto.
+  rewrite symbols_preserved; auto.
+  econstructor; eauto.
+  econstructor; eauto.
+  rewrite symbols_preserved; auto.
+  econstructor; eauto.
+  rewrite symbols_preserved; auto.
+  econstructor; eauto.
+  econstructor; eauto.
+  
+  split.
+  intros e loc ofs EVAL.
+  eapply IND; eauto; intros; subst; subst P1; subst P2; subst P3; simpl; intros.
+  econstructor; eauto.
+  econstructor; eauto.
+  econstructor; eauto.
+  econstructor; eauto.
+  econstructor; eauto.
+  generalize (functions_translated _ _ H3); intro FUN. eauto.
   eapply Events.external_call_symbols_preserved; eauto. apply senv_preserved.
   econstructor; eauto.
   econstructor; eauto.
   econstructor; eauto.
   econstructor; eauto.
-  eapply eval_Evar_global; eauto.
+  econstructor; eauto.
+  econstructor; eauto.
   rewrite symbols_preserved; auto.
   econstructor; eauto.
   econstructor; eauto.
+  rewrite symbols_preserved; auto.
   econstructor; eauto.
+  rewrite symbols_preserved; auto.
+  econstructor; eauto.
+  econstructor; eauto.
+
 
   (* Evaluation of list of expressions *)
   intros el vl EVAL.
@@ -143,41 +178,53 @@ Proof.
   econstructor; eauto.
   generalize (functions_translated _ _ H3); intro FUN. eauto.
   eapply Events.external_call_symbols_preserved; eauto. apply senv_preserved.
-  intros Hext m'.
-  eapply Events.external_call_symbols_preserved; eauto. apply senv_preserved.
   econstructor; eauto.
   econstructor; eauto.
   econstructor; eauto.
   econstructor; eauto.
-  eapply eval_Evar_global; eauto.
+  econstructor; eauto.
+  econstructor; eauto.
   rewrite symbols_preserved; auto.
   econstructor; eauto.
+  econstructor; eauto.
+  rewrite symbols_preserved; auto.
+  econstructor; eauto.
+  rewrite symbols_preserved; auto.
   econstructor; eauto.
   econstructor; eauto.
 Qed.
 
 Lemma eval_expr_preserved:
-  forall en m t e v,
-  eval_expr ge en m t e v ->
-  eval_expr tge en m t e v.
+  forall en m pm t e v,
+  eval_expr ge en m pm t e v ->
+  eval_expr tge en m pm t e v.
 Proof.
   intros.
   eapply evaluation_preserved; eauto.
 Qed.
 
 Lemma eval_lvalue_preserved:
-  forall en m t e loc ofs s,
-  eval_lvalue ge en m t e loc ofs s ->
-  eval_lvalue tge en m t e loc ofs s.
+  forall en m pm t e loc ofs s,
+  eval_lvalue ge en m pm t e loc ofs s ->
+  eval_lvalue tge en m pm t e loc ofs s.
+Proof.
+  intros.
+  eapply evaluation_preserved; eauto.
+Qed.
+
+Lemma eval_plvalue_preserved:
+  forall en m pm t e loc ofs,
+  eval_plvalue ge en m pm t e loc ofs ->
+  eval_plvalue tge en m pm t e loc ofs.
 Proof.
   intros.
   eapply evaluation_preserved; eauto.
 Qed.
 
 Lemma eval_exprlist_preserved:
-  forall en m t el vl,
-  eval_exprlist ge en m t el vl ->
-  eval_exprlist tge en m t el vl.
+  forall en m pm t el vl,
+  eval_exprlist ge en m pm t el vl ->
+  eval_exprlist tge en m pm t el vl.
 Proof.
   intros.
   eapply evaluation_preserved; eauto.
@@ -192,6 +239,12 @@ Proof.
   - inversion H0; eapply assign_loc_value; eauto.
 Qed.
 
+Lemma assign_global_params_preserved bs m1 vs m2 :
+  assign_global_params bs m1 vs m2 ->
+  assign_global_params bs m1 vs m2.
+Proof.
+  induction 1; econstructor; eauto.
+Qed.
 Lemma data_vars_preserved :
   pr_data_vars tprog = pr_data_vars prog.
 Proof.
@@ -212,9 +265,9 @@ Inductive match_cont: cont -> cont -> Prop :=
       match_cont Kstop Kstop.
 
 Inductive match_states: state -> state -> Prop :=
-  | match_regular_states: forall f s t k k' e m
+  | match_regular_states: forall f s t k k' e m pm
       (MCONT: match_cont k k'),
-      match_states (State f s t k e m) (State (transf_function f) (transf_statement s) t k' e m).
+      match_states (State f s t k e m pm) (State (transf_function f) (transf_statement s) t k' e m pm).
 
 Lemma step_simulation:
   forall S1 t S2, step ge S1 t S2 ->
@@ -224,49 +277,47 @@ Proof.
   induction 1; intros S1' MS; inversion MS; simpl in *; subst.
   - (* Skip *)
   inversion MCONT; subst.
-  exists (State (transf_function f) (transf_statement s) t k'0 e m).
+  exists (State (transf_function f) (transf_statement s) t k'0 e m pm).
   split.
   econstructor.
   econstructor; eauto.
   - (* Sequence *)
-  exists (State (transf_function f) (transf_statement s1) t (Kseq (transf_statement s2) k') e m).
+  exists (State (transf_function f) (transf_statement s1) t (Kseq (transf_statement s2) k') e m pm).
   split.
   econstructor.
   econstructor. econstructor; eauto.
   - (* Assignment *)
-  exists (State (transf_function f) Sskip t k' e m').
+  exists (State (transf_function f) Sskip t k' e m' pm).
   split.
-  generalize (eval_expr_preserved _ _ _ _ _ H0); intro.
-  generalize (eval_lvalue_preserved _ _ _ _ _ _ _ H); intro.
+  generalize (eval_expr_preserved _ _ _ _ _ _ H0); intro.
+  generalize (eval_lvalue_preserved _ _ _ _ _ _ _ _ H); intro.
   econstructor; eauto. inversion H2.
   eapply assign_loc_value; eauto.
   econstructor; eauto.
   - (* Conditional statement *)
-  exists (State (transf_function f) (if b then (transf_statement s1) else (transf_statement s2)) t k' e m).
+  exists (State (transf_function f) (if b then (transf_statement s1) else (transf_statement s2)) t k' e m pm).
   split.
-  generalize (eval_expr_preserved _ _ _ _ _ H); intro.
+  generalize (eval_expr_preserved _ _ _ _ _ _ H); intro.
   econstructor; eauto.
   destruct b; econstructor; eauto.
   - (* Target *)
-  exists (State (transf_function f) Sskip (Floats.Float.add t v) k' e m).
+  exists (State (transf_function f) Sskip (Floats.Float.add t v) k' e m pm).
   split.
-  generalize (eval_expr_preserved _ _ _ _ _ H); intro.
+  generalize (eval_expr_preserved _ _ _ _ _ _ H); intro.
   econstructor; eauto.
   econstructor; eauto.
   - (* Tilde *)
-  exists (State (transf_function f) Sskip (Floats.Float.add t vres) k' e m).
+  exists (State (transf_function f) Sskip (Floats.Float.add t vres) k' e m pm).
   split.
-  generalize (eval_expr_preserved _ _ _ _ _ H); intro.
-  generalize (eval_expr_preserved _ _ _ _ _ H0); intro.
-  generalize (eval_exprlist_preserved _ _ _ _ _ H1); intro.
+  generalize (eval_expr_preserved _ _ _ _ _ _ H); intro.
+  generalize (eval_expr_preserved _ _ _ _ _ _ H0); intro.
+  generalize (eval_exprlist_preserved _ _ _ _ _ _ H1); intro.
   econstructor.
   {
     econstructor; eauto using functions_translated.
     * econstructor; eauto.
     * simpl. eauto.
     * eapply Events.external_call_symbols_preserved; eauto. apply senv_preserved.
-    * intros Hext m'.
-      eapply Events.external_call_symbols_preserved; eauto. apply senv_preserved; eauto.
   }
   econstructor; eauto.
 Qed.
@@ -276,7 +327,7 @@ Lemma transf_initial_states:
   exists S2, initial_state tprog data params S2 /\ match_states S1 S2.
 Proof.
   intros. inversion H.
-  exists (State (transf_function f) (transf_statement (fn_body f)) (Floats.Float.of_int Integers.Int.zero) Kstop e m3).
+  exists (State (transf_function f) (transf_statement (fn_body f)) (Floats.Float.of_int Integers.Int.zero) Kstop e m2 pm).
   split.
   econstructor; eauto.
   destruct TRANSL as (TRANSL'&_).
@@ -285,7 +336,7 @@ Proof.
   generalize (function_ptr_translated b (Ctypes.Internal f) H2); intro TR.
   unfold transf_fundef in TR. eauto.
   eapply assign_global_locs_preserved. rewrite data_vars_preserved; eauto.
-  eapply assign_global_locs_preserved; rewrite parameters_vars_preserved. eauto.
+  eapply assign_global_params_preserved; rewrite parameters_vars_preserved. eauto.
   econstructor; eauto.
   econstructor.
 Qed.

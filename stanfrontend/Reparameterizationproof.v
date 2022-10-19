@@ -12,6 +12,7 @@ Require Import Coqlib.
 Require Import Transforms.
 Require Import IteratedRInt.
 Require Import Memory.
+Require Import ParamMap.
 
 Local Open Scope string_scope.
 Require Import Clightdefs.
@@ -676,7 +677,7 @@ Proof.
       simpl.
       econstructor.
       { econstructor.
-        econstructor.
+        eapply eval_Elvalue.
         eapply eval_Evar_global; eauto.
         { eapply deref_loc_reference; eauto. }
         { repeat econstructor. }
@@ -684,7 +685,6 @@ Proof.
         2:{  eauto. }
         rewrite /exp_ef_external; reflexivity.
         eapply exp_ext_spec.
-        eapply exp_ext_no_mem_dep.
       }
       { econstructor. }
 
@@ -707,7 +707,7 @@ Proof.
           rewrite float_sub_irf. f_equal. rewrite IFR_zero. nra.
         }
         econstructor.
-        econstructor.
+        eapply eval_Elvalue.
         eapply eval_Evar_global; eauto.
         { eapply deref_loc_reference; eauto. }
         { repeat econstructor. }
@@ -715,7 +715,6 @@ Proof.
         2:{  eauto. }
         rewrite /exp_ef_external; reflexivity.
         rewrite ?Heq; eapply exp_ext_spec.
-        rewrite ?Heq; eapply exp_ext_no_mem_dep.
       }
       simpl.
       rewrite /Sop.sem_sub//=.
@@ -733,7 +732,7 @@ Proof.
       { repeat econstructor. }
       {
         econstructor.
-        econstructor.
+        eapply eval_Elvalue.
         eapply eval_Evar_global; eauto.
         { eapply deref_loc_reference; eauto. }
         { repeat econstructor. }
@@ -741,7 +740,6 @@ Proof.
         2:{  eauto. }
         rewrite /expit_ef_external; reflexivity.
         eapply expit_ext_spec.
-        eapply expit_ext_no_mem_dep.
       }
       simpl.
       rewrite //=.
@@ -891,6 +889,7 @@ Proof.
     eapply typeof_fpmap; eauto. }
 Qed.
 
+(*
 Definition match_mem_locals en m0 m1 :=
   forall id l ty chunk ofs v,
     Maps.PTree.get id en = Some (l, ty) ->
@@ -915,35 +914,42 @@ Definition match_mem_globals m0 m1 :=
         | _ => True
         end
     end.
+*)
 
-Definition match_mem en m0 m1 :=
-  match_mem_locals en m0 m1 /\
-  match_mem_globals m0 m1.
+Definition match_param_mem (en : env) (m0 m1 : param_mem) := True.
 
 Definition valid_env (en : env) :=
   forall id, Maps.PTree.get id en <> None -> fpmap id = None.
 
 Lemma evaluation_preserved:
-  forall en m0 m1 t,
+  forall en m pm0 pm1 t,
     valid_env en ->
-    match_mem en m0 m1 ->
-      (forall e v, eval_expr ge en m0 t e v ->
+    match_param_mem en pm0 pm1 ->
+      (forall e v, eval_expr ge en m pm0 t e v ->
                    forall e', transf_expr fpmap e = OK e' ->
-                              eval_expr tge en m1 t e' v)
-  /\  (forall el vl, eval_exprlist ge en m0 t el vl ->
+                              eval_expr tge en m pm1 t e' v)
+  /\  (forall el vl, eval_exprlist ge en m pm0 t el vl ->
                      forall el', transf_exprlist fpmap el = OK el' ->
-                                 eval_exprlist tge en m1 t el' vl)
-  /\  (forall e loc ofs s, eval_lvalue ge en m0 t e loc ofs s ->
+                                 eval_exprlist tge en m pm1 t el' vl)
+  /\  (forall e loc ofs, eval_plvalue ge en m pm0 t e loc ofs ->
                            match e with
                            | Eindexed e el ty =>
                                forall el', transf_exprlist fpmap el = OK el' ->
-                                           eval_lvalue tge en m1 t (Eindexed e el' ty)
+                                           eval_plvalue tge en m pm1 t (Eindexed e el' ty)
+                                             loc ofs
+                           | _ => eval_plvalue tge en m pm1 t e loc ofs
+                           end)
+  /\  (forall e loc ofs s, eval_lvalue ge en m pm0 t e loc ofs s ->
+                           match e with
+                           | Eindexed e el ty =>
+                               forall el', transf_exprlist fpmap el = OK el' ->
+                                           eval_lvalue tge en m pm1 t (Eindexed e el' ty)
                                              loc ofs s
-                           | _ => eval_lvalue tge en m1 t e loc ofs s
+                           | _ => eval_lvalue tge en m pm1 t e loc ofs s
                            end).
 Proof.
-  intros en m0 m1 t Hval Hmatch.
-  apply (eval_exprs_ind ge en m0 t); intros.
+  intros en m pm0 pm1 t Hval Hmatch.
+  apply (eval_exprs_ind ge en m pm0 t); intros.
   { simpl in H; inversion H; econstructor; eauto. }
   { simpl in H; inversion H; econstructor; eauto. }
   { monadInv H2. econstructor; eauto.
@@ -955,31 +961,27 @@ Proof.
   { subst.
     edestruct (functions_translated) as (ef'&?&Htransf'); eauto.
     monadInv Htransf'.
-    monadInv H8.
+    monadInv H7.
     econstructor; eauto.
     eapply Events.external_call_symbols_preserved; eauto. apply senv_preserved.
-    intros ??. eapply Events.external_call_symbols_preserved; eauto. apply senv_preserved.
   }
   { monadInv H. econstructor. }
   { monadInv H2. econstructor; eauto. erewrite typeof_transf_expr; eauto. }
   {
     inversion H; subst.
     { simpl in H2.
+      admit. }
+    admit.
+  }
+  {
+    inversion H; subst.
+    { simpl in H2.
       rewrite Hval in H2; last by congruence.
-      { inversion H2; subst. econstructor; eauto.
-        inversion H1. subst.
-        { econstructor; eauto.
-          destruct Hmatch as (Hloc&Hglo).
-          eapply Hloc; eauto.
-        }
-        { eapply deref_loc_reference; eauto. }
-      }
+      { inversion H2; subst. econstructor; eauto. }
     }
     { simpl in H2.
-      destruct (fpmap id) as [fe|] eqn:Hfpe; last first.
-      { inversion H2; subst. econstructor; eauto. admit. }
-      destruct ty; try congruence.
-      inversion H2; subst.
+      rewrite Hval in H2.
+      { inversion H2; subst. econstructor; eauto. }
       admit.
     }
     { subst. admit. }
@@ -990,6 +992,9 @@ Proof.
   { monadInv H3. simpl. econstructor; eauto. }
 
   (* lvalue *)
+  { simpl. econstructor; eauto. rewrite symbols_preserved; auto. }
+  { simpl. econstructor; eauto. rewrite symbols_preserved; auto. }
+
   { simpl. econstructor; eauto. }
   { simpl. econstructor; eauto. rewrite symbols_preserved; auto. }
 
