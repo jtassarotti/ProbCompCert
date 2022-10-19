@@ -863,19 +863,23 @@ Proof.
   destruct (fpmap i) as [fe|] eqn:Heq.
   { eapply (typeof_fpmap i fe (Evar i Breal)); eauto. }
   { rewrite //=. }
-  destruct (transf_expr fpmap a) eqn:Htransf => //=.
-  destruct (fpmap i) as [fe|] eqn:Heq.
-  { destruct b => //=. eapply typeof_fpmap; eauto. }
+  destruct a => //=.
   destruct b => //=.
+  destruct (fpmap i) as [fe|] eqn:Heq.
+  { eapply typeof_fpmap; eauto. }
+  rewrite //=.
 Qed.
-
 
 Lemma evaluation_preserved:
   forall en m t,
       (forall e v, eval_expr ge en m t e v -> eval_expr tge en m t (transf_expr fpmap e) v)
   /\  (forall el vl, eval_exprlist ge en m t el vl -> eval_exprlist tge en m t (transf_exprlist fpmap el) vl)
   /\  (forall e loc ofs s, eval_lvalue ge en m t e loc ofs s ->
-                           eval_lvalue tge en m t e loc ofs s).
+                           match e with
+                           | Eindexed e el ty => eval_lvalue tge en m t (Eindexed e (transf_exprlist fpmap el) ty)
+                                                   loc ofs s
+                           | _ => eval_lvalue tge en m t e loc ofs s
+                           end).
 Proof.
   intros en m t.
   apply (eval_exprs_ind ge en m t); intros.
@@ -894,10 +898,10 @@ Proof.
   }
   { econstructor. }
   {
-    admit.
-    (*
-    inversion H. subst. simpl.
-    admit. *)
+    inversion H. subst.
+    { admit. }
+    { subst. admit. }
+    { subst. admit. }
   }
 
   (* list *)
@@ -908,7 +912,7 @@ Proof.
   { simpl. econstructor; eauto. }
   { simpl. econstructor; eauto. rewrite symbols_preserved; auto. }
 
-  { simpl. econstructor; eauto. admit. }
+  { simpl. destruct ty => //=; try (econstructor; eauto). }
 Abort.
 
 

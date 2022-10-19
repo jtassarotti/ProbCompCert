@@ -43,7 +43,6 @@ Fixpoint transf_expr (pmap: AST.ident -> option (expr -> expr)) (e: Stanlight.ex
     let e2 := transf_expr pmap e2 in
     Ebinop e1 o e2 ty
   | Eindexed e el ty =>
-    let e := transf_expr pmap e in
     let el := transf_exprlist pmap el in
     match e with
     | Evar id _ =>
