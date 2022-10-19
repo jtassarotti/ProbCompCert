@@ -562,10 +562,15 @@ Axiom global_env_exp :
             tdouble
             (AST.mkcallconv None false false)).
 
-Axiom exp_ext_spec v :
+Axiom exp_ext_spec :
   forall a ge m,
   Events.external_call exp_ef_external ge
     (Values.Vfloat (IRF a) :: nil) m Events.E0 (Values.Vfloat (IRF (exp a))) m.
+
+Axiom exp_ext_no_mem_dep :
+  forall a ge m,
+  no_mem_dep exp_ef_external ge (Values.Vfloat (IRF a) :: nil) m
+    (Values.Vfloat (IRF (exp a))).
 
 Definition expit_ef_external :=
   (AST.EF_external "expit" (AST.mksignature (AST.Tfloat :: nil) (AST.Tret AST.Tfloat)
@@ -586,6 +591,11 @@ Axiom expit_ext_spec :
   Events.external_call expit_ef_external ge
     (Values.Vfloat (IRF a) :: nil) m Events.E0 (Values.Vfloat (IRF (logit_inv a))) m.
 
+Axiom expit_ext_no_mem_dep :
+  forall a ge m,
+  no_mem_dep expit_ef_external ge
+    (Values.Vfloat (IRF a) :: nil) m (Values.Vfloat (IRF (logit_inv a))).
+
 Definition log_ef_external :=
   (AST.EF_external "log" (AST.mksignature (AST.Tfloat :: nil) (AST.Tret AST.Tfloat)
                             (AST.mkcallconv None false false))).
@@ -604,6 +614,11 @@ Axiom log_ext_spec :
   forall a ge m,
   Events.external_call log_ef_external ge
     (Values.Vfloat (IRF a) :: nil) m Events.E0 (Values.Vfloat (IRF (ln a))) m.
+
+Axiom log_ext_no_mem_dep :
+  forall a ge m,
+  no_mem_dep log_ef_external ge
+    (Values.Vfloat (IRF a) :: nil) m (Values.Vfloat (IRF (ln a))).
 
 Axiom float_add_irf: forall a b,
   (Floats.Float.add (IRF a) (IRF b)) = IRF (a + b).
@@ -669,6 +684,7 @@ Proof.
         2:{  eauto. }
         rewrite /exp_ef_external; reflexivity.
         eapply exp_ext_spec.
+        eapply exp_ext_no_mem_dep.
       }
       { econstructor. }
 
@@ -685,6 +701,11 @@ Proof.
       econstructor.
       { econstructor. }
       {
+        assert ((Floats.Float.sub Floats.Float.zero (IRF a))
+               = (IRF (- a))) as Heq.
+        { rewrite -(IRF_IFR_inv (Floats.Float.zero)).
+          rewrite float_sub_irf. f_equal. rewrite IFR_zero. nra.
+        }
         econstructor.
         econstructor.
         eapply eval_Evar_global; eauto.
@@ -693,12 +714,8 @@ Proof.
         { eauto. }
         2:{  eauto. }
         rewrite /exp_ef_external; reflexivity.
-        assert ((Floats.Float.sub Floats.Float.zero (IRF a))
-               = (IRF (- a))) as ->.
-        { rewrite -(IRF_IFR_inv (Floats.Float.zero)).
-          rewrite float_sub_irf. f_equal. rewrite IFR_zero. nra.
-        }
-        eapply exp_ext_spec.
+        rewrite ?Heq; eapply exp_ext_spec.
+        rewrite ?Heq; eapply exp_ext_no_mem_dep.
       }
       simpl.
       rewrite /Sop.sem_sub//=.
@@ -724,6 +741,7 @@ Proof.
         2:{  eauto. }
         rewrite /expit_ef_external; reflexivity.
         eapply expit_ext_spec.
+        eapply expit_ext_no_mem_dep.
       }
       simpl.
       rewrite //=.
@@ -884,7 +902,7 @@ Definition match_mem m0 m1 :=
         Mem.loadv chunk m1 (Values.Vptr l ofs) = Some v
     | Some fe =>
         match ty with
-        | Breal => 
+        | Breal =>
             exists fl, Mem.loadv chunk m1 (Values.Vptr l ofs) = Some (Values.Vfloat fl) /\
                        (∀ en' m' t', eval_expr tge en' m' t' (fe (Econst_float fl Breal)) v)
         | _ => True
@@ -923,10 +941,10 @@ Proof.
   { subst.
     edestruct (functions_translated) as (ef'&?&Htransf'); eauto.
     monadInv Htransf'.
-    monadInv H7.
+    monadInv H8.
     econstructor; eauto.
     eapply Events.external_call_symbols_preserved; eauto. apply senv_preserved.
-    admit.
+    intros ??. eapply Events.external_call_symbols_preserved; eauto. apply senv_preserved.
   }
   { monadInv H. econstructor. }
   { monadInv H2. econstructor; eauto. erewrite typeof_transf_expr; eauto. }

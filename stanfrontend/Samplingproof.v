@@ -98,6 +98,8 @@ Proof.
   econstructor; eauto.
   generalize (functions_translated _ _ H3); intro FUN. eauto.
   eapply Events.external_call_symbols_preserved; eauto. apply senv_preserved.
+  intros Hext m'.
+  eapply Events.external_call_symbols_preserved; eauto. apply senv_preserved.
   econstructor; eauto.
   econstructor; eauto.
   econstructor; eauto.
@@ -119,6 +121,8 @@ Proof.
   econstructor; eauto.
   generalize (functions_translated _ _ H3); intro FUN. eauto.
   eapply Events.external_call_symbols_preserved; eauto. apply senv_preserved.
+  intros Hext m'.
+  eapply Events.external_call_symbols_preserved; eauto. apply senv_preserved.
   econstructor; eauto.
   econstructor; eauto.
   econstructor; eauto.
@@ -138,6 +142,8 @@ Proof.
   econstructor; eauto.
   econstructor; eauto.
   generalize (functions_translated _ _ H3); intro FUN. eauto.
+  eapply Events.external_call_symbols_preserved; eauto. apply senv_preserved.
+  intros Hext m'.
   eapply Events.external_call_symbols_preserved; eauto. apply senv_preserved.
   econstructor; eauto.
   econstructor; eauto.
@@ -259,6 +265,8 @@ Proof.
     * econstructor; eauto.
     * simpl. eauto.
     * eapply Events.external_call_symbols_preserved; eauto. apply senv_preserved.
+    * intros Hext m'.
+      eapply Events.external_call_symbols_preserved; eauto. apply senv_preserved; eauto.
   }
   econstructor; eauto.
 Qed.

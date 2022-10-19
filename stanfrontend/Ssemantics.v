@@ -130,6 +130,11 @@ Definition binary_op_conversion (op: b_op): binary_operation :=
   | Geq => Oge
   end.
 
+Definition no_mem_dep ef ge vargs m vres : Prop :=
+  external_call ef ge vargs m E0 vres m ->
+  forall m', external_call ef ge vargs m' E0 vres m'.
+  
+
 Inductive eval_expr: expr -> val -> Prop :=
   | eval_Econst_int: forall i ty,
       eval_expr (Econst_int i ty) (Vint i)
@@ -152,6 +157,7 @@ Inductive eval_expr: expr -> val -> Prop :=
       fd = External ef tyargs tyres cconv ->
       (* External calls must not (1) modify memory or (2) emit an observable trace event *)
       external_call ef ge vargs m E0 vres m ->
+      no_mem_dep ef ge vargs m vres ->
       eval_expr (Ecall a al ty) vres
   | eval_Etarget: forall ty,
       eval_expr (Etarget ty) (Vfloat t)
@@ -247,6 +253,7 @@ Inductive step: state -> trace -> state -> Prop :=
     fd = External ef tyargs tyres cconv ->
     (* External calls must not (1) modify memory or (2) emit an observable trace event *)
     external_call ef ge (v :: vargs) m E0 (Vfloat vres) m ->
+    no_mem_dep ef ge (v :: vargs) m (Vfloat vres) ->
     step (State f (Stilde a ad al) t k e m) E0 (State f Sskip (Floats.Float.add t vres) k e m)
 .
 
@@ -388,13 +395,13 @@ Proof.
   - inv H4; auto; try determ_aux; auto.
     assert (v0 = v1) by eauto.
     assert (v3 = v2) by eauto. congruence.
-  - inv H7; auto; try determ_aux; auto.
+  - inv H8; auto; try determ_aux; auto.
     assert (vargs0 = vargs) by eauto.
     assert (vf0 = vf) by eauto.
     assert (sig0 = sig) by congruence.
     assert (name0 = name) by congruence.
     subst.
-    exploit external_call_determ. eexact H6. eexact H17.
+    exploit external_call_determ. eexact H6. eexact H18.
     intros (?&Heq). symmetry; eapply Heq; auto.
   - inv H2; auto; try determ_aux; auto. assert (v0 = v1) by eauto. congruence.
   -  inv H2; auto; try determ_aux; auto.
@@ -491,7 +498,7 @@ Proof.
     assert (sig0 = sig) by congruence; subst.
     exploit external_call_determ.
     { eapply H7. }
-    { eapply H21. }
+    { eapply H22. }
     intros Himpl. intuition congruence.
 - (* single event *)
   red; simpl. destruct 1; simpl; try lia;
@@ -781,8 +788,10 @@ Section DENOTATIONAL.
   Proof.
     apply (eval_exprs_ind ge1 e m x); intros; try (econstructor; eauto; done).
     - econstructor; eauto.
-      { subst. eapply H7; eauto. }
+      { subst. eapply H8; eauto. }
       { eapply external_call_symbols_preserved; eauto. }
+      { unfold no_mem_dep. intros. 
+        eapply external_call_symbols_preserved; eauto. }
     - eapply eval_Evar_global; eauto.
       destruct H2 as (H2a&H2b&H2c). rewrite /Senv.find_symbol/= in H2a. rewrite H2a. eauto.
   Qed.
