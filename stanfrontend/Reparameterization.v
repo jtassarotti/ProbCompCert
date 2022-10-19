@@ -56,7 +56,10 @@ Fixpoint transf_expr (pmap: AST.ident -> option (expr -> expr)) (e: Stanlight.ex
         end
     | _ => Eindexed e el ty
     end
-  | _ => e
+  | Ecast e ty => Ecast (transf_expr pmap e) ty
+  | Econst_int a b => Econst_int a b
+  | Econst_float a b => Econst_float a b
+  | Etarget b => Etarget b
   end
 
 with transf_exprlist (pmap: AST.ident -> option (expr -> expr)) (el: exprlist) {struct el} : exprlist :=

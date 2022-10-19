@@ -897,6 +897,7 @@ Proof.
     eapply Events.external_call_symbols_preserved; eauto. apply senv_preserved.
   }
   { econstructor. }
+  { simpl. econstructor; eauto.  rewrite ?typeof_transf_expr. eauto. }
   {
     inversion H. subst.
     { admit. }

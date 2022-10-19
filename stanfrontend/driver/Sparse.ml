@@ -64,6 +64,7 @@ let typeof e  =
   | Stanlight.Ebinop (_, _, _, ty) -> ty
   | Stanlight.Eindexed (_, _, ty) -> ty
   | Stanlight.Etarget ty -> ty
+  | Stanlight.Ecast (_, ty) -> ty
 
 let op_to_string o =
   match o with

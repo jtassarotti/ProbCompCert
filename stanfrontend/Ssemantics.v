@@ -89,6 +89,7 @@ Definition typeof (e: expr) : basic :=
   | Ecall e el ty => ty
   | Eindexed e el ty => ty
   | Etarget ty => ty
+  | Ecast _ ty => ty
   end.
 
 Fixpoint transf_type (t: basic) : type :=
@@ -151,6 +152,10 @@ Inductive eval_expr: expr -> val -> Prop :=
       eval_expr (Ecall a al ty) vres
   | eval_Etarget: forall ty,
       eval_expr (Etarget ty) (Vfloat t)
+  | eval_Ecast:   forall a ty v1 v,
+      eval_expr a v1 ->
+      sem_cast v1 (transf_type (typeof a)) (transf_type ty) m = Some v ->
+      eval_expr (Ecast a ty) v
   | eval_Elvalue: forall a loc ofs v s,
       eval_lvalue a loc ofs s ->
       deref_loc (typeof a) m loc ofs v ->
@@ -388,6 +393,7 @@ Proof.
     subst.
     exploit external_call_determ. eexact H6. eexact H17.
     intros (?&Heq). symmetry; eapply Heq; auto.
+  - inv H2; auto; try determ_aux; auto. assert (v0 = v1) by eauto. congruence.
   -  inv H2; auto; try determ_aux; auto.
      exploit H0; eauto. intros (->&->).
      eapply deref_loc_determ; eauto.

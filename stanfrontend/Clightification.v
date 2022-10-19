@@ -141,6 +141,10 @@ Fixpoint transf_expression (e: Stanlight.expr) {struct e}: mon (list CStan.state
   | Evar i ty =>
     do ty <~ transf_type ty;
     ret (nil, CStan.Evar i ty)
+  | Ecast e ty =>
+    do ty <~ transf_type ty;
+    do (ls, e) <~ transf_expression e;
+    ret (ls, CStan.Ecast e ty)
   | Ecall e el ty =>
     (* WARNING: true for mini-Stan (for now), but type checking should ensure this *)
     do t <~ gensym tdouble;

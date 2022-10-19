@@ -36,6 +36,7 @@ Inductive expr :=
   | Econst_int: int -> basic -> expr
   | Econst_float: float -> basic -> expr
   | Evar: ident -> basic -> expr
+  | Ecast: expr -> basic -> expr           (**r type cast ([(ty) e]) *)
   | Ecall: expr -> exprlist -> basic -> expr
   | Eunop: u_op -> expr -> basic -> expr
   | Ebinop: expr -> b_op -> expr -> basic -> expr

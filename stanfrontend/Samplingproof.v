@@ -101,6 +101,7 @@ Proof.
   econstructor; eauto.
   econstructor; eauto.
   econstructor; eauto.
+  econstructor; eauto.
   eapply eval_Evar_global; eauto.
   rewrite symbols_preserved; auto.
   econstructor; eauto.
@@ -121,6 +122,7 @@ Proof.
   econstructor; eauto.
   econstructor; eauto.
   econstructor; eauto.
+  econstructor; eauto.
   eapply eval_Evar_global; eauto.
   rewrite symbols_preserved; auto.
   econstructor; eauto.
@@ -137,6 +139,7 @@ Proof.
   econstructor; eauto.
   generalize (functions_translated _ _ H3); intro FUN. eauto.
   eapply Events.external_call_symbols_preserved; eauto. apply senv_preserved.
+  econstructor; eauto.
   econstructor; eauto.
   econstructor; eauto.
   econstructor; eauto.
