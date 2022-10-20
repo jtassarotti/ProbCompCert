@@ -1,3 +1,4 @@
+From Coq Require Import Reals Psatz ssreflect Utf8.
 Require Import Coqlib Errors Maps String.
 Local Open Scope string_scope.
 Require Import Integers Floats Values AST Memory Builtins Events Globalenvs.
@@ -138,7 +139,7 @@ Definition binary_op_conversion (op: b_op): binary_operation :=
 Definition no_mem_dep ef ge vargs m vres : Prop :=
   external_call ef ge vargs m E0 vres m ->
   forall m', external_call ef ge vargs m' E0 vres m'.
-  
+
 
 Inductive eval_expr: expr -> val -> Prop :=
   | eval_Econst_int: forall i ty,
@@ -311,7 +312,7 @@ Definition data_basic_to_list (ib : ident * basic) : list (ident * basic * Ptrof
   | Bint => (ib, Ptrofs.zero) :: nil
   | Breal => (ib, Ptrofs.zero) :: nil
   | Barray b z => combine (repeat (fst ib, b) (Z.to_nat z)) (count_up_ofs (Z.to_nat z))
-  | _ => nil
+  | Bfunction _ _ => (ib, Ptrofs.zero) :: nil
   end.
 
 Definition parameter_basic_to_list (ibf : ident * basic * option (expr -> expr)) : list (ident * basic * Ptrofs.int) :=
@@ -323,7 +324,7 @@ Definition variable_to_list {A} (ib : ident * variable * A) : list (ident * vari
   | Bint => ib :: nil
   | Breal => ib :: nil
   | Barray b z => repeat (i, {| vd_type := b; vd_constraint := vd_constraint v |}, a) (Z.to_nat z)
-  | _ => nil
+  | Bfunction _ _ => ib :: nil
   end.
 
 Definition flatten_data_list (ibs: list (ident * basic)) :
@@ -346,6 +347,14 @@ Inductive assign_global_locs (ge: genv) : list (ident * basic * Ptrofs.int) -> m
       assign_global_locs ge bs m2 vs m3 ->
       assign_global_locs ge ((id, ty, ofs) :: bs) m1 (v :: vs) m3.
 
+Inductive reserve_global_params : list (ident * basic * option (expr -> expr)) -> param_mem -> param_mem -> Prop :=
+  | reserve_global_params_nil : forall m,
+      reserve_global_params nil m m
+  | reserve_global_params_cons : forall m1 m2 m3 id ty fe bs,
+      ParamMap.reserve m1 id = m2 ->
+      reserve_global_params bs m2 m3 ->
+      reserve_global_params ((id, ty, fe) :: bs) m1 m3.
+
 Inductive assign_global_params : list (ident * basic * Ptrofs.int) -> param_mem -> list val -> param_mem -> Prop :=
   | assign_global_params_nil : forall m,
       assign_global_params nil m nil m
@@ -353,6 +362,45 @@ Inductive assign_global_params : list (ident * basic * Ptrofs.int) -> param_mem 
       ParamMap.set m1 id (Ptrofs.intval ofs) f = m2 ->
       assign_global_params bs m2 vs m3 ->
       assign_global_params ((id, ty, ofs) :: bs) m1 ((Vfloat f) :: vs) m3.
+
+Definition set_global_params ids flat_ids flat_vals pm1 pm2 :=
+  exists pm_res, reserve_global_params ids pm1 pm_res /\
+                 assign_global_params flat_ids pm_res flat_vals pm2.
+
+Lemma reserve_global_preserves_alloc bs m1 m2 id :
+  reserve_global_params bs m1 m2 ->
+  is_id_alloc m2 id = false ->
+  is_id_alloc m1 id = false.
+Proof.
+  induction 1.
+  - rewrite //=.
+  - intros Hfalse.
+    exploit (IHreserve_global_params); auto. intros Hfalse'.
+    eapply reserve_preserves_alloc_rev; try eassumption.
+Qed.
+
+Lemma assign_global_params_preserves_alloc bs m1 vs m2 id :
+  assign_global_params bs m1 vs m2 ->
+  is_id_alloc m2 id = false ->
+  is_id_alloc m1 id = false.
+Proof.
+  induction 1.
+  - rewrite //=.
+  - intros Hfalse.
+    exploit (IHassign_global_params); auto. intros Hfalse'.
+    eapply set_preserves_alloc_rev; try eassumption.
+Qed.
+
+Lemma set_global_params_preserves_alloc ids bs m1 vs m2 id :
+  set_global_params ids bs vs m1 m2 ->
+  is_id_alloc m2 id = false ->
+  is_id_alloc m1 id = false.
+Proof.
+  intros (?&?&?).
+  intros.
+  eapply reserve_global_preserves_alloc; eauto.
+  eapply assign_global_params_preserves_alloc; eauto.
+Qed.
 
 (*
 Inductive loaded_global_params : list (ident * basic * Ptrofs.int) -> mem -> list val -> Prop :=
@@ -381,7 +429,8 @@ Inductive initial_state (p: program) (data : list val) (params: list val) : stat
       Genv.find_funct_ptr ge b = Some (Internal f) ->
       alloc_variables empty_env m0 f.(fn_vars) e m1 ->
       assign_global_locs ge (flatten_data_list p.(pr_data_vars)) m1 data m2 ->
-      assign_global_params (flatten_parameter_list p.(pr_parameters_vars)) ParamMap.empty params pm ->
+      set_global_params p.(pr_parameters_vars) (flatten_parameter_list p.(pr_parameters_vars))
+                            params ParamMap.empty pm ->
       initial_state p data params (State f f.(fn_body) ((Floats.Float.of_int Integers.Int.zero)) Kstop e m2 pm).
 
 
@@ -454,7 +503,7 @@ Proof.
       erewrite gs_is_alloc in H13; eauto; congruence.
     }
   -  inv H2; auto; try determ_aux; auto.
-     { 
+     {
        inv H; inv H3; subst; try congruence.
        { erewrite gs_is_alloc in H5; eauto; congruence. }
        { erewrite gs_is_alloc in H5; eauto; congruence. }
@@ -467,7 +516,7 @@ Proof.
   - inv H3; auto; try determ_aux.
     f_equal; eauto.
   - inv H0; split; congruence.
-  - inv H2; split; try determ_aux; exploit H1; eauto. 
+  - inv H2; split; try determ_aux; exploit H1; eauto.
     inversion 1; subst. eauto.
   - inv H0; split; congruence.
   - inv H2; split; congruence.
@@ -516,11 +565,28 @@ Proof.
   eauto.
 Qed.
 
+Lemma reserve_global_params_determ:
+  forall ids m0 m, reserve_global_params ids m0 m ->
+  forall m', reserve_global_params ids m0 m' -> m' = m.
+Proof.
+  induction 1; intros m' A; inv A; auto.
+Qed.
+
 Lemma assign_global_params_determ:
   forall ids m0 vs m, assign_global_params ids m0 vs m ->
   forall m', assign_global_params ids m0 vs m' -> m' = m.
 Proof.
   induction 1; intros m' A; inv A; auto.
+Qed.
+
+Lemma set_global_params_determ:
+  forall ids flat_ids m0 vs m, set_global_params ids flat_ids vs m0 m ->
+  forall m', set_global_params ids flat_ids vs m0 m' -> m' = m.
+Proof.
+  intros ????? (mint1&?&?) m' (mint2&?&?).
+  exploit (reserve_global_params_determ ids m0 mint1); eauto.
+  intros; subst.
+  eapply assign_global_params_determ; eauto.
 Qed.
 
 Definition semantics (p: program) (data: list val) (params: list val) (testval: float) :=
@@ -578,7 +644,7 @@ Proof.
   assert (f0 = f) by congruence; subst.
   exploit alloc_variables_determ. eexact H4. eexact H9. intros (?&?); subst.
   exploit assign_global_locs_determ. eexact H5. eexact H10. intros; subst.
-  exploit assign_global_params_determ. eexact H6. eexact H11. intros; subst.
+  exploit set_global_params_determ. eexact H6. eexact H11. intros; subst.
   eauto.
 - (* nostep final state *)
   red; intros; red; intros. inv H; inv H0.
@@ -622,8 +688,6 @@ destruct (program_eq x y); inversion H; subst; auto.
 Defined.
 
 Require ClassicalEpsilon.
-Require Import Reals.
-From Coq Require Import Reals Psatz ssreflect ssrbool Utf8.
 
 Section DENOTATIONAL.
 

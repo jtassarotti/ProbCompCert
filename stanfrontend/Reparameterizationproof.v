@@ -889,17 +889,17 @@ Proof.
     eapply typeof_fpmap; eauto. }
 Qed.
 
-Definition match_param_mem_some (pm0 pm1 : param_mem) := 
+Definition match_param_mem_some (pm0 pm1 : param_mem) :=
   ∀ id ofs fl, ParamMap.get pm0 id ofs = Some fl ->
               ∃ fe fl', ParamMap.get pm1 id ofs = Some fl' /\
                        fpmap id = Some fe /\
-                       (∀ en' m' t', eval_expr tge en' m' pm1 t' 
+                       (∀ en' m' t', eval_expr tge en' m' pm1 t'
                                        (fe (Econst_float fl' Breal)) (Values.Vfloat fl)).
 
-Definition match_param_mem_none (pm0 pm1 : param_mem) := 
+Definition match_param_mem_none (pm0 pm1 : param_mem) :=
   ∀ id, ParamMap.is_id_alloc pm0 id = false -> ParamMap.is_id_alloc pm1 id = false.
 
-Definition match_param_mem pm0 pm1 := 
+Definition match_param_mem pm0 pm1 :=
   match_param_mem_some pm0 pm1 /\ match_param_mem_none pm0 pm1.
 
 Definition wf_param_mem pm :=
@@ -925,14 +925,14 @@ Lemma eval_const_float en m pm t v v0 :
 Proof.
   { intros Heval. inv Heval; try (inv H; done); eauto. }
 Qed.
-  
+
 
 Lemma eval_expr_fpmap_ctxt id en m pm t fe e v vres :
   fpmap id = Some fe ->
   typeof e = Breal ->
   eval_expr tge en m pm t e (Values.Vfloat v) ->
   eval_expr tge en m pm t (fe (Econst_float v Breal)) vres ->
-  eval_expr tge en m pm t (fe e) vres. 
+  eval_expr tge en m pm t (fe e) vres.
 Proof.
   intros (c&->)%fpmap_cases Hreal.
   destruct c => //=.
@@ -957,9 +957,9 @@ Proof.
       subst.
       rewrite Hreal /=.
       inv H1. simpl in H13.
-      exploit eval_const_float; eauto; intros; subst; eauto. 
+      exploit eval_const_float; eauto; intros; subst; eauto.
       clear H12.
-      exploit eval_const_float; eauto; intros; subst; eauto. 
+      exploit eval_const_float; eauto; intros; subst; eauto.
       inv H.
       inv H.
     }
@@ -971,11 +971,64 @@ Proof.
       inv H5; try (inv H; done). econstructor; eauto.
       inv H8. inv H3. subst. econstructor; eauto.
       econstructor; eauto.
-      exploit eval_const_float; eauto; intros; subst; eauto. 
+      exploit eval_const_float; eauto; intros; subst; eauto.
       inv H.
       inv H.
     }
   }
+Qed.
+
+Lemma reserve_global_params_wf pm:
+  reserve_global_params prog.(pr_parameters_vars) ParamMap.empty pm ->
+  wf_param_mem pm.
+Proof.
+  rewrite /wf_param_mem/fpmap.
+  specialize (found_parameters_spec) as Heqn.
+  remember (pr_parameters_vars prog) as pvars eqn:Heqvars. clear Heqvars.
+  intros Hassign. revert Heqn.
+  generalize (found_parameters).
+  induction Hassign.
+  - intros found Heqfound id.
+    { inversion Heqfound; subst. rewrite //=. }
+  - intros found Heqfound id'.
+    simpl in Heqfound.
+    monadInv Heqfound.
+    simpl. destruct x as ((?&?)&?).
+    eapply find_parameter_ident_match in EQ as (<-&<-).
+    destruct (Pos.eq_dec id id').
+    { subst. intros. exfalso.
+      exploit reserve_global_preserves_alloc; eauto.
+      erewrite reserve_is_alloc; eauto.
+    }
+    intros. eapply IHHassign; eauto.
+Qed.
+
+Lemma assign_global_params_wf pm bs vs pm':
+  wf_param_mem pm ->
+  assign_global_params bs pm vs pm' ->
+  wf_param_mem pm'.
+Proof.
+  intros Hwf Hassign.
+  rewrite /wf_param_mem.
+  intros id Hid.
+  eapply Hwf. eapply assign_global_params_preserves_alloc; eauto.
+Qed.
+
+Lemma set_global_params_wf pm flat vs :
+  set_global_params prog.(pr_parameters_vars) flat vs ParamMap.empty pm ->
+  wf_param_mem pm.
+Proof.
+  intros (?&Hres&Hassign).
+  eapply assign_global_params_wf; eauto.
+  eapply reserve_global_params_wf; eauto.
+Qed.
+
+Lemma wf_param_mem_init d f fn t K e m pm:
+  initial_state prog d (map R2val params) (State f fn t K e m pm) ->
+  wf_param_mem pm.
+Proof.
+  intros Hinit. inv Hinit.
+  eapply set_global_params_wf; eauto.
 Qed.
 
 Lemma evaluation_preserved:
@@ -1076,7 +1129,7 @@ Proof.
     { rewrite symbols_preserved; auto. }
   }
 
-  { simpl. try econstructor; eauto. 
+  { simpl. try econstructor; eauto.
     destruct Hmatch as (_&Hmatch). eapply Hmatch; auto. }
 Qed.
 

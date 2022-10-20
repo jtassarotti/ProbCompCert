@@ -231,12 +231,28 @@ Proof.
   - inversion H0; eapply assign_loc_value; eauto.
 Qed.
 
+Lemma reserve_global_params_preserved bs m1 m2 :
+  reserve_global_params bs m1 m2 ->
+  reserve_global_params bs m1 m2.
+Proof.
+  induction 1; econstructor; eauto.
+Qed.
+
 Lemma assign_global_params_preserved bs m1 vs m2 :
   assign_global_params bs m1 vs m2 ->
   assign_global_params bs m1 vs m2.
 Proof.
   induction 1; econstructor; eauto.
 Qed.
+
+Lemma set_global_params_preserved ids bs m1 vs m2 :
+  set_global_params ids bs vs m1 m2 ->
+  set_global_params ids bs vs m1 m2.
+Proof.
+  intros (?&?&?). eexists; split;
+    eauto using reserve_global_params_preserved, assign_global_params_preserved.
+Qed.
+
 Lemma data_vars_preserved :
   pr_data_vars tprog = pr_data_vars prog.
 Proof.
@@ -328,7 +344,7 @@ Proof.
   generalize (function_ptr_translated b (Ctypes.Internal f) H2); intro TR.
   unfold transf_fundef in TR. eauto.
   eapply assign_global_locs_preserved. rewrite data_vars_preserved; eauto.
-  eapply assign_global_params_preserved; rewrite parameters_vars_preserved. eauto.
+  eapply set_global_params_preserved; rewrite parameters_vars_preserved. eauto.
   econstructor; eauto.
   econstructor.
 Qed.
