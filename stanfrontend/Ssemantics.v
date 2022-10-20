@@ -181,11 +181,9 @@ Inductive eval_expr: expr -> val -> Prop :=
 with eval_plvalue: expr -> ident -> ptrofs -> Prop :=
   | eval_Evar_st: forall id ty,
       e!id = None ->
-      Genv.find_symbol ge id = None ->
       eval_plvalue (Evar id ty) id Ptrofs.zero
   | eval_Eindexed_st: forall id al tya ty v,
       e!id = None ->
-      Genv.find_symbol ge id = None ->
       eval_exprlist al ((Vint v) :: nil) ->
       eval_plvalue (Eindexed (Evar id tya) al ty) id (Ptrofs.of_int v)
 
@@ -195,10 +193,12 @@ with eval_lvalue: expr -> block -> ptrofs -> scope -> Prop :=
       eval_lvalue (Evar id ty) l Ptrofs.zero Slocal
   | eval_Evar_global: forall id l ty,
       e!id = None ->
+      ParamMap.is_id_alloc pm id = false ->
       Genv.find_symbol ge id = Some l ->
       eval_lvalue (Evar id ty) l Ptrofs.zero Sglobal
   | eval_Eindexed: forall id al tya ty l v s,
       eval_lvalue (Evar id tya) l Ptrofs.zero s->
+      ParamMap.is_id_alloc pm id = false ->
       (* Currently only doing array *)
       eval_exprlist al ((Vint v) :: nil) ->
       eval_lvalue (Eindexed (Evar id tya) al ty) l (Ptrofs.of_int v) s
@@ -450,12 +450,14 @@ Proof.
   - inv H2; auto; try determ_aux; auto.
     { exploit H0; eauto. intros (->&->). congruence. }
     { inv H; inv H3; subst; try congruence.
-      inv H13; congruence. }
+      erewrite gs_is_alloc in H7; eauto; congruence.
+      erewrite gs_is_alloc in H13; eauto; congruence.
+    }
   -  inv H2; auto; try determ_aux; auto.
      { 
-       exploit H0; eauto.
-       { inv H; inv H3; subst; try congruence.
-         inv H2; congruence. }
+       inv H; inv H3; subst; try congruence.
+       { erewrite gs_is_alloc in H5; eauto; congruence. }
+       { erewrite gs_is_alloc in H5; eauto; congruence. }
      }
      {
        exploit H0; eauto.
@@ -464,13 +466,13 @@ Proof.
      }
   - inv H3; auto; try determ_aux.
     f_equal; eauto.
-  - inv H1; split; congruence.
-  - inv H3; split; try determ_aux; exploit H2; eauto. 
+  - inv H0; split; congruence.
+  - inv H2; split; try determ_aux; exploit H1; eauto. 
     inversion 1; subst. eauto.
   - inv H0; split; congruence.
-  - inv H1; split; congruence.
-  - inv H3. exploit H0; eauto. intros Heq. inv Heq.
-    exploit H2; eauto. intros Heq. inv Heq; auto.
+  - inv H2; split; congruence.
+  - inv H4. exploit H0; eauto. intros Heq. inv Heq.
+    exploit H3; eauto. intros Heq. inv Heq; auto.
 Qed.
 
 Lemma eval_expr_determ:
@@ -861,11 +863,7 @@ Section DENOTATIONAL.
       { subst. eapply H7; eauto. }
       { eapply external_call_symbols_preserved; eauto. }
     - econstructor; eauto.
-      destruct H2 as (H2a&H2b&H2c). rewrite /Senv.find_symbol/= in H2a. rewrite H2a. eauto.
-    - econstructor; eauto.
-      destruct H4 as (H2a&H2b&H2c). rewrite /Senv.find_symbol/= in H2a. rewrite H2a. eauto.
-    - eapply eval_Evar_global; eauto.
-      destruct H2 as (H2a&H2b&H2c). rewrite /Senv.find_symbol/= in H2a. rewrite H2a. eauto.
+      destruct H3 as (H2a&H2b&H2c). rewrite /Senv.find_symbol/= in H2a. rewrite H2a. eauto.
   Qed.
 
   Lemma match_external_funct_sym ge1 ge2 :

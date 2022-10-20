@@ -110,9 +110,7 @@ Proof.
   rewrite symbols_preserved; auto.
   econstructor; eauto.
   econstructor; eauto.
-  rewrite symbols_preserved; auto.
   econstructor; eauto.
-  rewrite symbols_preserved; auto.
   econstructor; eauto.
   econstructor; eauto.
 
@@ -136,9 +134,7 @@ Proof.
   rewrite symbols_preserved; auto.
   econstructor; eauto.
   econstructor; eauto.
-  rewrite symbols_preserved; auto.
   econstructor; eauto.
-  rewrite symbols_preserved; auto.
   econstructor; eauto.
   econstructor; eauto.
   
@@ -161,9 +157,7 @@ Proof.
   rewrite symbols_preserved; auto.
   econstructor; eauto.
   econstructor; eauto.
-  rewrite symbols_preserved; auto.
   econstructor; eauto.
-  rewrite symbols_preserved; auto.
   econstructor; eauto.
   econstructor; eauto.
 
@@ -187,9 +181,7 @@ Proof.
   rewrite symbols_preserved; auto.
   econstructor; eauto.
   econstructor; eauto.
-  rewrite symbols_preserved; auto.
   econstructor; eauto.
-  rewrite symbols_preserved; auto.
   econstructor; eauto.
   econstructor; eauto.
 Qed.

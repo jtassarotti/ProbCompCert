@@ -889,42 +889,100 @@ Proof.
     eapply typeof_fpmap; eauto. }
 Qed.
 
-(*
-Definition match_mem_locals en m0 m1 :=
-  forall id l ty chunk ofs v,
-    Maps.PTree.get id en = Some (l, ty) ->
-    access_mode ty = Ctypes.By_value chunk ->
-    Mem.loadv chunk m0 (Values.Vptr l ofs) = Some v ->
-    Mem.loadv chunk m1 (Values.Vptr l ofs) = Some v.
+Definition match_param_mem_some (pm0 pm1 : param_mem) := 
+  ∀ id ofs fl, ParamMap.get pm0 id ofs = Some fl ->
+              ∃ fe fl', ParamMap.get pm1 id ofs = Some fl' /\
+                       fpmap id = Some fe /\
+                       (∀ en' m' t', eval_expr tge en' m' pm1 t' 
+                                       (fe (Econst_float fl' Breal)) (Values.Vfloat fl)).
 
-Definition match_mem_globals m0 m1 :=
-  forall id l ty chunk ofs v,
-    Genv.find_symbol ge id = Some l ->
-    access_mode ty = Ctypes.By_value chunk ->
-    Mem.loadv chunk m0 (Values.Vptr l ofs) = Some v ->
-    Genv.find_symbol tge id = Some l /\
-    match fpmap id with
-    | None =>
-        Mem.loadv chunk m1 (Values.Vptr l ofs) = Some v
-    | Some fe =>
-        match ty with
-        | Breal =>
-            exists fl, Mem.loadv chunk m1 (Values.Vptr l ofs) = Some (Values.Vfloat fl) /\
-                       (∀ en' m' t', eval_expr tge en' m' t' (fe (Econst_float fl Breal)) v)
-        | _ => True
-        end
-    end.
-*)
+Definition match_param_mem_none (pm0 pm1 : param_mem) := 
+  ∀ id, ParamMap.is_id_alloc pm0 id = false -> ParamMap.is_id_alloc pm1 id = false.
 
-Definition match_param_mem (en : env) (m0 m1 : param_mem) := True.
+Definition match_param_mem pm0 pm1 := 
+  match_param_mem_some pm0 pm1 /\ match_param_mem_none pm0 pm1.
+
+Definition wf_param_mem pm :=
+  ∀ id, ParamMap.is_id_alloc pm id = false -> fpmap id = None.
 
 Definition valid_env (en : env) :=
   forall id, Maps.PTree.get id en <> None -> fpmap id = None.
 
+Lemma fpmap_cases id fe:
+  fpmap id = Some fe ->
+  (∃ c, fe = (unconstrained_to_constrained_fun c)).
+Proof.
+  rewrite /fpmap. induction found_parameters as [| ((?&?)&?)].
+  - rewrite //=.
+  - simpl. destruct (Pos.eq_dec _ _).
+    * rewrite /unconstrained_to_constrained. inversion 1; subst. eexists; eauto.
+    * eauto.
+Qed.
+
+Lemma eval_const_float en m pm t v v0 :
+  eval_expr tge en m pm t (Econst_float v Breal) v0 ->
+  v0 = Values.Vfloat v.
+Proof.
+  { intros Heval. inv Heval; try (inv H; done); eauto. }
+Qed.
+  
+
+Lemma eval_expr_fpmap_ctxt id en m pm t fe e v vres :
+  fpmap id = Some fe ->
+  typeof e = Breal ->
+  eval_expr tge en m pm t e (Values.Vfloat v) ->
+  eval_expr tge en m pm t (fe (Econst_float v Breal)) vres ->
+  eval_expr tge en m pm t (fe e) vres. 
+Proof.
+  intros (c&->)%fpmap_cases Hreal.
+  destruct c => //=.
+  { intros. exploit eval_const_float; eauto. intros; subst; intuition. }
+  { intros Heval1 Heval2.
+    inv Heval2.
+    {  econstructor; eauto.
+       inv H4; try (inv H; done). econstructor; eauto.
+      inv H3. subst. econstructor; auto.
+      exploit eval_const_float; eauto; intros; subst; eauto. }
+    inv H.
+    inv H.
+  }
+  { intros Heval1 Heval2.
+    inv Heval2; try (inv H; done).
+    { econstructor; eauto.
+      exploit eval_const_float; eauto; intros; subst; eauto.
+      inv H5; try (inv H; done). econstructor; eauto.
+      inv H3. subst. econstructor; auto.
+      econstructor; eauto.
+      { econstructor. }
+      subst.
+      rewrite Hreal /=.
+      inv H1. simpl in H13.
+      exploit eval_const_float; eauto; intros; subst; eauto. 
+      clear H12.
+      exploit eval_const_float; eauto; intros; subst; eauto. 
+      inv H.
+      inv H.
+    }
+  }
+  { intros Heval1 Heval2.
+    inv Heval2; try (inv H; done).
+    { econstructor; eauto.
+      exploit eval_const_float; eauto; intros; subst; eauto.
+      inv H5; try (inv H; done). econstructor; eauto.
+      inv H8. inv H3. subst. econstructor; eauto.
+      econstructor; eauto.
+      exploit eval_const_float; eauto; intros; subst; eauto. 
+      inv H.
+      inv H.
+    }
+  }
+Qed.
+
 Lemma evaluation_preserved:
   forall en m pm0 pm1 t,
     valid_env en ->
-    match_param_mem en pm0 pm1 ->
+    match_param_mem pm0 pm1 ->
+    wf_param_mem pm0 ->
       (forall e v, eval_expr ge en m pm0 t e v ->
                    forall e', transf_expr fpmap e = OK e' ->
                               eval_expr tge en m pm1 t e' v)
@@ -948,7 +1006,7 @@ Lemma evaluation_preserved:
                            | _ => eval_lvalue tge en m pm1 t e loc ofs s
                            end).
 Proof.
-  intros en m pm0 pm1 t Hval Hmatch.
+  intros en m pm0 pm1 t Hval Hmatch Hwf.
   apply (eval_exprs_ind ge en m pm0 t); intros.
   { simpl in H; inversion H; econstructor; eauto. }
   { simpl in H; inversion H; econstructor; eauto. }
@@ -970,8 +1028,20 @@ Proof.
   {
     inversion H; subst.
     { simpl in H2.
-      admit. }
-    admit.
+      destruct Hmatch as (Hmatch&_).
+      exploit Hmatch; eauto. intros (fe&fl'&Hget'&Hfpmap&Heval).
+      rewrite Hfpmap in H2. destruct ty; inversion H2; subst.
+      eapply eval_expr_fpmap_ctxt; eauto.
+      econstructor; eauto.
+    }
+    { simpl in H2.
+      destruct Hmatch as (Hmatch&_).
+      apply bind_inversion in H2 as (al'&Htransf'&Hret).
+      exploit Hmatch; eauto. intros (fe&fl'&Hget'&Hfpmap&Heval).
+      rewrite Hfpmap in Hret. destruct ty; inversion Hret; subst.
+      eapply eval_expr_fpmap_ctxt; eauto.
+      econstructor; eauto.
+    }
   }
   {
     inversion H; subst.
@@ -980,11 +1050,16 @@ Proof.
       { inversion H2; subst. econstructor; eauto. }
     }
     { simpl in H2.
-      rewrite Hval in H2.
+      rewrite Hwf in H2; auto.
       { inversion H2; subst. econstructor; eauto. }
-      admit.
     }
-    { subst. admit. }
+    { simpl in H2.
+      rewrite Hwf in H2; auto.
+      { apply bind_inversion in H2 as (al'&Htransf'&Hret).
+        inv Hret.
+        econstructor; eauto.
+      }
+    }
   }
 
   (* list *)
@@ -992,14 +1067,18 @@ Proof.
   { monadInv H3. simpl. econstructor; eauto. }
 
   (* lvalue *)
-  { simpl. econstructor; eauto. rewrite symbols_preserved; auto. }
-  { simpl. econstructor; eauto. rewrite symbols_preserved; auto. }
+  { simpl. econstructor; eauto. }
+  { simpl. econstructor; eauto. }
 
   { simpl. econstructor; eauto. }
-  { simpl. econstructor; eauto. rewrite symbols_preserved; auto. }
+  { simpl. econstructor; eauto.
+    { destruct Hmatch as (_&Hmatch). eapply Hmatch; auto. }
+    { rewrite symbols_preserved; auto. }
+  }
 
-  { simpl. destruct ty => //=; try (econstructor; eauto). }
-Abort.
+  { simpl. try econstructor; eauto. 
+    destruct Hmatch as (_&Hmatch). eapply Hmatch; auto. }
+Qed.
 
 
 Theorem transf_program_correct_change t:
