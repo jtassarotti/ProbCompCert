@@ -263,7 +263,7 @@ Proof.
 Qed.
 
 Lemma pr_parameters_vars_found_parameters :
-  pr_parameters_vars prog = map (λ '(id, v, fe), (id, vd_type v, fe)) found_parameters. 
+  pr_parameters_vars prog = map (λ '(id, v, fe), (id, vd_type v, fe)) found_parameters.
 Proof.
   specialize (found_parameters_spec) => Hmmap.
   remember (pr_parameters_vars prog) as prs eqn:Heqprs.
@@ -736,6 +736,114 @@ Proof.
   apply eval_expr_fun_spec. econstructor.
 Qed.
 
+Lemma eval_constrained_fun r c env m pm t :
+     eval_expr (globalenv tprog) env m pm t
+       (unconstrained_to_constrained_fun c
+          (Econst_float (IRF r) Breal)) (Values.Vfloat (IRF (constrain_fn c r))).
+Proof.
+    destruct c.
+    { econstructor. }
+    { rewrite /unconstrained_to_constrained_fun.
+      edestruct (global_env_exp) as (expl&?&?).
+      simpl.
+      econstructor.
+      { econstructor.
+        eapply eval_Elvalue.
+        eapply eval_Evar_global; eauto.
+        { admit. }
+        { admit. }
+        { eapply deref_loc_reference; eauto. }
+        { repeat econstructor. }
+        { eauto. }
+        2:{  eauto. }
+        rewrite /exp_ef_external; reflexivity.
+        eapply exp_ext_spec.
+      }
+      { econstructor. }
+
+      simpl.
+      rewrite /Sop.sem_add//=.
+      rewrite /Sop.sem_binarith//=.
+      rewrite /constrain_lb.
+      rewrite -float_add_irf. repeat f_equal. rewrite IRF_IFR_inv //.
+    }
+    {
+      rewrite /unconstrained_to_constrained_fun.
+      edestruct (global_env_exp) as (expl&?&?).
+      simpl.
+      econstructor.
+      { econstructor. }
+      {
+        assert ((Floats.Float.sub Floats.Float.zero (IRF r))
+               = (IRF (- r))) as Heq.
+        { rewrite -(IRF_IFR_inv (Floats.Float.zero)).
+          rewrite float_sub_irf. f_equal. rewrite IFR_zero. nra.
+        }
+        econstructor.
+        eapply eval_Elvalue.
+        eapply eval_Evar_global; eauto.
+        { admit. }
+        { admit. }
+        { eapply deref_loc_reference; eauto. }
+        { repeat econstructor. }
+        { eauto. }
+        2:{  eauto. }
+        rewrite /exp_ef_external; reflexivity.
+        rewrite ?Heq; eapply exp_ext_spec.
+      }
+      simpl.
+      rewrite /Sop.sem_sub//=.
+      rewrite /Sop.sem_binarith//=.
+      replace f with (IRF (IFR f)) at 1 by (apply IRF_IFR_inv).
+      rewrite float_sub_irf. f_equal.
+    }
+    {
+      rewrite /unconstrained_to_constrained_fun.
+      edestruct (global_env_expit) as (expl&?&?).
+      simpl.
+      econstructor.
+      { econstructor. }
+      econstructor.
+      { repeat econstructor. }
+      {
+        econstructor.
+        eapply eval_Elvalue.
+        eapply eval_Evar_global; eauto.
+        { admit. }
+        { admit. }
+        { eapply deref_loc_reference; eauto. }
+        { repeat econstructor. }
+        { eauto. }
+        2:{  eauto. }
+        rewrite /expit_ef_external; reflexivity.
+        eapply expit_ext_spec.
+      }
+      simpl.
+      rewrite //=.
+      rewrite /Sop.sem_binarith//=.
+      rewrite /Sop.sem_add//=.
+      rewrite /Sop.sem_binarith//=.
+      do 2 f_equal.
+      rewrite /constrain_lb_ub.
+      rewrite float_add_irf'; repeat f_equal.
+      rewrite float_mul_irf'.
+      rewrite float_sub_irf'.
+      rewrite ?IFR_IRF_inv.
+      f_equal.
+    }
+Abort.
+
+Lemma eval_constrained_fun' r c env m pm t :
+     eval_expr (globalenv tprog) env m pm t
+       (unconstrained_to_constrained_fun c
+          (Econst_float (IRF (unconstrain_fn c r)) Breal)) (Values.Vfloat (IRF r)).
+Proof.
+  assert (r = constrain_fn c (unconstrain_fn c r)) as Heq.
+  { admit. }
+  rewrite {2}Heq.
+  (* eapply eval_constrained_fun. *)
+Abort.
+
 Lemma eval_param_map_list_preserved :
   ∀ x,
     in_list_rectangle x (parameter_list_rect tprog) ->
@@ -1048,7 +1156,7 @@ Proof.
   - inversion 1.
   - simpl. intros [Heq|Hin].
     { inv Heq. destruct (Pos.eq_dec _ _); try congruence. rewrite /unconstrained_to_constrained//. }
-    { 
+    {
       destruct (Pos.eq_dec _ _).
       { subst. exploit Hin_spec.
         { left. eauto. }
@@ -1134,9 +1242,12 @@ Lemma assign_global_params2_some_in_combine flat_ids vs1 vs2 pm1 pm1' pm2 pm2' :
   assign_global_params flat_ids pm1 vs1 pm1' ->
   assign_global_params flat_ids pm2 vs2 pm2' ->
   ∀ id ofs fl1, ParamMap.get pm1' id ofs = Some fl1 ->
-               (ParamMap.get pm1 id ofs = Some fl1) ∨
+                (ParamMap.get pm1 id ofs = Some fl1 /\
+                 ParamMap.get pm2' id ofs = ParamMap.get pm2 id ofs
+                ) ∨
                  (∃ fl2 b ofs', In (((id, b, ofs'), (Values.Vfloat fl1)), (Values.Vfloat fl2))
                                   (List.combine (List.combine flat_ids vs1) vs2) /\
+                              ParamMap.get pm2' id ofs = Some fl2 /\
                               Integers.Ptrofs.intval ofs' = ofs).
 Proof.
   intros Hassign.
@@ -1146,7 +1257,7 @@ Proof.
     left. eauto.
   - intros Hassign2 id' ofs' fl' Hget.
     inv Hassign2.
-    edestruct IHHassign as [Hget1|Hright].
+    edestruct IHHassign as [(Hget1&Hget2)|Hright].
     { eapply H8. }
     { eauto. }
     { destruct (Pos.eq_dec id id'); subst.
@@ -1154,14 +1265,18 @@ Proof.
         { right.
           rewrite ParamMap.gss in Hget1. inv Hget1.
           simpl.
-          do 3 eexists; split; eauto.
+          do 3 eexists; split; eauto; split; auto.
+          rewrite Hget2. rewrite gss //.
         }
         { rewrite ParamMap.gso in Hget1; last by (right; congruence).
+          rewrite ParamMap.gso in Hget2; last by (right; congruence).
           eauto. }
       }
+      left.
       rewrite ParamMap.gso in Hget1; auto.
+      rewrite ParamMap.gso in Hget2; auto.
     }
-    right. clear -Hright. destruct Hright as (?&?&?&?&?).
+    right. clear -Hright. destruct Hright as (?&?&?&?&?&?).
     do 3 eexists; split; simpl; eauto.
 Qed.
 
@@ -1228,9 +1343,21 @@ Proof.
   clear.
   rewrite /flatten_parameter_constraints.
   rewrite /flatten_parameter_variables.
-Admitted.
+  rewrite pr_parameters_vars_found_parameters /=.
+  specialize (found_parameters_spec) => Hmmap.
+  apply mmap_inversion in Hmmap.
+  revert Hmmap. generalize (pr_parameters_vars prog).
+  induction found_parameters.
+  - rewrite //=.
+  - intros l' Hforall2. inv Hforall2.
+    rewrite /=.
+    destruct a as ((?&?)&?).
+    exploit find_parameter_lookup_def_ident_prog; eauto. intros ->.
+    rewrite /flatten_ident_variable_list/=.
+    rewrite ?map_app; f_equal.
+    eapply IHl; eauto.
+Qed.
 
-Set Nested Proofs Allowed.
 Lemma count_down_ofs_len n : length (count_down_ofs n) = n.
 Proof.
   induction n => //=.
@@ -1241,7 +1368,6 @@ Lemma count_up_ofs_len n : length (count_up_ofs n) = n.
 Proof.
   rewrite /count_up_ofs rev_length count_down_ofs_len //.
 Qed.
-
 
 Lemma in_flatten_5tuple id b ofs fl1 fl2 :
   (In (id, b, ofs, Values.Vfloat fl1, Values.Vfloat fl2)
@@ -1351,14 +1477,19 @@ Proof.
   { rewrite -flatten_parameter_list_tprog. eapply Hassign2. }
   { eauto. }
   intros [Hget_pm1'| Hright].
-  { exfalso. 
+  { exfalso.
     erewrite reserve_global_param_get in Hget_pm1'; eauto.
-    rewrite gempty in Hget_pm1'. congruence. }
+    rewrite gempty in Hget_pm1'. intuition congruence. }
   {
-    destruct Hright as (fl2&b&ofs'&Hin&Hofs).
+    destruct Hright as (fl2&b&ofs'&Hin&Hget2&Hofs).
     edestruct (in_flatten_5tuple) as (r&v&oe&Hin1&Hfl1&Hfl2); eauto.
     exploit (fpmap_spec); eauto. intros Hfpmap.
     do 2 eexists; split; [| split]; eauto.
+
+    subst.
+
+
+
 Admitted.
 
 Lemma initial_states_match_param_some f1 f2 fn1 fn2 t1 t2 K1 K2 e1 e2 m1 m2 pm1 pm2:
