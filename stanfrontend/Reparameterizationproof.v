@@ -1129,14 +1129,14 @@ Proof.
   }
 Qed.
 
+
 Lemma assign_global_params2_some_in_combine flat_ids vs1 vs2 pm1 pm1' pm2 pm2' :
   assign_global_params flat_ids pm1 vs1 pm1' ->
   assign_global_params flat_ids pm2 vs2 pm2' ->
   ∀ id ofs fl1, ParamMap.get pm1' id ofs = Some fl1 ->
                (ParamMap.get pm1 id ofs = Some fl1) ∨
-                 (∃ fl2 b ofs', In ((id, b, ofs'), (Values.Vfloat fl1)) (List.combine flat_ids vs1) /\
-                                In ((id, b, ofs'), (Values.Vfloat fl2)) (List.combine flat_ids vs2) /\
-                                In ((Values.Vfloat fl1), (Values.Vfloat fl2)) (List.combine vs1 vs2) /\
+                 (∃ fl2 b ofs', In (((id, b, ofs'), (Values.Vfloat fl1)), (Values.Vfloat fl2))
+                                  (List.combine (List.combine flat_ids vs1) vs2) /\
                               Integers.Ptrofs.intval ofs' = ofs).
 Proof.
   intros Hassign.
@@ -1161,7 +1161,7 @@ Proof.
       }
       rewrite ParamMap.gso in Hget1; auto.
     }
-    right. clear -Hright. destruct Hright as (?&?&?&?&?&?&?).
+    right. clear -Hright. destruct Hright as (?&?&?&?&?).
     do 3 eexists; split; simpl; eauto.
 Qed.
 
@@ -1221,6 +1221,120 @@ Proof.
   intros Hin. apply in_combine_l in Hin. apply repeat_spec in Hin. inv Hin; eauto.
 Qed.
 
+Lemma flatten_parameter_constraints_found_parameters :
+  flatten_parameter_constraints prog =
+    (map (λ '(_, v, _), vd_constraint v) (flatten_ident_variable_list found_parameters)).
+Proof.
+  clear.
+  rewrite /flatten_parameter_constraints.
+  rewrite /flatten_parameter_variables.
+Admitted.
+
+Set Nested Proofs Allowed.
+Lemma count_down_ofs_len n : length (count_down_ofs n) = n.
+Proof.
+  induction n => //=.
+  rewrite IHn //.
+Qed.
+
+Lemma count_up_ofs_len n : length (count_up_ofs n) = n.
+Proof.
+  rewrite /count_up_ofs rev_length count_down_ofs_len //.
+Qed.
+
+
+Lemma in_flatten_5tuple id b ofs fl1 fl2 :
+  (In (id, b, ofs, Values.Vfloat fl1, Values.Vfloat fl2)
+      (combine (combine (flatten_parameter_list (pr_parameters_vars prog)) (map R2val params))
+         (map R2val (param_unmap params)))) ->
+  (∃ r v oe, In (id, v, oe) found_parameters /\
+                  fl1 = IRF r /\
+                  fl2 = IRF (unconstrain_fn (vd_constraint v) r)).
+Proof.
+  intros Hin.
+  rewrite pr_parameters_vars_found_parameters in Hin.
+  rewrite /param_unmap in Hin.
+  rewrite flatten_parameter_constraints_found_parameters in Hin.
+  revert Hin.
+  generalize params. clear params.
+  induction (found_parameters) => params Hin.
+  { simpl in Hin. inversion Hin. }
+  { destruct a as ((?&?)&?).
+    simpl in Hin.
+    rewrite /flatten_ident_variable_list in Hin.
+    rewrite /flatten_parameter_list in Hin.
+    rewrite ?map_cons in Hin.
+    rewrite concat_map in Hin.
+    rewrite /= in Hin.
+    rewrite {1}/parameter_basic_to_list/data_basic_to_list/= in Hin.
+    destruct (vd_type v).
+    { rewrite /= in Hin.
+      destruct params as [| ? params']; first by rewrite //=.
+      simpl in Hin. destruct Hin as [Hleft|Hrec].
+      { inv Hleft. do 3 eexists. split; first by left. eauto. }
+      edestruct (IHl params') as (?&?&?&Hin).
+      rewrite /flatten_ident_variable_list.
+      rewrite /flatten_parameter_list.
+      rewrite ?map_cons.
+      rewrite concat_map.
+      eapply Hrec.
+      do 3 eexists. intuition eauto. right; eauto.
+    }
+    { rewrite /= in Hin.
+      destruct params as [| ? params']; first by rewrite //=.
+      simpl in Hin. destruct Hin as [Hleft|Hrec].
+      { inv Hleft. do 3 eexists. split; first by left. eauto. }
+      edestruct (IHl params') as (?&?&?&Hin).
+      rewrite /flatten_ident_variable_list.
+      rewrite /flatten_parameter_list.
+      rewrite ?map_cons.
+      rewrite concat_map.
+      eapply Hrec.
+      do 3 eexists. intuition eauto. right; eauto.
+    }
+    2: { rewrite /= in Hin.
+      destruct params as [| ? params']; first by rewrite //=.
+      simpl in Hin. destruct Hin as [Hleft|Hrec].
+      { inv Hleft. do 3 eexists. split; first by left. eauto. }
+      edestruct (IHl params') as (?&?&?&Hin).
+      rewrite /flatten_ident_variable_list.
+      rewrite /flatten_parameter_list.
+      rewrite ?map_cons.
+      rewrite concat_map.
+      eapply Hrec.
+      do 3 eexists. intuition eauto. right; eauto.
+    }
+    {
+      move: Hin.
+      generalize params.
+      specialize (count_up_ofs_len (Z.to_nat z)).
+      generalize (count_up_ofs (Z.to_nat z)).
+      induction (Z.to_nat z) => lofs Hlen params' Hin.
+      { simpl in Hin.
+        edestruct (IHl params') as (?&?&?&Hin').
+        { rewrite /flatten_ident_variable_list.
+          rewrite /flatten_parameter_list.
+          rewrite ?map_cons.
+          rewrite concat_map.
+          eapply Hin. }
+        do 3 eexists; intuition eauto. right; eauto.
+      }
+      destruct params' as [| ? params'].
+      { rewrite //= in Hin.
+        rewrite combine_nil in Hin.
+        inv Hin.
+      }
+      simpl in Hin.
+      destruct lofs.
+      { inversion Hlen. }
+      simpl in Hin. destruct Hin as [Hleft|Hrec].
+      { inv Hleft. do 3 eexists. split; first by left. eauto. }
+      eapply IHn; last eauto.
+      simpl in Hlen. inv Hlen; auto.
+    }
+  }
+Qed.
+
 Lemma set_global_params_match_param_mem_some pm1 pm2:
   set_global_params (pr_parameters_ids prog)
     (flatten_parameter_list (pr_parameters_vars prog)) (map R2val params) empty pm1 ->
@@ -1241,27 +1355,10 @@ Proof.
     erewrite reserve_global_param_get in Hget_pm1'; eauto.
     rewrite gempty in Hget_pm1'. congruence. }
   {
-    destruct Hright as (fl2&b&ofs'&Hin1&Hin2&Hcomb&Hofs).
-    rewrite pr_parameters_vars_found_parameters in Hin1 Hin2.
-    assert (∃ v oe, In (id, v, oe) found_parameters) as (v&oe&Hinv).
-    {
-      apply in_combine_l in Hin1.
-      clear -Hin1. 
-      rewrite /flatten_parameter_list in Hin1.
-      apply in_concat in Hin1 as (l&Hin1&Hin2).
-      apply list_in_map_inv in Hin1 as (u&Hmap&Hin1).
-      apply list_in_map_inv in Hin1 as (((?&?)&oe)&Hmap'&Hin).
-      subst.
-      exists v, oe.
-      eapply In_parameter_basic_to_list_inv in Hin2 as (?&?); subst; eauto.
-    }
-    exists (unconstrained_to_constrained_fun (vd_constraint v)).
-    exists fl2.
-    split.
-    { admit. }
-    split.
-    { eapply fpmap_spec. eauto. }
-    rewrite /param_unmap in Hcomb.
+    destruct Hright as (fl2&b&ofs'&Hin&Hofs).
+    edestruct (in_flatten_5tuple) as (r&v&oe&Hin1&Hfl1&Hfl2); eauto.
+    exploit (fpmap_spec); eauto. intros Hfpmap.
+    do 2 eexists; split; [| split]; eauto.
 Admitted.
 
 Lemma initial_states_match_param_some f1 f2 fn1 fn2 t1 t2 K1 K2 e1 e2 m1 m2 pm1 pm2:
