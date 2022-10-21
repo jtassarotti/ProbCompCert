@@ -129,13 +129,42 @@ Definition transf_fundef (pmap: AST.ident -> option _) (correction: expr) (fd: S
 Definition transf_variable (_: AST.ident) (v: Stanlight.variable): Errors.res Stanlight.variable :=
   Errors.OK (mkvariable (v.(vd_type)) (Cidentity)).
 
+(* TODO: the use of this should be removed and basics should be omitted from pr_parameters_vars in syntax *)
+Definition valid_equiv_param_type (b1 b2 : basic) :=
+  match b1, b2 with
+  | Breal, Breal => true
+  | Barray Breal z1, Barray Breal z2 =>
+      if Z.eq_dec z1 z2 then true else false
+  | _, _ => false
+  end.
+
+Lemma valid_equiv_param_type_spec b1 b2 :
+  valid_equiv_param_type b1 b2 = true ->
+  b1 = b2.
+Proof.
+  destruct b1, b2;
+    try (simpl; inversion 1; fail); auto;
+    try (simpl; destruct b1; inversion 1; fail); auto.
+  simpl. destruct b1, b2; try (inversion 1; fail).
+  destruct (Z.eq_dec).
+  { intros; subst; auto. }
+  { inversion 1. }
+Qed.
+  
+
 Fixpoint find_parameter {A} (defs: list (AST.ident * AST.globdef fundef variable)) (entry: AST.ident * basic * A) {struct defs}: Errors.res (AST.ident * variable * A) :=
-  let '(param, _, a) := entry in
+  let '(param, b, a) := entry in
   match defs with
   | nil => Errors.Error (Errors.msg "Reparameterization: parameter missing from list of global definitions")
   | (id,def) :: defs =>
     match def with
-    | AST.Gvar v => if positive_eq_dec id param then Errors.OK (param,v.(AST.gvar_info), a) else find_parameter defs entry
+    | AST.Gvar v =>
+        if positive_eq_dec id param then
+          if valid_equiv_param_type (vd_type (AST.gvar_info v)) b then
+               Errors.OK (param,v.(AST.gvar_info), a)
+          else
+            Errors.Error (Errors.msg "Reparameterization: parameter type inconsistent")
+        else find_parameter defs entry
     | AST.Gfun _ => find_parameter defs entry
     end
   end.

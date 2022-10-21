@@ -187,12 +187,13 @@ Qed.
 
 Lemma find_parameter_ident_match {A} l i' b (e' : A) i v e :
   find_parameter l (i', b, e') = OK (i, v, e) ->
-  i' = i /\ e' = e.
+  i' = i /\ e' = e /\ b = vd_type v.
 Proof.
   induction l as [| (?&?) l] => //=.
   - destruct g; eauto.
     destruct (Pos.eq_dec _ _); subst; eauto.
-    inversion 1; eauto.
+    destruct (valid_equiv_param_type _ _) eqn:Heq; inversion 1.
+    exploit valid_equiv_param_type_spec; eauto.
 Qed.
 
 Lemma find_parameter_lookup_def_ident_gen (a : AST.ident * basic * option (expr -> expr)) i v e :
@@ -208,9 +209,10 @@ Proof.
     destruct x as (id&def). destruct def.
     * rewrite andb_false_r; eauto.
     * destruct (Pos.eq_dec id i0).
-      ** inversion 1; subst. rewrite //=. destruct (Pos.eq_dec i i) => /=; by eauto.
+      ** destruct (valid_equiv_param_type _ _); inversion 1; subst.
+         rewrite //=. destruct (Pos.eq_dec i i) => /=; by eauto.
       ** intros Hfind.
-         exploit (find_parameter_ident_match l i0 b o); eauto. intros (->&->). subst.
+         exploit (find_parameter_ident_match l i0 b o); eauto. intros (->&->&?). subst.
          destruct (Pos.eq_dec i id).
          { congruence. }
          rewrite //=. eapply IHl. eauto.
@@ -303,6 +305,38 @@ Proof.
     rewrite map_repeat //=.
 Qed.
 
+Lemma parameters_ids_preserved :
+  pr_parameters_ids tprog = pr_parameters_ids prog.
+Proof.
+  unfold pr_parameters_ids.
+  destruct TRANSL as (x&Hnone&Heqx&Hmatch&Heq).
+  rewrite Heq.
+  clear Heq.
+  revert x Heqx.
+  remember (pr_parameters_vars prog) as prs eqn:Heqprs.
+  assert (∀ x, In x prs -> In x (pr_parameters_vars prog)) as Hsub.
+  { subst. eauto. }
+  clear Heqprs Hnone.
+  induction prs as [| a l].
+  - intros x Heq. inversion Heq. subst. rewrite //=.
+  - intros x Heqx.
+    destruct x as [| a' x'].
+    { symmetry in Heqx. inversion Heqx.
+      apply bind_inversion in H0 as (((?&?)&?)&Hfind&Hbind).
+      apply bind_inversion in Hbind as (?&Hfind'&Hbind').
+      inversion Hbind'. }
+    symmetry in Heqx. inversion Heqx.
+    apply bind_inversion in H0 as (((?&?)&?)&Hfind&Hbind).
+    apply bind_inversion in Hbind as (?&Hfind'&Hbind').
+    inversion Hbind'; subst.
+    rewrite //=.
+    f_equal; last first.
+    { eapply IHl; eauto. intros. intuition. }
+    destruct a as ((?&?)&?).
+    exploit (@find_parameter_ident_match (option (expr -> expr))); eauto. simpl. intros (?&?); subst.
+    auto.
+Qed.
+
 Lemma flatten_parameter_constraints_tprog :
   flatten_parameter_constraints tprog =
     map (λ x, Cidentity) (flatten_parameter_constraints prog).
@@ -310,6 +344,39 @@ Proof.
   rewrite /flatten_parameter_constraints. rewrite flatten_parameter_variables_tprog.
   rewrite ?map_map.
   eapply map_ext. intros ((?&?)&?) => //.
+Qed.
+
+Lemma flatten_parameter_list_tprog :
+  (flatten_parameter_list tprog.(pr_parameters_vars)) =
+    (flatten_parameter_list prog.(pr_parameters_vars)).
+Proof.
+  rewrite /flatten_parameter_list. f_equal.
+  destruct TRANSL as (x&Hnone&Heqx&Hmatch&Heq).
+  rewrite Heq.
+  clear Heq.
+  revert x Heqx.
+  remember (pr_parameters_vars prog) as prs eqn:Heqprs.
+  assert (∀ x, In x prs -> In x (pr_parameters_vars prog)) as Hsub.
+  { subst. eauto. }
+  clear Heqprs Hnone.
+  induction prs as [| a l].
+  - intros x Heq. inversion Heq. subst. rewrite //=.
+  - intros x Heqx.
+    destruct x as [| a' x'].
+    { symmetry in Heqx. inversion Heqx.
+      apply bind_inversion in H0 as (((?&?)&?)&Hfind&Hbind).
+      apply bind_inversion in Hbind as (?&Hfind'&Hbind').
+      inversion Hbind'. }
+    symmetry in Heqx. inversion Heqx.
+    apply bind_inversion in H0 as (((?&?)&?)&Hfind&Hbind).
+    apply bind_inversion in Hbind as (?&Hfind'&Hbind').
+    inversion Hbind'; subst.
+    rewrite //=.
+    f_equal; last first.
+    { eapply IHl; eauto. intros. intuition. }
+    destruct a as ((?&?)&?).
+    exploit (@find_parameter_ident_match (option (expr -> expr))); eauto. simpl. intros (?&?&?); subst.
+    eauto.
 Qed.
 
 Lemma param_unmap_map :
@@ -908,6 +975,155 @@ Definition wf_param_mem pm :=
 Definition valid_env (en : env) :=
   forall id, Maps.PTree.get id en <> None -> fpmap id = None.
 
+Lemma assign_global_params_some_in_flat1 flat_ids pm1 vs pm2 :
+  assign_global_params flat_ids pm1 vs pm2 ->
+  ∀ id ofs fl, ParamMap.get pm2 id ofs = Some fl ->
+               (ParamMap.get pm1 id ofs = Some fl) ∨
+               (∃ b ofs', In (id, b, ofs') flat_ids /\ Integers.Ptrofs.intval ofs' = ofs).
+Proof.
+  induction 1.
+  - intuition.
+  - intros id' ofs' fl' Hget.
+    edestruct IHassign_global_params as [Hleft|Hright]; eauto.
+    { subst.
+      destruct (Pos.eq_dec id id'); subst.
+      { destruct (Z.eq_dec (Integers.Ptrofs.intval ofs) ofs'); subst.
+        { right. do 2 eexists; split; eauto.
+          left; eauto. }
+        { rewrite ParamMap.gso in Hleft; last by (right; congruence).
+          eauto. }
+      }
+      rewrite ParamMap.gso in Hleft; auto.
+    }
+    right. clear -Hright. destruct Hright as (?&?&?&?).
+    do 2 eexists; split; eauto. right. eauto.
+Qed.
+
+Lemma assign_global_params_some_in_combine flat_ids pm1 vs pm2 :
+  assign_global_params flat_ids pm1 vs pm2 ->
+  ∀ id ofs fl, ParamMap.get pm2 id ofs = Some fl ->
+               (ParamMap.get pm1 id ofs = Some fl) ∨
+                 (∃ b ofs', In ((id, b, ofs'), (Values.Vfloat fl)) (List.combine flat_ids vs) /\
+                              Integers.Ptrofs.intval ofs' = ofs).
+Proof.
+  induction 1.
+  - intuition.
+  - intros id' ofs' fl' Hget.
+    edestruct IHassign_global_params as [Hleft|Hright]; eauto.
+    { subst.
+      destruct (Pos.eq_dec id id'); subst.
+      { destruct (Z.eq_dec (Integers.Ptrofs.intval ofs) ofs'); subst.
+        { right. do 2 eexists; split; eauto.
+          rewrite ParamMap.gss in Hleft. inv Hleft. left; eauto. }
+        { rewrite ParamMap.gso in Hleft; last by (right; congruence).
+          eauto. }
+      }
+      rewrite ParamMap.gso in Hleft; auto.
+    }
+    right. clear -Hright. destruct Hright as (?&?&?&?).
+    do 2 eexists; split; eauto. right. eauto.
+Qed.
+
+Lemma assign_global_params2_is_id_alloc flat_ids vs1 vs2 pm1 pm1' pm2 pm2' :
+  assign_global_params flat_ids pm1 vs1 pm1' ->
+  assign_global_params flat_ids pm2 vs2 pm2' ->
+  (∀ id, ParamMap.is_id_alloc pm1 id = ParamMap.is_id_alloc pm2 id) ->
+  ∀ id, ParamMap.is_id_alloc pm1' id = ParamMap.is_id_alloc pm2' id.
+Proof.
+  intros Hassign.
+  revert vs2 pm2 pm2'.
+  induction Hassign => vs2 pm2 pm2'.
+  { intros Hassign2. inv Hassign2. eauto. }
+  { intros Hassign2 Hmatch.
+    inv Hassign2.
+    eapply IHHassign.
+    { eauto. }
+    intros id'.
+    destruct (Pos.eq_dec id id'); subst.
+    { rewrite !is_id_set_same //. }
+    { rewrite !is_id_set_other //; try congruence. }
+  }
+Qed.
+
+Lemma assign_global_params2_some_in_combine flat_ids vs1 vs2 pm1 pm1' pm2 pm2' :
+  assign_global_params flat_ids pm1 vs1 pm1' ->
+  assign_global_params flat_ids pm2 vs2 pm2' ->
+  ∀ id ofs fl1, ParamMap.get pm1' id ofs = Some fl1 ->
+               (ParamMap.get pm1 id ofs = Some fl1) ∨
+                 (∃ fl2 b ofs', In ((id, b, ofs'), (Values.Vfloat fl1)) (List.combine flat_ids vs1) /\
+                                In ((id, b, ofs'), (Values.Vfloat fl2)) (List.combine flat_ids vs2) /\
+                                In ((Values.Vfloat fl1), (Values.Vfloat fl2)) (List.combine vs1 vs2) /\
+                              Integers.Ptrofs.intval ofs' = ofs).
+Proof.
+  intros Hassign.
+  revert vs2 pm2 pm2'.
+  induction Hassign => vs2 pm2 pm2'.
+  - intros Hassign2. inv Hassign2. intros.
+    left. eauto.
+  - intros Hassign2 id' ofs' fl' Hget.
+    inv Hassign2.
+    edestruct IHHassign as [Hget1|Hright].
+    { eapply H8. }
+    { eauto. }
+    { destruct (Pos.eq_dec id id'); subst.
+      { destruct (Z.eq_dec (Integers.Ptrofs.intval ofs) ofs'); subst.
+        { right.
+          rewrite ParamMap.gss in Hget1. inv Hget1.
+          simpl.
+          do 3 eexists; split; eauto.
+        }
+        { rewrite ParamMap.gso in Hget1; last by (right; congruence).
+          eauto. }
+      }
+      rewrite ParamMap.gso in Hget1; auto.
+    }
+    right. clear -Hright. destruct Hright as (?&?&?&?&?&?&?).
+    do 3 eexists; split; simpl; eauto.
+Qed.
+
+Lemma reserve_global_param_get ids pm1 pm2 :
+  reserve_global_params ids pm1 pm2 ->
+  ∀ id ofs, ParamMap.get pm2 id ofs = ParamMap.get pm1 id ofs.
+Proof.
+  induction 1; auto.
+  subst. intros. rewrite IHreserve_global_params gr //.
+Qed.
+
+Lemma reserve_global_params_same pmstart pm1 pm2 :
+  reserve_global_params (pr_parameters_ids prog) pmstart pm1 ->
+  reserve_global_params (pr_parameters_ids tprog) pmstart pm2 ->
+  pm1 = pm2.
+Proof.
+  rewrite parameters_ids_preserved.
+  intros. eapply reserve_global_params_determ; eauto.
+Qed.
+
+Lemma set_global_params_match_param_mem_none vs1 pm1 vs2 pm2:
+  set_global_params (pr_parameters_ids prog) (flatten_parameter_list (pr_parameters_vars prog)) vs1 empty pm1 ->
+  set_global_params (pr_parameters_ids tprog) (flatten_parameter_list (pr_parameters_vars tprog)) vs2 empty pm2 ->
+  match_param_mem_none pm1 pm2.
+Proof.
+  intros (pm1'&Hreserve1&Hassign1).
+  intros (pm2'&Hreserve2&Hassign2).
+  intros id Halloc_false.
+  rewrite -Halloc_false.
+  eapply assign_global_params2_is_id_alloc.
+  { eauto. }
+  { rewrite flatten_parameter_list_tprog. eauto. }
+  intros. cut (pm1' = pm2'); first by congruence.
+  eapply reserve_global_params_same; eauto.
+Qed.
+
+Lemma initial_states_match_param_none  d1 d2 p1 p2 f1 f2 fn1 fn2 t1 t2 K1 K2 e1 e2 m1 m2 pm1 pm2:
+  initial_state prog d1 p1 (State f1 fn1 t1 K1 e1 m1 pm1) ->
+  initial_state tprog d2 p2 (State f2 fn2 t2 K2 e2 m2 pm2) ->
+  match_param_mem_none pm1 pm2.
+Proof.
+  intros Hinit1 Hinit2.
+  inv Hinit1; inv Hinit2.
+  eapply set_global_params_match_param_mem_none; eauto.
+Qed.
+
 Lemma fpmap_cases id fe:
   fpmap id = Some fe ->
   (∃ c, fe = (unconstrained_to_constrained_fun c)).
@@ -979,23 +1195,30 @@ Proof.
 Qed.
 
 Lemma reserve_global_params_wf pm:
-  reserve_global_params prog.(pr_parameters_vars) ParamMap.empty pm ->
+  reserve_global_params (pr_parameters_ids prog) ParamMap.empty pm ->
   wf_param_mem pm.
 Proof.
-  rewrite /wf_param_mem/fpmap.
+  rewrite /wf_param_mem/fpmap/pr_parameters_ids.
   specialize (found_parameters_spec) as Heqn.
   remember (pr_parameters_vars prog) as pvars eqn:Heqvars. clear Heqvars.
-  intros Hassign. revert Heqn.
+  remember (map (λ '(id, _, _), id) pvars) as pids eqn:Heqpids.
+  intros Hassign. revert Heqpids Heqn.
   generalize (found_parameters).
+  generalize pvars. clear pvars.
   induction Hassign.
-  - intros found Heqfound id.
-    { inversion Heqfound; subst. rewrite //=. }
-  - intros found Heqfound id'.
+  - intros pvars found Heqmap Heqfound id.
+    { destruct pvars; last by (simpl in Heqmap; inv Heqmap).
+      inversion Heqfound; subst. rewrite //=. }
+  - intros pvars found Heqmap Heqfound id' His.
+    destruct pvars as [|].
+    { simpl in Heqmap. inv Heqmap. }
+    simpl in Heqmap. inv Heqmap.
     simpl in Heqfound.
     monadInv Heqfound.
     simpl. destruct x as ((?&?)&?).
-    eapply find_parameter_ident_match in EQ as (<-&<-).
-    destruct (Pos.eq_dec id id').
+    destruct p as ((?&?)&?).
+    eapply find_parameter_ident_match in EQ as (<-&<-&?).
+    destruct (Pos.eq_dec i0 id').
     { subst. intros. exfalso.
       exploit reserve_global_preserves_alloc; eauto.
       erewrite reserve_is_alloc; eauto.
@@ -1015,7 +1238,7 @@ Proof.
 Qed.
 
 Lemma set_global_params_wf pm flat vs :
-  set_global_params prog.(pr_parameters_vars) flat vs ParamMap.empty pm ->
+  set_global_params (pr_parameters_ids prog) flat vs ParamMap.empty pm ->
   wf_param_mem pm.
 Proof.
   intros (?&Hres&Hassign).

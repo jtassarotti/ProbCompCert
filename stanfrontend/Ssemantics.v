@@ -315,6 +315,9 @@ Definition data_basic_to_list (ib : ident * basic) : list (ident * basic * Ptrof
   | Bfunction _ _ => (ib, Ptrofs.zero) :: nil
   end.
 
+Definition pr_parameters_ids (p: program) : list ident :=
+  map (λ '(id, _, _), id) (pr_parameters_vars p).
+
 Definition parameter_basic_to_list (ibf : ident * basic * option (expr -> expr)) : list (ident * basic * Ptrofs.int) :=
   data_basic_to_list (fst ibf).
 
@@ -347,13 +350,13 @@ Inductive assign_global_locs (ge: genv) : list (ident * basic * Ptrofs.int) -> m
       assign_global_locs ge bs m2 vs m3 ->
       assign_global_locs ge ((id, ty, ofs) :: bs) m1 (v :: vs) m3.
 
-Inductive reserve_global_params : list (ident * basic * option (expr -> expr)) -> param_mem -> param_mem -> Prop :=
+Inductive reserve_global_params : list ident -> param_mem -> param_mem -> Prop :=
   | reserve_global_params_nil : forall m,
       reserve_global_params nil m m
-  | reserve_global_params_cons : forall m1 m2 m3 id ty fe bs,
+  | reserve_global_params_cons : forall m1 m2 m3 id bs,
       ParamMap.reserve m1 id = m2 ->
       reserve_global_params bs m2 m3 ->
-      reserve_global_params ((id, ty, fe) :: bs) m1 m3.
+      reserve_global_params (id :: bs) m1 m3.
 
 Inductive assign_global_params : list (ident * basic * Ptrofs.int) -> param_mem -> list val -> param_mem -> Prop :=
   | assign_global_params_nil : forall m,
@@ -429,7 +432,7 @@ Inductive initial_state (p: program) (data : list val) (params: list val) : stat
       Genv.find_funct_ptr ge b = Some (Internal f) ->
       alloc_variables empty_env m0 f.(fn_vars) e m1 ->
       assign_global_locs ge (flatten_data_list p.(pr_data_vars)) m1 data m2 ->
-      set_global_params p.(pr_parameters_vars) (flatten_parameter_list p.(pr_parameters_vars))
+      set_global_params (pr_parameters_ids p) (flatten_parameter_list p.(pr_parameters_vars))
                             params ParamMap.empty pm ->
       initial_state p data params (State f f.(fn_body) ((Floats.Float.of_int Integers.Int.zero)) Kstop e m2 pm).
 

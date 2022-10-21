@@ -265,6 +265,12 @@ Proof.
   unfold match_prog in TRANSL. intuition.
 Qed.
 
+Lemma parameters_ids_preserved :
+  pr_parameters_ids tprog = pr_parameters_ids prog.
+Proof.
+  unfold pr_parameters_ids. rewrite parameters_vars_preserved. auto.
+Qed.
+
 Inductive match_cont: cont -> cont -> Prop :=
   | match_Kseq: forall s k k',
       match_cont k k' ->
@@ -344,7 +350,7 @@ Proof.
   generalize (function_ptr_translated b (Ctypes.Internal f) H2); intro TR.
   unfold transf_fundef in TR. eauto.
   eapply assign_global_locs_preserved. rewrite data_vars_preserved; eauto.
-  eapply set_global_params_preserved; rewrite parameters_vars_preserved. eauto.
+  eapply set_global_params_preserved; rewrite parameters_vars_preserved, parameters_ids_preserved. eauto.
   econstructor; eauto.
   econstructor.
 Qed.
