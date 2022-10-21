@@ -262,6 +262,26 @@ Proof.
   induction i => //=. congruence.
 Qed.
 
+Lemma pr_parameters_vars_found_parameters :
+  pr_parameters_vars prog = map (λ '(id, v, fe), (id, vd_type v, fe)) found_parameters. 
+Proof.
+  specialize (found_parameters_spec) => Hmmap.
+  remember (pr_parameters_vars prog) as prs eqn:Heqprs.
+  assert (∀ x, In x prs -> In x (pr_parameters_vars prog)) as Hsub.
+  { subst. eauto. }
+  clear Heqprs.
+  revert Hmmap. generalize found_parameters.
+  induction prs.
+  - rewrite //=. intros fps. inversion 1 => //=.
+  - destruct a as ((?&?)&?). intros fps Hmmap.
+    simpl in Hmmap. monadInv Hmmap.
+    destruct x as ((?&?)&?).
+    simpl. f_equal; eauto; last first.
+    { eapply IHprs; eauto. intros. apply Hsub. by right. }
+    exploit (@find_parameter_ident_match (option (expr -> expr))); eauto. intros (?&?&?); subst.
+    auto.
+Qed.
+
 Lemma flatten_parameter_variables_tprog:
   flatten_parameter_variables tprog = map (λ '(id, vd, f),
                                     (id, mkvariable (vd_type vd) Cidentity,
@@ -975,6 +995,70 @@ Definition wf_param_mem pm :=
 Definition valid_env (en : env) :=
   forall id, Maps.PTree.get id en <> None -> fpmap id = None.
 
+Lemma found_parameters_irrel {A B} id b1 (oe1 : A) b2 (oe2 : B) id1' v1 oe1' id2' v2 oe2' :
+  find_parameter (pr_defs prog) (id, b1, oe1) = OK (id1', v1, oe1') ->
+  find_parameter (pr_defs prog) (id, b2, oe2) = OK (id2', v2, oe2') ->
+  id1' = id2' /\ v1 = v2.
+Proof.
+  induction (pr_defs prog).
+  - rewrite //=.
+  - rewrite //=. destruct a as (?&?).
+    destruct g.
+    { eauto. }
+    destruct (Pos.eq_dec i id); subst.
+    { destruct (valid_equiv_param_type _ _); last by inversion 1.
+      destruct (valid_equiv_param_type _ _); last by inversion 1.
+      intros Heq1 Heq2. inv Heq1. inv Heq2. eauto.
+    }
+    eauto.
+Qed.
+
+Lemma In_found_parameters_inv id v oe :
+  In (id, v, oe) found_parameters ->
+  find_parameter (pr_defs prog) (id, vd_type v, oe) = OK (id, v, oe).
+Proof.
+  specialize (found_parameters_spec).
+  intros Hforall2%mmap_inversion.
+  intros HIn.
+  eapply list_forall2_in_right in Hforall2; eauto.
+  destruct Hforall2 as (((?&?)&?)&Hin&Heq).
+  exploit (find_parameter_ident_match (pr_defs prog) i b o); eauto.
+  intuition congruence.
+Qed.
+
+Lemma found_parameters_dup id v1 v2 oe1 oe2 :
+  In (id, v1, oe1) found_parameters ->
+  In (id, v2, oe2) found_parameters ->
+  v1 = v2.
+Proof.
+  intros Hin1 Hin2.
+  exploit In_found_parameters_inv; first eapply Hin1.
+  exploit In_found_parameters_inv; first eapply Hin2.
+  intros Hfind1 Hfind2.
+  exploit (found_parameters_irrel id (vd_type v1) oe1 (vd_type v2) oe2); eauto.
+  intuition.
+Qed.
+
+Lemma fpmap_spec id v oe :
+  In (id, v, oe) found_parameters ->
+  fpmap id = Some (unconstrained_to_constrained_fun (vd_constraint v)).
+Proof.
+  rewrite /fpmap. specialize (found_parameters_dup).
+  induction (found_parameters) as [|((?&?)&?) l IH] => Hin_spec.
+  - inversion 1.
+  - simpl. intros [Heq|Hin].
+    { inv Heq. destruct (Pos.eq_dec _ _); try congruence. rewrite /unconstrained_to_constrained//. }
+    { 
+      destruct (Pos.eq_dec _ _).
+      { subst. exploit Hin_spec.
+        { left. eauto. }
+        { right. eauto. }
+        intros ->. rewrite //=.
+      }
+      eapply IH; eauto. intros. eapply Hin_spec; by right; eauto.
+    }
+Qed.
+
 Lemma assign_global_params_some_in_flat1 flat_ids pm1 vs pm2 :
   assign_global_params flat_ids pm1 vs pm2 ->
   ∀ id ofs fl, ParamMap.get pm2 id ofs = Some fl ->
@@ -1122,6 +1206,72 @@ Proof.
   intros Hinit1 Hinit2.
   inv Hinit1; inv Hinit2.
   eapply set_global_params_match_param_mem_none; eauto.
+Qed.
+
+
+Lemma In_parameter_basic_to_list_inv id b ofs i b' oe :
+  In (id, b, ofs) (parameter_basic_to_list (i, b', oe)) ->
+  id = i /\ match b' with
+            | Barray bu _ => b = bu
+            | _ => b = b'
+            end.
+Proof.
+  rewrite /parameter_basic_to_list/data_basic_to_list/=.
+  destruct b'; try (inversion 1; subst; intuition; eauto; congruence).
+  intros Hin. apply in_combine_l in Hin. apply repeat_spec in Hin. inv Hin; eauto.
+Qed.
+
+Lemma set_global_params_match_param_mem_some pm1 pm2:
+  set_global_params (pr_parameters_ids prog)
+    (flatten_parameter_list (pr_parameters_vars prog)) (map R2val params) empty pm1 ->
+  set_global_params (pr_parameters_ids tprog)
+    (flatten_parameter_list (pr_parameters_vars tprog)) (map R2val (param_unmap params)) empty pm2 ->
+  match_param_mem_some pm1 pm2.
+Proof.
+  intros Hset1 Hset2.
+  destruct Hset1 as (pm1'&Hres1&Hassign1).
+  destruct Hset2 as (pm2'&Hres2&Hassign2).
+  intros id ofs fl1 Hget.
+  exploit assign_global_params2_some_in_combine.
+  { eapply Hassign1. }
+  { rewrite -flatten_parameter_list_tprog. eapply Hassign2. }
+  { eauto. }
+  intros [Hget_pm1'| Hright].
+  { exfalso. 
+    erewrite reserve_global_param_get in Hget_pm1'; eauto.
+    rewrite gempty in Hget_pm1'. congruence. }
+  {
+    destruct Hright as (fl2&b&ofs'&Hin1&Hin2&Hcomb&Hofs).
+    rewrite pr_parameters_vars_found_parameters in Hin1 Hin2.
+    assert (∃ v oe, In (id, v, oe) found_parameters) as (v&oe&Hinv).
+    {
+      apply in_combine_l in Hin1.
+      clear -Hin1. 
+      rewrite /flatten_parameter_list in Hin1.
+      apply in_concat in Hin1 as (l&Hin1&Hin2).
+      apply list_in_map_inv in Hin1 as (u&Hmap&Hin1).
+      apply list_in_map_inv in Hin1 as (((?&?)&oe)&Hmap'&Hin).
+      subst.
+      exists v, oe.
+      eapply In_parameter_basic_to_list_inv in Hin2 as (?&?); subst; eauto.
+    }
+    exists (unconstrained_to_constrained_fun (vd_constraint v)).
+    exists fl2.
+    split.
+    { admit. }
+    split.
+    { eapply fpmap_spec. eauto. }
+    rewrite /param_unmap in Hcomb.
+Admitted.
+
+Lemma initial_states_match_param_some f1 f2 fn1 fn2 t1 t2 K1 K2 e1 e2 m1 m2 pm1 pm2:
+  initial_state prog data (map R2val params) (State f1 fn1 t1 K1 e1 m1 pm1) ->
+  initial_state tprog data (map R2val (param_unmap params)) (State f2 fn2 t2 K2 e2 m2 pm2) ->
+  match_param_mem_some pm1 pm2.
+Proof.
+  intros Hinit1 Hinit2.
+  inv Hinit1; inv Hinit2.
+  eapply set_global_params_match_param_mem_some; eauto.
 Qed.
 
 Lemma fpmap_cases id fe:
