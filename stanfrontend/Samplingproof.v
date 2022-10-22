@@ -279,9 +279,14 @@ Inductive match_cont: cont -> cont -> Prop :=
       match_cont Kstop Kstop.
 
 Inductive match_states: state -> state -> Prop :=
+  | match_start_states: forall f s t k k' e m pm
+      (MCONT: match_cont k k'),
+      match_states (Start f s t k e m pm) (Start (transf_function f) (transf_statement s) t k' e m pm)
   | match_regular_states: forall f s t k k' e m pm
       (MCONT: match_cont k k'),
-      match_states (State f s t k e m pm) (State (transf_function f) (transf_statement s) t k' e m pm).
+      match_states (State f s t k e m pm) (State (transf_function f) (transf_statement s) t k' e m pm)
+  | match_return_states: forall f t e m pm,
+      match_states (Return f t e m pm) (Return (transf_function f) t e m pm).
 
 Lemma step_simulation:
   forall S1 t S2, step ge S1 t S2 ->
@@ -289,6 +294,17 @@ Lemma step_simulation:
   exists S2', step tge S1' t S2' /\ match_states S2 S2'.
 Proof.
   induction 1; intros S1' MS; inversion MS; simpl in *; subst.
+  - (* Start *)
+  exists (State (transf_function f) (transf_statement s) t k' e m pm).
+  split.
+  econstructor.
+  econstructor; eauto.
+  - (* Return *)
+  inv MCONT.
+  exists (Return (transf_function f) t e m pm).
+  split.
+  econstructor.
+  econstructor; eauto.
   - (* Skip *)
   inversion MCONT; subst.
   exists (State (transf_function f) (transf_statement s) t k'0 e m pm).
@@ -341,7 +357,7 @@ Lemma transf_initial_states:
   exists S2, initial_state tprog data params S2 /\ match_states S1 S2.
 Proof.
   intros. inversion H.
-  exists (State (transf_function f) (transf_statement (fn_body f)) (Floats.Float.of_int Integers.Int.zero) Kstop e m2 pm).
+  exists (Start (transf_function f) (transf_statement (fn_body f)) (Floats.Float.of_int Integers.Int.zero) Kstop e m2 pm).
   split.
   econstructor; eauto.
   destruct TRANSL as (TRANSL'&_).
@@ -358,14 +374,9 @@ Qed.
 Lemma transf_final_states:
   forall S1 S2 t r, match_states S1 S2 -> final_state t S1 r -> final_state t S2 r.
 Proof.
-  intros.
-  inversion H. inversion H0. subst. inversion H4; subst.
-  inversion MCONT; subst.
-  simpl.
-  econstructor; eauto.
-  subst.
-  inversion H4. subst.
-  inversion H. subst. inversion MCONT0. subst. constructor. auto.
+  intros S1 S2 t r Hmatch Hfinal. inv Hfinal; inv Hmatch.
+  { econstructor. auto. }
+  { econstructor. auto. }
 Qed.
 
 Theorem transf_program_correct t:

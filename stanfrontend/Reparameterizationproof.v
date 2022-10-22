@@ -1317,8 +1317,8 @@ Proof.
 Qed.
 
 Lemma initial_states_match_param_none  d1 d2 p1 p2 f1 f2 fn1 fn2 t1 t2 K1 K2 e1 e2 m1 m2 pm1 pm2:
-  initial_state prog d1 p1 (State f1 fn1 t1 K1 e1 m1 pm1) ->
-  initial_state tprog d2 p2 (State f2 fn2 t2 K2 e2 m2 pm2) ->
+  initial_state prog d1 p1 (Start f1 fn1 t1 K1 e1 m1 pm1) ->
+  initial_state tprog d2 p2 (Start f2 fn2 t2 K2 e2 m2 pm2) ->
   match_param_mem_none pm1 pm2.
 Proof.
   intros Hinit1 Hinit2.
@@ -1514,8 +1514,8 @@ Proof.
 Qed.
 
 Lemma initial_states_match_param_some f1 f2 fn1 fn2 t1 t2 K1 K2 e1 e2 m1 m2 pm1 pm2:
-  initial_state prog data (map R2val params) (State f1 fn1 t1 K1 e1 m1 pm1) ->
-  initial_state tprog data (map R2val (param_unmap params)) (State f2 fn2 t2 K2 e2 m2 pm2) ->
+  initial_state prog data (map R2val params) (Start f1 fn1 t1 K1 e1 m1 pm1) ->
+  initial_state tprog data (map R2val (param_unmap params)) (Start f2 fn2 t2 K2 e2 m2 pm2) ->
   match_param_mem_some pm1 pm2.
 Proof.
   intros Hinit1 Hinit2.
@@ -1646,7 +1646,7 @@ Proof.
 Qed.
 
 Lemma wf_param_mem_init d f fn t K e m pm:
-  initial_state prog d (map R2val params) (State f fn t K e m pm) ->
+  initial_state prog d (map R2val params) (Start f fn t K e m pm) ->
   wf_param_mem pm.
 Proof.
   intros Hinit. inv Hinit.

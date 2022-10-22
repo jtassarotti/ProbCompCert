@@ -237,12 +237,34 @@ Inductive state: Type :=
       (e: env)
       (m: mem)
       (pm: param_mem)
+  | Start
+      (f: function)
+      (s: statement)
+      (t: float)
+      (k: cont)
+      (e: env)
+      (m: mem)
+      (pm: param_mem)
+  | Return
+      (f: function)
+      (t: float)
+      (e: env)
+      (m: mem)
+      (pm: param_mem)
     : state.
 
 Definition var_names (vars: list(ident * basic)) : list ident :=
   List.map (@fst ident basic) vars.
 
 Inductive step: state -> trace -> state -> Prop :=
+  | step_start : forall f s t k e m pm,
+      step (Start f s t k e m pm)
+        E0 (State f s t k e m pm)
+
+  | step_return : forall f t e m pm,
+      step (State f Sskip t Kstop e m pm)
+        E0 (Return f t e m pm)
+
   | step_skip_seq: forall f t s k e m pm,
       step (State f Sskip t (Kseq s k) e m pm)
         E0 (State f s t k e m pm)
@@ -434,7 +456,7 @@ Inductive initial_state (p: program) (data : list val) (params: list val) : stat
       assign_global_locs ge (flatten_data_list p.(pr_data_vars)) m1 data m2 ->
       set_global_params (pr_parameters_ids p) (flatten_parameter_list p.(pr_parameters_vars))
                             params ParamMap.empty pm ->
-      initial_state p data params (State f f.(fn_body) ((Floats.Float.of_int Integers.Int.zero)) Kstop e m2 pm).
+      initial_state p data params (Start f f.(fn_body) ((Floats.Float.of_int Integers.Int.zero)) Kstop e m2 pm).
 
 
 (* A final state returns 0 if the target matches testval and 1 otherwise,
@@ -444,10 +466,10 @@ Inductive initial_state (p: program) (data : list val) (params: list val) : stat
 Inductive final_state (testval: float) : state -> int -> Prop :=
   | final_state_match: forall f t e m pm,
       testval = t ->
-      final_state testval (State f Sskip t Kstop e m pm) Integers.Int.zero
+      final_state testval (Return f t e m pm) Integers.Int.zero
   | final_state_nonmatch: forall f t e m pm,
       testval <> t ->
-      final_state testval (State f Sskip t Kstop e m pm) Integers.Int.one.
+      final_state testval (Return f t e m pm) Integers.Int.one.
 
 End SEMANTICS.
 
