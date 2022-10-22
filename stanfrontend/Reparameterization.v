@@ -24,7 +24,7 @@ Fixpoint transf_expr (pmap: AST.ident -> option (expr -> expr)) (e: Stanlight.ex
   match e with
   | Evar id ty =>
       match pmap id with
-      | Some fe => 
+      | Some fe =>
           match ty with
           | Breal => Errors.OK (fe (Evar id Breal))
           | _ =>  Errors.Error (Errors.msg "Reparameterization: parameter loaded with non real type")
@@ -56,7 +56,7 @@ Fixpoint transf_expr (pmap: AST.ident -> option (expr -> expr)) (e: Stanlight.ex
         end
     | _ => Errors.OK (Eindexed e el ty)
     end
-  | Ecast e ty => 
+  | Ecast e ty =>
       do e <- transf_expr pmap e;
       Errors.OK (Ecast e ty)
   | Econst_int a b => Errors.OK (Econst_int a b)
@@ -100,10 +100,7 @@ Fixpoint transf_statement (pmap: AST.ident -> option (expr -> expr))
     do e <- transf_expr pmap e;
     Errors.OK (Starget e)
   | Stilde e d el =>
-    do e <- transf_expr pmap e;
-    do el <- transf_exprlist pmap el;
-    do d <- transf_expr pmap d;
-    Errors.OK (Stilde e d el)
+    Errors.Error (Errors.msg "Reparamterization: detected Stilde, but should have been removed in Sampling")
   end.
 
 Definition check_non_param (pmap: AST.ident -> option (expr -> expr)) (v: AST.ident * basic) : Errors.res unit :=
@@ -163,7 +160,7 @@ Proof.
   { intros; subst; auto. }
   { inversion 1. }
 Qed.
-  
+
 
 Fixpoint find_parameter {A} (defs: list (AST.ident * AST.globdef fundef variable)) (entry: AST.ident * basic * A) {struct defs}: Errors.res (AST.ident * variable * A) :=
   let '(param, b, a) := entry in
@@ -216,31 +213,42 @@ Fixpoint u_to_c_rewrite_map {A} (parameters: list (AST.ident * variable * A)) {s
         if positive_eq_dec id param then (unconstrained_to_constrained v) else (inner_map param)
   end.
 
-Definition change_of_variable_correction (i: AST.ident) (v: variable): option expr :=
-  let typ := v.(vd_type) in
-  let constraint := v.(vd_constraint) in
-  match typ with
-  | Breal =>
-    match constraint with
+Definition change_of_variable_correction_fun (c: constraint) : option (expr -> expr) :=
+    match c with
     | Cidentity => None
     | Clower_upper a b =>
-      let a := Econst_float a Breal in
-      let b := Econst_float b Breal in
-      let one := Econst_float (Floats.Float.of_int Integers.Int.one) Breal in
-      let call := Ecall (Evar $"expit" (Bfunction (Bcons Breal Bnil) Breal)) (Econs (Evar i typ) Enil) Breal in
-      let pre_log := (Ebinop (Ebinop b Minus a Breal) Times (Ebinop call Times (Ebinop one Minus call Breal) Breal) Breal) in
-      Some (Ecall (Evar $"log" (Bfunction (Bcons Breal Bnil) Breal)) (Econs pre_log Enil) Breal)
+        Some (
+            fun x =>
+              let a := Econst_float a Breal in
+              let b := Econst_float b Breal in
+              let one := Econst_float (Floats.Float.of_int Integers.Int.one) Breal in
+              let call := Ecall (Evar $"expit" (Bfunction (Bcons Breal Bnil) Breal)) (Econs x Enil) Breal in
+              let pre_log := (Ebinop (Ebinop b Minus a Breal) Times
+                                (Ebinop call Times (Ebinop one Minus call Breal) Breal) Breal) in
+              Ecall (Evar $"log" (Bfunction (Bcons Breal Bnil) Breal)) (Econs pre_log Enil) Breal)
     | Clower a =>
-      Some (Evar i typ)
+      Some (fun x => x)
     | Cupper b =>
-      Some (Ebinop (Econst_float Floats.Float.zero Breal) Minus (Evar i typ) Breal)
-    end
-  | Barray Breal _ =>
-    match constraint with
-    | Cidentity => None
-    | _ => None
-    end
-  | _ => None
+      Some (fun x => Ebinop (Econst_float Floats.Float.zero Breal) Minus x Breal)
+    end.
+
+Definition change_of_variable_correction (i: AST.ident) (v: variable): option expr :=
+  let typ := v.(vd_type) in
+  let c := v.(vd_constraint) in
+  let ofe := change_of_variable_correction_fun c in
+  match ofe with
+  | None => None
+  | Some fe =>
+      match typ with
+      | Breal => Some (fe (Evar i typ))
+      (* TODO: we should probably emit loops to handle large arrays rather than unrolling like this *)
+      | Barray Breal sz =>
+          Some (fold_left (fun e ofs => Ebinop e Plus (fe (Eindexed (Evar i typ)
+                                                          (Econs (Econst_int ofs Bint) Enil) Breal)) Breal)
+                  (count_up_int (Z.to_nat sz))
+                  (Econst_float Floats.Float.zero Breal))
+      | _ => None
+      end
   end.
 
 Fixpoint collect_corrections {A} (parameters: list (AST.ident * variable * A)) {struct parameters}: expr :=

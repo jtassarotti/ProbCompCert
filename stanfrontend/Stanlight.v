@@ -94,3 +94,18 @@ Definition globalenv (p: program) :=
    Genv.add_globals (Genv.empty_genv fundef variable nil) p.(prog_defs).
 
 
+Fixpoint count_down_ofs (n: nat) :=
+  match n with
+  | O => nil
+  | S n' => (Ptrofs.repr (Z.of_nat n')) :: count_down_ofs n'
+  end.
+
+Definition count_up_ofs (n: nat) := rev (count_down_ofs n).
+
+Fixpoint count_down_int (n: nat) : list Integers.Int.int :=
+  match n with
+  | O => nil
+  | S n' => (Int.repr (Z.of_nat n')) :: count_down_int n'
+  end.
+
+Definition count_up_int (n: nat) := rev (count_down_int n).

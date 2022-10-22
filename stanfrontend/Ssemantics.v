@@ -321,14 +321,6 @@ Definition data_signature (p : program) : Type :=
 Definition parameters_signature (p : program) : Type :=
   type_of_basic_list (map (fun '(_, b, _) => b) (pr_parameters_vars p)).
 
-Fixpoint count_down_ofs (n: nat) :=
-  match n with
-  | O => nil
-  | S n' => (Ptrofs.repr (Z.of_nat n')) :: count_down_ofs n'
-  end.
-
-Definition count_up_ofs (n: nat) := rev (count_down_ofs n).
-
 Definition data_basic_to_list (ib : ident * basic) : list (ident * basic * Ptrofs.int) :=
   match snd ib with
   | Bint => (ib, Ptrofs.zero) :: nil

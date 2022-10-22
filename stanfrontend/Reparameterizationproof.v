@@ -159,7 +159,7 @@ Variable tprog: Stanlight.program.
 Variable TRANSL: match_prog prog tprog.
 
 Variable prog_genv_has_mathlib :
-  genv_has_mathlib (globalenv prog). 
+  genv_has_mathlib (globalenv prog).
 
 (* This is really round about and ugly, maybe I should have just made "parameters" an index of
    match_prog? But I don't know if that's compatible with the linker machinery *)
@@ -760,7 +760,7 @@ Proof.
 Qed.
 
 Lemma tprog_genv_has_mathlib :
-  genv_has_mathlib (globalenv tprog). 
+  genv_has_mathlib (globalenv tprog).
 Proof.
   move: prog_genv_has_mathlib.
   rewrite /genv_has_mathlib.
@@ -1076,6 +1076,22 @@ Proof.
     }
 Qed.
 
+Lemma assign_loc_preserved ty m blk ofs v m2 :
+  assign_loc ge ty m blk ofs v m2 ->
+  assign_loc tge ty m blk ofs v m2.
+Proof.
+  inversion 1. econstructor; eauto.
+Qed.
+
+Lemma assign_global_locs_preserved bs m1 vs m2 :
+  assign_global_locs ge bs m1 vs m2 ->
+  assign_global_locs tge bs m1 vs m2.
+Proof.
+  induction 1; econstructor; eauto.
+  - rewrite symbols_preserved; eauto.
+  - inversion H0; eapply assign_loc_value; eauto.
+Qed.
+
 Lemma assign_global_params_is_id_alloc_in_flat1 flat_ids pm1 vs pm2 :
   assign_global_params flat_ids pm1 vs pm2 ->
   ∀ id, ParamMap.is_id_alloc pm2 id  = true ->
@@ -1283,7 +1299,7 @@ Proof.
   assert (In x (pr_parameters_ids prog)).
   {
     destruct Hcases as [Hpm'|Hin'].
-    { 
+    {
       exploit reserve_global_params_is_id_alloc_true; eauto.
       rewrite is_id_empty.
       intros [Hemp|Hshadow]; first congruence.
@@ -1409,7 +1425,7 @@ Proof.
       simpl in Hin. destruct Hin as [Hleft|Hrec].
       { inv Hleft. do 3 eexists. split; first by left. simpl in Hin_rect. inv Hin_rect; eauto. }
       edestruct (IHl params') as (?&?&?&Hin).
-      { 
+      {
         rewrite /flatten_ident_variable_list.
         rewrite /flatten_parameter_list.
         rewrite ?map_cons.
@@ -1755,6 +1771,198 @@ Proof.
   { simpl. try econstructor; eauto.
     destruct Hmatch as (_&Hmatch). eapply Hmatch; auto. }
 Qed.
+
+Definition valid_env_full en := valid_env en /\ env_no_shadow_mathlib en.
+Definition match_param_mem_full pm0 pm1 :=
+  match_param_mem pm0 pm1 /\
+  wf_param_mem pm0.
+
+Lemma eval_expr_preserved:
+  forall en m pm0 pm1 t e e' v,
+  valid_env_full en ->
+  match_param_mem_full pm0 pm1 ->
+  transf_expr fpmap e = OK e' ->
+  eval_expr ge en m pm0 t e v ->
+  eval_expr tge en m pm1 t e' v.
+Proof.
+  rewrite /valid_env_full/match_param_mem_full.
+  intros.
+  eapply evaluation_preserved; intuition eauto.
+Qed.
+
+Lemma eval_lvalue_preserved:
+  forall en m pm0 pm1 t e loc ofs s,
+  valid_env_full en ->
+  match_param_mem_full pm0 pm1 ->
+  eval_lvalue ge en m pm0 t e loc ofs s ->
+  match e with
+  | Eindexed e el ty =>
+      forall el', transf_exprlist fpmap el = OK el' ->
+                  eval_lvalue tge en m pm1 t (Eindexed e el' ty)
+                  loc ofs s
+  | _ => eval_lvalue tge en m pm1 t e loc ofs s
+  end.
+Proof.
+  rewrite /valid_env_full/match_param_mem_full.
+  intros.
+  eapply evaluation_preserved; intuition eauto.
+Qed.
+
+Lemma eval_plvalue_preserved:
+  forall en m pm0 pm1 t e loc ofs,
+  valid_env_full en ->
+  match_param_mem_full pm0 pm1 ->
+  eval_plvalue ge en m pm0 t e loc ofs ->
+  match e with
+  | Eindexed e el ty =>
+      forall el', transf_exprlist fpmap el = OK el' ->
+                  eval_plvalue tge en m pm1 t (Eindexed e el' ty)
+                  loc ofs
+  | _ => eval_plvalue tge en m pm1 t e loc ofs
+  end.
+Proof.
+  rewrite /valid_env_full/match_param_mem_full.
+  intros.
+  eapply evaluation_preserved; intuition eauto.
+Qed.
+
+Lemma eval_exprlist_preserved:
+  forall en m pm0 pm1 t el el' v,
+  valid_env_full en ->
+  match_param_mem_full pm0 pm1 ->
+  transf_exprlist fpmap el = OK el' ->
+  eval_exprlist ge en m pm0 t el v ->
+  eval_exprlist tge en m pm1 t el' v.
+Proof.
+  rewrite /valid_env_full/match_param_mem_full.
+  intros.
+  eapply evaluation_preserved; intuition eauto.
+Qed.
+
+Inductive match_cont: cont -> cont -> Prop :=
+  | match_Kseq: forall s s' k k'
+      (TRS: transf_statement fpmap s = OK s')
+      (MCONT: match_cont k k'),
+      match_cont (Kseq s k) (Kseq s' k')
+  | match_Kstop:
+      match_cont Kstop (Kseq (Starget fcorrection) Kstop).
+
+Inductive match_states: state -> state -> Prop :=
+  | match_start_states: forall f f' s s' t e m pm pm'
+      (TRF: transf_function fpmap fcorrection f = OK f')
+      (TRS: transf_statement fpmap s = OK s')
+      (VE: valid_env_full e)
+      (MPM: match_param_mem_full pm pm'),
+      match_states (Start f s t Kstop e m pm)
+                   (Start f' (Ssequence s' (Starget fcorrection)) t Kstop e m pm')
+  | match_regular_states: forall f f' s s' t k k' e m pm pm'
+      (TRF: transf_function fpmap fcorrection f = OK f')
+      (TRS: transf_statement fpmap s = OK s')
+      (MCONT: match_cont k k')
+      (VE: valid_env_full e)
+      (MPM: match_param_mem_full pm pm'),
+      match_states (State f s t k e m pm)
+                   (State f' s' t k' e m pm')
+  | match_return_states: forall f f' t e m pm pm'
+      (TRF: transf_function fpmap fcorrection f = OK f')
+      (VE: valid_env_full e)
+      (MPM: match_param_mem_full pm pm'),
+      match_states (Return f (IRF t) e m pm)
+                   (Return f' (IRF (target_map data (map R2val (param_unmap params)) t)) e m pm').
+
+Lemma step_simulation:
+  forall S1 t S2, step ge S1 t S2 ->
+  forall S1', match_states S1 S1' ->
+  exists S2', plus Ssemantics.step tge S1' t S2' /\ match_states S2 S2'.
+Proof.
+  induction 1; intros S1' MS; inversion MS; simpl in *; subst.
+  - (* Start *)
+    eexists.
+    split.
+    { eapply plus_two. econstructor; eauto.
+      econstructor; eauto. rewrite //=. }
+    { econstructor; eauto. econstructor. }
+  - (* Return *)
+    inv MCONT.
+    inv TRS.
+    replace t with (IRF (IFR t)); last first.
+    { rewrite IRF_IFR_inv //. }
+
+    eexists; split; last first.
+    { econstructor; eauto. }
+
+    rewrite /target_map.
+    { eapply plus_three.
+      { econstructor; eauto. }
+      2: { rewrite Rplus_comm. rewrite -float_add_irf. econstructor. }
+      { econstructor. admit. }
+      rewrite //=.
+    }
+  - (* Skip *)
+    inv TRS. inv MCONT; subst.
+    eexists. split.
+    eapply plus_one.
+    { econstructor. }
+    { econstructor; eauto. }
+  - (* Sequence *)
+    monadInv TRS.
+    eexists. split.
+    eapply plus_one.
+    { econstructor. }
+    { econstructor; eauto. econstructor; eauto. }
+  - (* Assignment *)
+    monadInv TRS.
+    exploit (eval_lvalue_preserved); eauto.
+    exploit (eval_expr_preserved); eauto.
+    intros Hexpr Hlvalue.
+    inv H.
+    {
+      eexists. split.
+      eapply plus_one.
+      simpl in EQ.
+      assert (fpmap id = None) as Hfpmap.
+      { apply VE; congruence. }
+      rewrite Hfpmap in EQ. inv EQ.
+      econstructor; eauto.
+      { erewrite typeof_transf_expr; eauto. }
+      { eapply assign_loc_preserved; eauto. }
+      { econstructor; eauto. }
+    }
+    {
+      monadInv EQ.
+      eexists. split.
+      eapply plus_one.
+      inv H3.
+      assert (fpmap id = None) as Hfpmap.
+      { apply VE; congruence. }
+      rewrite Hfpmap in EQ2. inv EQ2.
+      econstructor; eauto.
+      { erewrite typeof_transf_expr; eauto. }
+      { eapply assign_loc_preserved; eauto. }
+      { econstructor; eauto. }
+    }
+  - (* Conditional statement *)
+    monadInv TRS.
+    eexists. split.
+    {
+      eapply plus_one.
+      econstructor.
+      { eapply eval_expr_preserved; eauto. }
+      { erewrite typeof_transf_expr; eauto.  }
+    }
+    econstructor; eauto. destruct b; eauto.
+  - (* Target *)
+    monadInv TRS.
+    eexists. split.
+    {
+    eapply plus_one.
+    econstructor.
+    { eapply eval_expr_preserved; eauto. }
+    }
+    econstructor; eauto.
+  - (* Tilde *)
+    monadInv TRS.
+Abort.
 
 
 Theorem transf_program_correct_change t:
