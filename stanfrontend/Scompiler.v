@@ -97,7 +97,6 @@ Proof.
     eapply Samplingproof.transf_program_correct; eassumption.
   eapply compose_forward_simulations.
     eapply Reparameterizationproof.transf_program_correct; try eassumption.
-    { exact nil. }
   eapply compose_forward_simulations.
     eapply Clightificationproof.transf_program_correct; eassumption.
   eapply compose_forward_simulations.
