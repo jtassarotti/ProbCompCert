@@ -48,7 +48,21 @@ Definition match_prog (p: program) (tp: program) : Prop :=
   pr_parameters_vars tp = List.map (fun '(id, v, _) =>
                                  (id, vd_type v,
                                    Some (fun x => (unconstrained_to_constrained_fun (vd_constraint v) x))))
-                            parameters.
+                            parameters /\
+  Forall (λ '(id, _, _), ¬ In id math_idents) (pr_parameters_vars p).
+
+Lemma param_check_shadow_ok id b o xt:
+  param_check_shadow (id, b, o) = OK xt ->
+  ¬ In id math_idents.
+Proof.
+  intros Hin.
+  unfold param_check_shadow in Hin.
+  destruct (forallb _ _) eqn:Hforallb; last by inv Hin.
+  rewrite forallb_forall in Hforallb * => Hforallb.
+  intros Hin'. eapply Hforallb in Hin'.
+  destruct (Pos.eq_dec id id); inv Hin'.
+  congruence.
+Qed.
 
 Lemma program_of_program_eq p tp :
   pr_defs p = pr_defs tp -> (program_of_program p) = (program_of_program tp).
@@ -61,6 +75,7 @@ Lemma transf_program_match:
 Proof.
   unfold transf_program, match_prog; intros p tp Htransf.
   eapply bind_inversion in Htransf as (?&Hcheck&Htransf).
+  eapply bind_inversion in Htransf as (?&Hcheck'&Htransf).
   eapply bind_inversion in Htransf as (parameters&Heq&Htransf).
   eapply bind_inversion in Htransf as (tp'&Heq'&HOK).
   assert (program_of_program tp = tp') as ->.
@@ -83,7 +98,13 @@ Proof.
       { subst. econstructor. }
     - intros. inversion H. subst. econstructor; eauto.
   }
-  inversion HOK; subst. simpl. eauto.
+  split.
+  { inversion HOK; subst. simpl. eauto. }
+  apply mmap_inversion in Hcheck'.
+  apply Forall_forall. intros x1 Hin.
+  eapply list_forall2_in_left in Hcheck' as (?&Hin'&Hcheck'); eauto.
+  destruct x1 as ((?&?)&?).
+  eapply param_check_shadow_ok; eauto.
 Qed.
 
 Definition constrain_fn (c: constraint) : R -> R :=
@@ -296,7 +317,7 @@ Proof.
   rewrite concat_map.
   f_equal.
   rewrite ?map_map.
-  destruct TRANSL as (x&Hnone&Heqx&Hmatch&Heq).
+  destruct TRANSL as (x&Hnone&Heqx&Hmatch&Heq&_).
   rewrite Heq.
   clear Heq.
   revert x Heqx.
@@ -333,7 +354,7 @@ Lemma parameters_ids_preserved :
   pr_parameters_ids tprog = pr_parameters_ids prog.
 Proof.
   unfold pr_parameters_ids.
-  destruct TRANSL as (x&Hnone&Heqx&Hmatch&Heq).
+  destruct TRANSL as (x&Hnone&Heqx&Hmatch&Heq&_).
   rewrite Heq.
   clear Heq.
   revert x Heqx.
@@ -375,7 +396,7 @@ Lemma flatten_parameter_list_tprog :
     (flatten_parameter_list prog.(pr_parameters_vars)).
 Proof.
   rewrite /flatten_parameter_list. f_equal.
-  destruct TRANSL as (x&Hnone&Heqx&Hmatch&Heq).
+  destruct TRANSL as (x&Hnone&Heqx&Hmatch&Heq&_).
   rewrite Heq.
   clear Heq.
   revert x Heqx.
@@ -650,7 +671,8 @@ Definition match_prog' : Prop :=
   pr_parameters_vars tprog = List.map (fun '(id, v, _) =>
                                  (id, vd_type v,
                                    Some (fun x => (unconstrained_to_constrained_fun (vd_constraint v) x))))
-                            found_parameters.
+                               found_parameters /\
+  Forall (λ '(id, _, _), ¬ In id math_idents) (pr_parameters_vars prog).
 
 Lemma match_fundef_fundef' f tf :
   match_fundef prog f tf ->
@@ -665,7 +687,7 @@ Qed.
 
 Lemma TRANSL' : match_prog'.
 Proof.
-  destruct TRANSL as (params'&?&?&?&?).
+  destruct TRANSL as (params'&?&?&?&?&Hcheck).
   subst. assert (params' = found_parameters) as ->.
   { specialize (found_parameters_spec) => Heq. congruence. }
   split; last by eauto.
@@ -691,7 +713,7 @@ Lemma functions_translated:
   Genv.find_funct ge v = Some f ->
   ∃ f', Genv.find_funct tge v = Some f' /\ transf_fundef fpmap fcorrection f = OK f'.
 Proof.
-  intros. destruct TRANSL' as (Hmatch&Hrest).
+  intros. destruct TRANSL' as (Hmatch&Hrest&Hcheck).
   eapply (Genv.find_funct_match) in Hmatch as (?&tfun&Htfun); eauto.
   intuition.
   eexists; split; eauto.
@@ -704,7 +726,7 @@ Lemma function_ptr_translated:
   Genv.find_funct_ptr ge v = Some f ->
   ∃ f', Genv.find_funct_ptr tge v = Some f' /\ transf_fundef fpmap fcorrection f = OK f'.
 Proof.
-  intros. destruct TRANSL' as (Hmatch&Hrest).
+  intros. destruct TRANSL' as (Hmatch&Hrest&Hcheck).
   eapply (Genv.find_funct_ptr_match) in Hmatch as (?&tfun&Htfun); eauto.
   intuition.
   eexists; split; eauto.
@@ -1054,6 +1076,25 @@ Proof.
     }
 Qed.
 
+Lemma assign_global_params_is_id_alloc_in_flat1 flat_ids pm1 vs pm2 :
+  assign_global_params flat_ids pm1 vs pm2 ->
+  ∀ id, ParamMap.is_id_alloc pm2 id  = true ->
+               (ParamMap.is_id_alloc pm1 id = true) ∨
+               (∃ b ofs', In (id, b, ofs') flat_ids).
+Proof.
+  induction 1.
+  - intuition.
+  - intros id' Halloc.
+    edestruct IHassign_global_params as [Hleft|Hright]; eauto.
+    { subst.
+      destruct (Pos.eq_dec id id'); subst.
+      { right. do 2 eexists; by left; eauto. }
+      { rewrite is_id_set_other in Hleft; eauto. }
+    }
+    right. clear -Hright. destruct Hright as (?&?&?).
+    do 2 eexists; eauto. right. eauto.
+Qed.
+
 Lemma assign_global_params_some_in_flat1 flat_ids pm1 vs pm2 :
   assign_global_params flat_ids pm1 vs pm2 ->
   ∀ id ofs fl, ParamMap.get pm2 id ofs = Some fl ->
@@ -1182,6 +1223,81 @@ Lemma reserve_global_params_same pmstart pm1 pm2 :
 Proof.
   rewrite parameters_ids_preserved.
   intros. eapply reserve_global_params_determ; eauto.
+Qed.
+
+Lemma reserve_global_params_is_id_alloc_true ids pm1 pm2 id :
+  reserve_global_params ids pm1 pm2 ->
+  is_id_alloc pm2 id = true ->
+  (is_id_alloc pm1 id = true \/ In id ids).
+Proof.
+  induction 1.
+  - auto.
+  - intros His. subst. destruct IHreserve_global_params.
+    { eauto. }
+    { destruct (Pos.eq_dec id id0).
+      { subst. right. by left. }
+      { rewrite ParamMap.is_id_reserve_other in H; auto. }
+    }
+    right. by right.
+Qed.
+
+Lemma math_idents_not_in_parameters id :
+  In id math_idents -> ¬ In id (pr_parameters_ids prog).
+Proof.
+  destruct TRANSL as (?&?&?&?&?&Hcheck).
+  clear -Hcheck.
+  intros Hin1 Hin2.
+  rewrite /pr_parameters_ids in Hin2.
+  apply in_map_iff in Hin2 as (((?&?)&?)&Heq&Hin).
+  subst. revert Hcheck.
+  rewrite Forall_forall => Hcheck. eapply Hcheck in Hin.
+  auto.
+Qed.
+
+Lemma In_flatten_parameter_list_id id b ofs :
+  In (id, b, ofs) (flatten_parameter_list (pr_parameters_vars tprog)) ->
+  In id (pr_parameters_ids tprog).
+Proof.
+  rewrite /pr_parameters_ids.
+  induction (pr_parameters_vars _).
+  - inversion 1.
+  - destruct a as ((?&[])&?) => //=;
+    try (destruct 1 as [Hleft|Hright]; [ left; congruence | right; eauto ]).
+    rewrite /flatten_parameter_list/=.
+    intros [Hleft|Hright]%in_app_or.
+    { rewrite /parameter_basic_to_list/data_basic_to_list/= in Hleft.
+      apply in_combine_l in Hleft. apply repeat_spec in Hleft. left; congruence. }
+    { right. eauto. }
+Qed.
+
+Lemma set_global_params_no_shadow vs pm :
+  set_global_params (pr_parameters_ids tprog) (flatten_parameter_list (pr_parameters_vars tprog)) vs empty pm ->
+  param_mem_no_shadow_mathlib pm.
+Proof.
+  destruct 1 as (pm'&Hres&Hassign).
+  rewrite /param_mem_no_shadow_mathlib.
+  apply Forall_forall. intros x Hin.
+  destruct (is_id_alloc _ _) eqn:His; auto.
+  exploit assign_global_params_is_id_alloc_in_flat1; eauto.
+  intros Hcases.
+  assert (In x (pr_parameters_ids prog)).
+  {
+    destruct Hcases as [Hpm'|Hin'].
+    { 
+      exploit reserve_global_params_is_id_alloc_true; eauto.
+      rewrite is_id_empty.
+      intros [Hemp|Hshadow]; first congruence.
+      rewrite parameters_ids_preserved in Hshadow.
+      auto.
+    }
+    {
+      destruct Hin' as (b&ofs'&Hin').
+      apply In_flatten_parameter_list_id in Hin'.
+      rewrite parameters_ids_preserved in Hin'. auto.
+    }
+  }
+  exploit (math_idents_not_in_parameters); try eassumption.
+  intuition.
 Qed.
 
 Lemma set_global_params_match_param_mem_none vs1 pm1 vs2 pm2:
@@ -1393,12 +1509,9 @@ Proof.
     subst.
     intros.
     eapply eval_constrained_fun'; eauto.
-
-    admit.
-
-
-
-Admitted.
+    eapply set_global_params_no_shadow; eexists; eauto.
+  }
+Qed.
 
 Lemma initial_states_match_param_some f1 f2 fn1 fn2 t1 t2 K1 K2 e1 e2 m1 m2 pm1 pm2:
   initial_state prog data (map R2val params) (State f1 fn1 t1 K1 e1 m1 pm1) ->

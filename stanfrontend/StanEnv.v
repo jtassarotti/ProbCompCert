@@ -6,7 +6,6 @@ Require Import Globalenvs.
 
 Require Import Stanlight.
 Require Import Ssemantics.
-Require Import Reparameterization.
 Require Import DenotationalSimulationChange.
 Require Import Coqlib.
 Require Import Transforms.
@@ -14,6 +13,7 @@ Require Import IteratedRInt.
 Require Import Memory.
 Require Import Maps.
 Require Import ParamMap.
+
 
 Local Open Scope string_scope.
 Require Import Clightdefs.
@@ -109,11 +109,13 @@ Definition genv_has_mathlib genv :=
   genv_expit_spec genv ∧
   genv_log_spec genv.
 
+Definition math_idents := ($"log" :: $"expit" :: $"exp" :: nil).
+
 Definition env_no_shadow_mathlib {B} (env: PTree.t B) :=
-  Forall (fun id => PTree.get id env = None) ($"log" :: $"expit" :: $"exp" :: nil).
+  Forall (fun id => PTree.get id env = None) math_idents.
 
 Definition param_mem_no_shadow_mathlib (pm: param_mem) :=
-  Forall (fun id => is_id_alloc pm id = false) ($"log" :: $"expit" :: $"exp" :: nil).
+  Forall (fun id => is_id_alloc pm id = false) math_idents.
 
 Axiom float_add_irf: forall a b,
   (Floats.Float.add (IRF a) (IRF b)) = IRF (a + b).

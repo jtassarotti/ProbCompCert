@@ -5,6 +5,7 @@ Require Floats.
 Require Integers.
 Local Open Scope Z_scope.
 Local Open Scope string_scope.
+Require StanEnv.
 
 Require Import Stanlight.
 Require Errors.
@@ -111,9 +112,21 @@ Definition check_non_param (pmap: AST.ident -> option (expr -> expr)) (v: AST.id
   | None => Errors.OK tt
   end.
 
+Definition vars_check_shadow (p: AST.ident * basic) :=
+  let '(id, b) := p in
+  if forallb (fun id' => match (Pos.eq_dec id' id) with
+                      | left _ => false
+                      | right _ => true
+                         end) StanEnv.math_idents then
+    Errors.OK tt
+  else
+    Errors.Error (Errors.msg "Reparameterization: variable shadows global math functions").
+
+
 Definition transf_function (pmap: AST.ident -> option _) (correction: expr) (f: Stanlight.function): Errors.res
  (Stanlight.function) :=
   do _ <- Errors.mmap (check_non_param pmap) (f.(fn_vars));
+  do _ <- Errors.mmap (vars_check_shadow) (f.(fn_vars));
   do body <- transf_statement pmap f.(fn_body);
   let body := Ssequence body (Starget correction) in
   Errors.OK (mkfunction body f.(fn_vars)).
@@ -248,9 +261,20 @@ Definition no_param_out (p: AST.ident * basic * option (expr -> expr)) :=
       Errors.Error (Errors.msg "Reparameterization: parameter already has a non-empty output mapping function")
   end.
 
+Definition param_check_shadow (p: AST.ident * basic * option (expr -> expr)) :=
+  let '(id, b, fe) := p in
+  if forallb (fun id' => match (Pos.eq_dec id' id) with
+                      | left _ => false
+                      | right _ => true
+                         end) StanEnv.math_idents then
+    Errors.OK tt
+  else
+    Errors.Error (Errors.msg "Reparameterization: parameter shadows global math functions").
+
 Definition transf_program(p: Stanlight.program): Errors.res Stanlight.program :=
 
   do _ <- Errors.mmap (no_param_out) p.(pr_parameters_vars);
+  do _ <- Errors.mmap (param_check_shadow ) (p.(pr_parameters_vars));
   do parameters <- Errors.mmap (find_parameter p.(pr_defs)) p.(pr_parameters_vars);
   let pmap := u_to_c_rewrite_map parameters in
   let correction := collect_corrections parameters in
