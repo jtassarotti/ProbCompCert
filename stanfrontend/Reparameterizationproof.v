@@ -40,6 +40,12 @@ Inductive match_fundef (p: program) : fundef -> fundef -> Prop :=
 Definition match_varinfo (v: variable) (tv: variable) :=
   vd_type v = vd_type tv /\ vd_constraint tv = Cidentity.
 
+Definition wf_type (b: basic) :=
+  match b with
+  | Barray _ z => (-1 < z < Integers.Ptrofs.modulus)%Z
+  | _ => True
+  end.
+
 Definition match_prog (p: program) (tp: program) : Prop :=
   exists parameters,
   List.Forall (fun '(id, _, ofun) => ofun = None) p.(pr_parameters_vars) /\
@@ -49,7 +55,10 @@ Definition match_prog (p: program) (tp: program) : Prop :=
                                  (id, vd_type v,
                                    Some (fun x => (unconstrained_to_constrained_fun (vd_constraint v) x))))
                             parameters /\
-  Forall (λ '(id, _, _), ¬ In id math_idents) (pr_parameters_vars p).
+  Forall (λ '(id, _, _), ¬ In id math_idents) (pr_parameters_vars p) /\
+  NoDup (pr_parameters_ids p) /\
+  Forall (λ '(_, b, _), wf_type b) (pr_parameters_vars p).
+    
 
 Lemma param_check_shadow_ok id b o xt:
   param_check_shadow (id, b, o) = OK xt ->
@@ -70,14 +79,27 @@ Proof.
   intros Heq. unfold program_of_program. rewrite Heq. eauto.
 Qed.
 
+Lemma check_nodup_params_spec ids res :
+  check_nodup_params ids = OK res ->
+  NoDup ids.
+Proof.
+  rewrite /check_nodup_params.
+  destruct (nodupb _ _) eqn:Heq; inversion 1.
+  clear -Heq. induction ids.
+  { econstructor. }
+  { simpl in Heq. destruct (in_dec _ _ _); first inversion Heq.
+    econstructor; auto.
+  }
+Qed.
+
 Lemma transf_program_match:
   forall p tp: program, transf_program p = OK tp -> match_prog p tp.
 Proof.
   unfold transf_program, match_prog; intros p tp Htransf.
   eapply bind_inversion in Htransf as (?&Hcheck&Htransf).
   eapply bind_inversion in Htransf as (?&Hcheck'&Htransf).
-  eapply bind_inversion in Htransf as (?&?&Htransf).
-  eapply bind_inversion in Htransf as (?&?&Htransf).
+  eapply bind_inversion in Htransf as (?&Hcheck_nodup&Htransf).
+  eapply bind_inversion in Htransf as (?&Hcheck_sizes&Htransf).
   eapply bind_inversion in Htransf as (parameters&Heq&Htransf).
   eapply bind_inversion in Htransf as (tp'&Heq'&HOK).
   assert (program_of_program tp = tp') as ->.
@@ -95,17 +117,37 @@ Proof.
   {
     eapply match_transform_partial_program2; eauto.
     - intros. destruct f; inversion H.
-      { monadInv H1.  inv EQ; subst; eauto.
+      { monadInv H.  inv EQ; subst; eauto.
          econstructor; eauto. }
-      { monadInv H1. econstructor. }
-    - intros. inversion H1. subst. econstructor; eauto.
+      { monadInv H. econstructor. }
+    - intros. inversion H. subst. econstructor; eauto.
   }
   split.
   { inversion HOK; subst. simpl. eauto. }
   apply mmap_inversion in Hcheck'.
-  apply Forall_forall. intros ((?&?)&?) Hin.
-  eapply list_forall2_in_left in Hcheck' as (?&Hin'&Hcheck'); eauto.
-  eapply param_check_shadow_ok; eauto.
+  split.
+  {
+    apply Forall_forall. intros ((?&?)&?) Hin.
+    eapply list_forall2_in_left in Hcheck' as (?&Hin'&Hcheck'); eauto.
+    eapply param_check_shadow_ok; eauto.
+  }
+  split.
+  {
+    rewrite /pr_parameters_ids.
+    exploit check_nodup_params_spec; eauto.
+  }
+  { eapply mmap_inversion in Hcheck_sizes.
+    clear -Hcheck_sizes.
+    move: Hcheck_sizes.
+    generalize x2.
+    induction (pr_parameters_vars p) => ? Hcheck_sizes.
+    { econstructor. }
+    { inv Hcheck_sizes; econstructor; eauto.
+      { move: H1. destruct a as ((?&[])&?) => //=.
+        do 2 destruct (Z_lt_ge_dec _ _) => //=.
+      }
+    }
+  }
 Qed.
 
 Definition constrain_fn (c: constraint) : R -> R :=
@@ -673,7 +715,9 @@ Definition match_prog' : Prop :=
                                  (id, vd_type v,
                                    Some (fun x => (unconstrained_to_constrained_fun (vd_constraint v) x))))
                                found_parameters /\
-  Forall (λ '(id, _, _), ¬ In id math_idents) (pr_parameters_vars prog).
+  Forall (λ '(id, _, _), ¬ In id math_idents) (pr_parameters_vars prog) /\
+  NoDup (pr_parameters_ids prog) /\
+  Forall (λ '(_, b, _), wf_type b) (pr_parameters_vars prog).
 
 Lemma match_fundef_fundef' f tf :
   match_fundef prog f tf ->
@@ -714,7 +758,7 @@ Lemma functions_translated:
   Genv.find_funct ge v = Some f ->
   ∃ f', Genv.find_funct tge v = Some f' /\ transf_fundef fpmap fcorrection f = OK f'.
 Proof.
-  intros. destruct TRANSL' as (Hmatch&Hrest&Hcheck).
+  intros. destruct TRANSL' as (Hmatch&Hrest&Hcheck&Hnodup&Hsizes).
   eapply (Genv.find_funct_match) in Hmatch as (?&tfun&Htfun); eauto.
   intuition.
   eexists; split; eauto.
@@ -727,7 +771,7 @@ Lemma function_ptr_translated:
   Genv.find_funct_ptr ge v = Some f ->
   ∃ f', Genv.find_funct_ptr tge v = Some f' /\ transf_fundef fpmap fcorrection f = OK f'.
 Proof.
-  intros. destruct TRANSL' as (Hmatch&Hrest&Hcheck).
+  intros. destruct TRANSL' as (Hmatch&Hrest&Hcheck&Hnodup&Hsizes).
   eapply (Genv.find_funct_ptr_match) in Hmatch as (?&tfun&Htfun); eauto.
   intuition.
   eexists; split; eauto.

@@ -289,18 +289,18 @@ Definition param_check_sizes (p: AST.ident * basic * option (expr -> expr)) :=
   | _ => Errors.OK tt
   end.
 
-Fixpoint nodup {A} (decA: forall x y :A, {x = y} + {x <> y}) (l: list A) : bool :=
+Fixpoint nodupb {A} (decA: forall x y :A, {x = y} + {x <> y}) (l: list A) : bool :=
   match l with
   | nil => true
   | a :: l =>
       if in_dec decA a l then
         false
       else
-        nodup decA l
+        nodupb decA l
   end.
 
 Definition check_nodup_params (l: list AST.ident) : Errors.res unit :=
-  if nodup Pos.eq_dec l then
+  if nodupb Pos.eq_dec l then
     Errors.OK tt
   else
     Errors.Error (Errors.msg "Reparameterization: duplicate paramter id").
