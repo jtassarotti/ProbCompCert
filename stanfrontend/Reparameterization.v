@@ -240,14 +240,13 @@ Definition change_of_variable_correction (i: AST.ident) (v: variable): option ex
   | None => None
   | Some fe =>
       match typ with
-      | Breal => Some (fe (Evar i typ))
       (* TODO: we should probably emit loops to handle large arrays rather than unrolling like this *)
       | Barray Breal sz =>
           Some (fold_left (fun e ofs => Ebinop e Plus (fe (Eindexed (Evar i typ)
                                                           (Econs (Econst_int ofs Bint) Enil) Breal)) Breal)
                   (count_up_int (Z.to_nat sz))
                   (Econst_float Floats.Float.zero Breal))
-      | _ => None
+      | _ => Some (fe (Evar i Breal))
       end
   end.
 
@@ -279,10 +278,39 @@ Definition param_check_shadow (p: AST.ident * basic * option (expr -> expr)) :=
   else
     Errors.Error (Errors.msg "Reparameterization: parameter shadows global math functions").
 
+Definition param_check_sizes (p: AST.ident * basic * option (expr -> expr)) :=
+  let '(id, b, fe) := p in
+  match b with
+  | Barray b z =>
+      match (Z_lt_ge_dec (-1) z), Z_lt_ge_dec z Integers.Ptrofs.modulus with
+        | left _, left _ => Errors.OK tt
+        | _, _ => Errors.Error (Errors.msg "Reparameterization: array size is negative or bigger than max int")
+      end
+  | _ => Errors.OK tt
+  end.
+
+Fixpoint nodup {A} (decA: forall x y :A, {x = y} + {x <> y}) (l: list A) : bool :=
+  match l with
+  | nil => true
+  | a :: l =>
+      if in_dec decA a l then
+        false
+      else
+        nodup decA l
+  end.
+
+Definition check_nodup_params (l: list AST.ident) : Errors.res unit :=
+  if nodup Pos.eq_dec l then
+    Errors.OK tt
+  else
+    Errors.Error (Errors.msg "Reparameterization: duplicate paramter id").
+
 Definition transf_program(p: Stanlight.program): Errors.res Stanlight.program :=
 
   do _ <- Errors.mmap (no_param_out) p.(pr_parameters_vars);
   do _ <- Errors.mmap (param_check_shadow ) (p.(pr_parameters_vars));
+  do _ <- check_nodup_params (map (fun '(id, _, _) => id) (p.(pr_parameters_vars)));
+  do _ <- Errors.mmap (param_check_sizes) (p.(pr_parameters_vars));
   do parameters <- Errors.mmap (find_parameter p.(pr_defs)) p.(pr_parameters_vars);
   let pmap := u_to_c_rewrite_map parameters in
   let correction := collect_corrections parameters in

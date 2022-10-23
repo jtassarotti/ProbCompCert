@@ -71,11 +71,13 @@ Proof.
 Qed.
 
 Lemma transf_program_match:
-  forall p tp: program, transf_program p = OK tp ->  match_prog p tp.
+  forall p tp: program, transf_program p = OK tp -> match_prog p tp.
 Proof.
   unfold transf_program, match_prog; intros p tp Htransf.
   eapply bind_inversion in Htransf as (?&Hcheck&Htransf).
   eapply bind_inversion in Htransf as (?&Hcheck'&Htransf).
+  eapply bind_inversion in Htransf as (?&?&Htransf).
+  eapply bind_inversion in Htransf as (?&?&Htransf).
   eapply bind_inversion in Htransf as (parameters&Heq&Htransf).
   eapply bind_inversion in Htransf as (tp'&Heq'&HOK).
   assert (program_of_program tp = tp') as ->.
@@ -93,17 +95,16 @@ Proof.
   {
     eapply match_transform_partial_program2; eauto.
     - intros. destruct f; inversion H.
-      {  apply bind_inversion in H1 as (?&?&Heq''). inversion Heq''; subst; eauto.
+      { monadInv H1.  inv EQ; subst; eauto.
          econstructor; eauto. }
-      { subst. econstructor. }
-    - intros. inversion H. subst. econstructor; eauto.
+      { monadInv H1. econstructor. }
+    - intros. inversion H1. subst. econstructor; eauto.
   }
   split.
   { inversion HOK; subst. simpl. eauto. }
   apply mmap_inversion in Hcheck'.
-  apply Forall_forall. intros x1 Hin.
+  apply Forall_forall. intros ((?&?)&?) Hin.
   eapply list_forall2_in_left in Hcheck' as (?&Hin'&Hcheck'); eauto.
-  destruct x1 as ((?&?)&?).
   eapply param_check_shadow_ok; eauto.
 Qed.
 
@@ -1012,6 +1013,9 @@ Definition wf_param_mem pm :=
 Definition valid_env (en : env) :=
   forall id, Maps.PTree.get id en <> None -> fpmap id = None.
 
+Definition env_no_shadow_param (en : env) pm :=
+  forall id, ParamMap.is_id_alloc pm id = true -> Maps.PTree.get id en = None.
+
 Lemma found_parameters_irrel {A B} id b1 (oe1 : A) b2 (oe2 : B) id1' v1 oe1' id2' v2 oe2' :
   find_parameter (pr_defs prog) (id, b1, oe1) = OK (id1', v1, oe1') ->
   find_parameter (pr_defs prog) (id, b2, oe2) = OK (id2', v2, oe2') ->
@@ -1869,6 +1873,246 @@ Inductive match_states: state -> state -> Prop :=
       (MPM: match_param_mem_full pm pm'),
       match_states (Return f (IRF t) e m pm)
                    (Return f' (IRF (target_map data (map R2val (param_unmap params)) t)) e m pm').
+
+Axiom IRF_0 : IRF 0 = Floats.Float.zero.
+
+Lemma assign_global_params_app_inv ids1 ids2 vs pm0 pm :
+  assign_global_params (ids1 ++ ids2) pm0 vs pm ->
+  ∃ pm' vs1 vs2,
+    vs = List.app vs1 vs2 /\
+    length vs1 = length ids1 /\
+    assign_global_params ids1 pm0 vs1 pm' /\
+    assign_global_params ids2 pm' vs2 pm.
+Proof.
+  revert vs pm0 pm.
+  induction ids1.
+  { intros vs pm0 pm. simpl. exists pm0, nil, vs. rewrite //=; intuition eauto.
+    econstructor. }
+  { intros vs pm0 pm Hassign.
+    inversion Hassign. subst. exploit IHids1; eauto. intros (pm'&vs1'&vs2'&Heq1&Hlen1&Hassign1&Hassign2).
+    eexists pm', (_ :: vs1'), vs2'.
+    split; eauto.
+    { simpl. rewrite Heq1 //=. }
+    split; simpl; auto.
+    split; eauto.
+    { econstructor; eauto. }
+  }
+Qed.
+
+Lemma list_apply_app {A B: Type} (fs1 fs2: list (A -> B)) (xs1 xs2: list A) :
+  length fs1 = length xs1 ->
+  list_apply (fs1 ++ fs2) (xs1 ++ xs2) =
+  (list_apply fs1 xs1 ++ list_apply fs2 xs2)%list.
+Proof.
+  revert xs1. induction fs1 => xs1.
+  { rewrite //=. destruct xs1; by inversion 1.  }
+  { rewrite //=. destruct xs1; first by inversion 1.
+    simpl. inversion 1. rewrite /list_apply/=. f_equal. eauto.
+  }
+Qed.
+
+Lemma list_plus_app (xs1 xs2: list R) :
+  list_plus (xs1 ++ xs2) = list_plus xs1 + list_plus xs2.
+Proof.
+  induction xs1 => //=; try nra.
+Qed.
+
+Lemma length_array_basic_to_list1 i b z o :
+  length (parameter_basic_to_list (i, Barray b z, o)) = Z.to_nat z.
+Proof.
+  rewrite /parameter_basic_to_list/data_basic_to_list/=.
+  rewrite combine_length.
+  rewrite repeat_length.
+  rewrite count_up_ofs_len.
+  rewrite Nat.min_id //.
+Qed.
+
+Lemma assign_global_params_not_in_nochange i ofs bs pm0 vs pm :
+  assign_global_params bs pm0 vs pm ->
+  (∀ b ofs', In (i, b, ofs') bs -> Integers.Ptrofs.intval ofs <> Integers.Ptrofs.intval ofs') ->
+  get pm i (Integers.Ptrofs.intval ofs) = get pm0 i (Integers.Ptrofs.intval ofs).
+Proof.
+  intros Hassign.
+  induction Hassign => Hnin; auto.
+  rewrite IHHassign; last first.
+  { intros ?? Hin'. eapply Hnin. right; eauto. }
+  subst. rewrite gso //.
+  destruct (Pos.eq_dec i id); last by auto.
+  subst.
+  destruct (Z.eq_dec (Integers.Ptrofs.intval ofs) (Integers.Ptrofs.intval ofs0)); last by auto.
+  exfalso.
+  eapply Hnin; first by left. eauto.
+Qed.
+  
+Lemma assign_global_params_tail_not_in i b ofs bs pm0 v vs pm :
+  assign_global_params ((i, b, ofs) :: bs) pm0 (Values.Vfloat v :: vs) pm ->
+  (∀ b ofs', In (i, b, ofs') bs -> Integers.Ptrofs.intval ofs <> Integers.Ptrofs.intval ofs') ->
+  get pm i (Integers.Ptrofs.intval ofs) = Some v.
+Proof.
+  intros Hassign Hnin.
+  inv Hassign.
+  exploit assign_global_params_not_in_nochange; eauto => ->.
+  rewrite gss //.
+Qed.
+
+Inductive flat_nodups {A: Type} : list (AST.ident * A * Integers.Ptrofs.int) -> Prop :=
+  | flat_nodups_nil :
+    flat_nodups nil
+  | flat_nodups_cons bs id a ofs :
+     (∀ b ofs', In (id, b, ofs') bs -> Integers.Ptrofs.intval ofs <> Integers.Ptrofs.intval ofs') ->
+     flat_nodups bs ->
+     flat_nodups ((id, a, ofs) :: bs).
+
+Lemma flatten_parameter_list_cons hd tl :
+  (flatten_parameter_list (hd :: tl) = parameter_basic_to_list hd ++ flatten_parameter_list tl)%list.
+Proof.
+  rewrite /flatten_parameter_list//=.
+Qed.
+
+Lemma flat_nodups_parameters : flat_nodups (flatten_parameter_list (pr_parameters_vars tprog)).
+Proof.
+  rewrite flatten_parameter_list_tprog.
+  rewrite pr_parameters_vars_found_parameters.
+  induction found_parameters.
+  { econstructor. }
+  { rewrite /=. destruct a as ((id, v), e).
+    rewrite flatten_parameter_list_cons.
+    rewrite /parameter_basic_to_list/data_basic_to_list/=.
+    { destruct (vd_type v) => //=.
+      { econstructor; last eauto.
+        intros b' ofs' Hin.
+Abort.        
+
+Lemma eval_correction e m pm0 pm t
+  (ENOSHADOW : env_no_shadow_param e pm)
+  (VE : valid_env_full e) :
+  assign_global_params (flatten_parameter_list (pr_parameters_vars tprog)) pm0
+    (map R2val (param_unmap params)) pm ->
+  eval_expr tge e m pm t fcorrection
+    (Values.Vfloat (IRF (list_plus (list_apply log_dgs (map val2R (map R2val (param_unmap params))))))).
+Proof.
+  remember (param_unmap params) as ups.
+  rewrite /fcorrection.
+  clear Hequps.
+  rewrite /log_dgs.
+  rewrite flatten_parameter_constraints_found_parameters.
+  rewrite flatten_parameter_list_tprog.
+  rewrite pr_parameters_vars_found_parameters.
+  revert ups pm0.
+  rewrite //=.
+  rewrite /flatten_parameter_list/=.
+  rewrite /flatten_ident_variable_list//=.
+  induction (found_parameters).
+  { rewrite //=. intros ups pm0.
+    inversion 1; subst.
+    rewrite IRF_0. econstructor. }
+  { intros ups pm0.
+    destruct a as ((?&?)&?).
+    rewrite /=/change_of_variable_correction/=.
+    destruct (vd_constraint v) eqn:Hvd.
+    { rewrite /=.
+      rewrite map_app.
+      destruct (vd_type v).
+      { rewrite /=.
+        inversion 1. subst.
+        simpl.
+        rewrite Hvd /=. rewrite Rplus_0_l. destruct ups; inv H6.
+        eapply IHl; eauto.
+      }
+      { rewrite /=.
+        inversion 1. subst.
+        simpl.
+        rewrite Hvd /=. rewrite Rplus_0_l. destruct ups; inv H6.
+        eapply IHl; eauto.
+      }
+      {
+        intros Hassign.
+        eapply assign_global_params_app_inv in Hassign as (pm'&vs1&vs2&Heq1&Hlen&Hassign1&Hassign2).
+        apply map_eq_app in Heq1 as (ups1&ups2&Heq_ups&Hups1&Hups2).
+        rewrite Heq_ups. rewrite ?map_app.
+        rewrite list_apply_app; last first.
+        { rewrite Hups1. rewrite ?map_length.
+          rewrite repeat_length.
+          rewrite Hlen length_array_basic_to_list1 //.
+        }
+        rewrite list_plus_app.
+        assert ((list_plus
+             (list_apply
+                (map log_deriv_constrain_fn
+                   (map (λ '(_, v0, _), vd_constraint v0)
+                      (repeat (i, {| vd_type := b; vd_constraint := Cidentity |}, o) (Z.to_nat z))))
+                (map val2R (map R2val ups1)))) = 0) as Heq0.
+        { clear. generalize (map val2R (map R2val ups1)). induction (Z.to_nat z) => //=.
+          intros l'. destruct l' => //=. rewrite IHn. nra. }
+        rewrite Heq0 Rplus_0_l.
+        eapply IHl.
+        rewrite Hups2. eauto.
+      }
+      { rewrite /=.
+        inversion 1. subst.
+        simpl.
+        rewrite Hvd /=. rewrite Rplus_0_l. destruct ups; inv H6.
+        eapply IHl; eauto.
+      }
+    }
+    { rewrite /=.
+      rewrite map_app.
+      destruct (vd_type v) eqn:Hvdty.
+      { rewrite /=.
+        inversion 1. subst.
+        simpl.
+        rewrite Hvd /=. econstructor. 
+        rewrite -H6 in H.
+        (*
+          inversion 1; subst.
+          induction 
+
+
+        econstructor.
+        { econstructor.
+
+        simpl in H.
+        inv H. subst.
+        eapply IHl; eauto.
+      }
+      { rewrite /=.
+        inversion 1. subst.
+        simpl.
+        rewrite Hvd /=. rewrite Rplus_0_l. destruct ups; inv H6.
+        eapply IHl; eauto.
+      }
+      {
+        intros Hassign.
+        eapply assign_global_params_app_inv in Hassign as (pm'&vs1&vs2&Heq1&Hlen&Hassign1&Hassign2).
+        apply map_eq_app in Heq1 as (ups1&ups2&Heq_ups&Hups1&Hups2).
+        rewrite Heq_ups. rewrite ?map_app.
+        rewrite list_apply_app; last first.
+        { rewrite Hups1. rewrite ?map_length.
+          rewrite repeat_length.
+          rewrite Hlen length_array_basic_to_list1 //.
+        }
+        rewrite list_plus_app.
+        assert ((list_plus
+             (list_apply
+                (map log_deriv_constrain_fn
+                   (map (λ '(_, v0, _), vd_constraint v0)
+                      (repeat (i, {| vd_type := b; vd_constraint := Cidentity |}, o) (Z.to_nat z))))
+                (map val2R (map R2val ups1)))) = 0) as Heq0.
+        { clear. generalize (map val2R (map R2val ups1)). induction (Z.to_nat z) => //=.
+          intros l'. destruct l' => //=. rewrite IHn. nra. }
+        rewrite Heq0 Rplus_0_l.
+        eapply IHl.
+        rewrite Hups2. eauto.
+      }
+      { rewrite /=.
+        inversion 1. subst.
+        simpl.
+        rewrite Hvd /=. rewrite Rplus_0_l. destruct ups; inv H6.
+        eapply IHl; eauto.
+      }
+    }
+         *)
+Abort.
 
 Lemma step_simulation:
   forall S1 t S2, step ge S1 t S2 ->
