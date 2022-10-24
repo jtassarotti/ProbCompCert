@@ -1061,11 +1061,10 @@ Section DENOTATIONAL.
       (∀ data rt vt, safe_data p2 data ->
                   genv_has_mathlib (globalenv p2) ->
                   wf_rectangle_list (parameter_list_rect p2) ->
-                  rectangle_list_subset rt (parameter_list_rect p2) ->
                   is_program_distribution p2 data rt vt ->
                   is_program_distribution p1 data rt vt) /\
       (genv_has_mathlib (globalenv p2) -> genv_has_mathlib (globalenv p1)) /\
-      (rectangle_list_subset (parameter_list_rect p2) (parameter_list_rect p1)).
+      (wf_rectangle_list (parameter_list_rect p2) -> wf_rectangle_list (parameter_list_rect p1)).
 
 End DENOTATIONAL.
 
@@ -1081,9 +1080,8 @@ Proof.
   { congruence. }
   split; [| split].
   { intros. eapply Hsafe1; eauto using wf_rectangle_list_subset. }
-  { intros. eapply Hdist1; eauto using wf_rectangle_list_subset.
-    eapply rectangle_list_subset_trans; eauto. }
+  { intros. eapply Hdist1; eauto using wf_rectangle_list_subset. }
   split.
   { intuition. }
-  { eapply rectangle_list_subset_trans; eauto. }
+  { eauto. }
 Qed.

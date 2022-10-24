@@ -260,9 +260,9 @@ Proof.
   exists (dimen_preserved).
   split; [| split; [| split]].
   - intros data Hwf Hsafe. apply safe_data_preserved; auto.
-  - intros data rt vt Hsafe Hwf Hsubset.
+  - intros data rt vt Hsafe Hmath Hwf.
     rewrite /is_program_distribution/is_program_normalizing_constant/is_unnormalized_program_distribution.
-    intros ? (vnum&vnorm&Hneq0&His_norm&His_num&Hdiv).
+    intros (vnum&vnorm&Hneq0&His_norm&His_num&Hdiv).
     eexists vnum, vnorm;  repeat split; auto.
     {
       assert (vnorm = IIRInt_list (program_normalizing_constant_integrand prog data) (parameter_list_rect prog))
@@ -316,7 +316,7 @@ Proof.
       rewrite param_map_gs //.
     }
   - eauto.
-  - clear. admit.
-Admitted.
+  - eauto.
+Qed.
 
 End DENOTATIONAL_SIMULATION.

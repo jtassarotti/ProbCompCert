@@ -224,9 +224,9 @@ Proof.
   exists (dimen_preserved).
   split; [| split; [| split]].
   - intros data Hsafe ?. apply safe_data_preserved; auto.
-  - intros data rt vt Hsafe Hwf Hsubset.
+  - intros data rt vt Hsafe Hmath Hwf.
     rewrite /is_program_distribution/is_program_normalizing_constant/is_unnormalized_program_distribution.
-    intros ? (vnum&vnorm&Hneq0&His_norm&His_num&Hdiv).
+    intros (vnum&vnorm&Hneq0&His_norm&His_num&Hdiv).
     exists vnum, vnorm. repeat split; auto.
     {
       rewrite parameter_list_rect_preserved.
@@ -249,7 +249,6 @@ Proof.
     }
   - intros. apply tprog_genv_has_mathlib; auto.
   - rewrite /parameter_list_rect/flatten_parameter_constraints. rewrite parameters_preserved //.
-    apply rectangle_list_subset_refl.
 Qed.
 
 End DENOTATIONAL_SIMULATION.
