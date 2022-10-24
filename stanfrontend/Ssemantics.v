@@ -1063,6 +1063,27 @@ Section DENOTATIONAL.
                   wf_rectangle_list (parameter_list_rect p2) ->
                   rectangle_list_subset rt (parameter_list_rect p2) ->
                   is_program_distribution p2 data rt vt ->
-                  is_program_distribution p1 data rt vt).
+                  is_program_distribution p1 data rt vt) /\
+      (genv_has_mathlib (globalenv p2) -> genv_has_mathlib (globalenv p1)) /\
+      (rectangle_list_subset (parameter_list_rect p2) (parameter_list_rect p1)).
 
 End DENOTATIONAL.
+
+Lemma denotational_refinement_trans p1 p2 p3 :
+  denotational_refinement p1 p2 ->
+  denotational_refinement p2 p3 ->
+  denotational_refinement p1 p3.
+Proof.
+  intros Hd1 Hd2.
+  destruct Hd1 as (Hpf1&Hsafe1&Hdist1&Hmathlib1&Hwf1).
+  destruct Hd2 as (Hpf2&Hsafe2&Hdist2&Hmathlib2&Hwf2).
+  unshelve (eexists _).
+  { congruence. }
+  split; [| split].
+  { intros. eapply Hsafe1; eauto using wf_rectangle_list_subset. }
+  { intros. eapply Hdist1; eauto using wf_rectangle_list_subset.
+    eapply rectangle_list_subset_trans; eauto. }
+  split.
+  { intuition. }
+  { eapply rectangle_list_subset_trans; eauto. }
+Qed.

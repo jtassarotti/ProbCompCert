@@ -407,6 +407,7 @@ Proof.
   - destruct TRANSL as (Hmatch&_). eapply match_program_external_funct; eauto.
     intros. simpl. congruence.
   - eapply Genv.senv_transf; apply TRANSL.
+  - apply symbols_preserved; auto.
 Qed.
 
 End DENOTATIONAL_PRESERVATION.

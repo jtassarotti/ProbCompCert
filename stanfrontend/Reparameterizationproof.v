@@ -2103,6 +2103,7 @@ Proof.
   { by eapply param_unmap_map. }
   { by eapply param_map_in_dom. }
   { intros. eapply transf_program_correct_change; eauto. }
+  { by eapply tprog_genv_has_mathlib. }
   { by eapply param_map_gs. }
   { by eapply target_map_dgs. }
   { by eapply gs_monotone. }

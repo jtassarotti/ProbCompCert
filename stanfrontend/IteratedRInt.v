@@ -381,6 +381,57 @@ Definition in_list_rectangle (x: list R) (r: rectangle_list) :=
 Definition rectangle_list_subset (r1 r2: rectangle_list) :=
   List.Forall2 interval_subset r1 r2.
 
+Lemma interval_subset_trans i1 i2 i3 :
+  interval_subset i1 i2 ->
+  interval_subset i2 i3 ->
+  interval_subset i1 i3.
+Proof.
+  destruct 1.
+  destruct 1.
+  split; etransitivity; eauto.
+Qed.
+
+Lemma rectangle_list_subset_trans r1 r2 r3 :
+  rectangle_list_subset r1 r2 ->
+  rectangle_list_subset r2 r3 ->
+  rectangle_list_subset r1 r3.
+Proof.
+  intros Hsub1.
+  revert r3.
+  induction Hsub1.
+  { inversion 1; econstructor. }
+  { inversion 1; subst. inversion H0; subst. econstructor; last first.
+    { eapply IHHsub1. eauto. }
+    eapply interval_subset_trans; eauto.
+  }
+Qed.
+
+Lemma rectangle_list_subset_refl r:
+  rectangle_list_subset r r.
+Proof.
+  induction r.
+  - econstructor.
+  - econstructor.
+    { split; reflexivity. }
+    { eauto. }
+Qed.
+
+Lemma wf_rectangle_list_subset r1 r2 :
+  wf_rectangle_list r1 ->
+  rectangle_list_subset r1 r2 ->
+  wf_rectangle_list r2.
+Proof.
+  rewrite /wf_rectangle_list/wf_interval/rectangle_list_subset/interval_subset.
+  intros Hwf Hrect. revert Hwf. induction Hrect; auto.
+  inversion 1; subst. econstructor; last first.
+  { eapply IHHrect. eauto. }
+  eapply Rbar_le_lt_trans.
+  { intuition eauto. }
+  eapply Rbar_lt_le_trans.
+  { intuition eauto. }
+  { intuition eauto. }
+Qed.
+
 Lemma in_list_rectangle_wf_rectangle p l :
   in_list_rectangle p l ->
   wf_rectangle_list l.

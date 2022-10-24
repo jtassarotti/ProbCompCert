@@ -45,6 +45,27 @@ Variable external_funct_preserved:
 Variable global_env_equiv :
   Senv.equiv (globalenv prog) (globalenv tprog).
 
+Variable symbols_preserved:
+  forall id,
+  Genv.find_symbol (globalenv tprog) id = Genv.find_symbol (globalenv prog) id.
+
+Lemma tprog_genv_has_mathlib :
+  genv_has_mathlib (globalenv prog) ->
+  genv_has_mathlib (globalenv tprog).
+Proof.
+  rewrite /genv_has_mathlib.
+  rewrite /genv_exp_spec/genv_log_spec/genv_expit_spec.
+  rewrite ?symbols_preserved.
+  intros (Hexp&Hexpit&Hlog).
+  intuition.
+  { destruct Hexp as (loc&?). exists loc. split; first by intuition.
+    eapply external_funct_preserved; intuition eauto. }
+  { destruct Hexpit as (loc&?). exists loc. split; first by intuition.
+    eapply external_funct_preserved; intuition eauto. }
+  { destruct Hlog as (loc&?). exists loc. split; first by intuition.
+    eapply external_funct_preserved; intuition eauto. }
+Qed.
+
 Lemma match_flatten_parameter_variables (p tp : program) f :
   match_program f eq p tp ->
   pr_parameters_vars p = pr_parameters_vars tp ->
@@ -201,7 +222,7 @@ Lemma denotational_preserved :
   denotational_refinement tprog prog.
 Proof.
   exists (dimen_preserved).
-  split.
+  split; [| split; [| split]].
   - intros data Hsafe ?. apply safe_data_preserved; auto.
   - intros data rt vt Hsafe Hwf Hsubset.
     rewrite /is_program_distribution/is_program_normalizing_constant/is_unnormalized_program_distribution.
@@ -226,6 +247,9 @@ Proof.
         apply eval_expr_fun_match; eauto.
       }
     }
+  - intros. apply tprog_genv_has_mathlib; auto.
+  - rewrite /parameter_list_rect/flatten_parameter_constraints. rewrite parameters_preserved //.
+    apply rectangle_list_subset_refl.
 Qed.
 
 End DENOTATIONAL_SIMULATION.

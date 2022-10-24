@@ -80,6 +80,9 @@ Variable transf_correct:
       (Ssemantics.semantics tprog data (map R2val (param_unmap params))
          (IRF (target_map data (map R2val (param_unmap params)) t))).
 
+Variable genv_mathlib_pres :
+  genv_has_mathlib (globalenv prog) -> genv_has_mathlib (globalenv tprog).
+
 (*
 Variable parameters_phi:
   flatten_parameter_variables tprog = flatten_parameter_variables prog.
@@ -255,7 +258,7 @@ Lemma denotational_preserved :
   denotational_refinement tprog prog.
 Proof.
   exists (dimen_preserved).
-  split.
+  split; [| split; [| split]].
   - intros data Hwf Hsafe. apply safe_data_preserved; auto.
   - intros data rt vt Hsafe Hwf Hsubset.
     rewrite /is_program_distribution/is_program_normalizing_constant/is_unnormalized_program_distribution.
@@ -312,6 +315,8 @@ Proof.
       rewrite eval_param_map_list_preserved //.
       rewrite param_map_gs //.
     }
-Qed.
+  - eauto.
+  - clear. admit.
+Admitted.
 
 End DENOTATIONAL_SIMULATION.
