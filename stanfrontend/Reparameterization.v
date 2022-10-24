@@ -241,11 +241,11 @@ Definition change_of_variable_correction (i: AST.ident) (v: variable): option ex
   | Some fe =>
       match typ with
       (* TODO: we should probably emit loops to handle large arrays rather than unrolling like this *)
-      | Barray Breal sz =>
-          Some (fold_left (fun e ofs => Ebinop e Plus (fe (Eindexed (Evar i typ)
-                                                          (Econs (Econst_int ofs Bint) Enil) Breal)) Breal)
-                  (count_up_int (Z.to_nat sz))
-                  (Econst_float Floats.Float.zero Breal))
+      | Barray _ sz =>
+          Some (fold_right (fun ofs e => Ebinop (fe (Eindexed (Evar i typ)
+                                                          (Econs (Econst_int ofs Bint) Enil) Breal)) Plus e Breal)
+                  (Econst_float Floats.Float.zero Breal)
+                  (count_up_int (Z.to_nat sz)))
       | _ => Some (fe (Evar i Breal))
       end
   end.
@@ -282,9 +282,13 @@ Definition param_check_sizes (p: AST.ident * basic * option (expr -> expr)) :=
   let '(id, b, fe) := p in
   match b with
   | Barray b z =>
-      match (Z_lt_ge_dec (-1) z), Z_lt_ge_dec z Integers.Ptrofs.modulus with
-        | left _, left _ => Errors.OK tt
-        | _, _ => Errors.Error (Errors.msg "Reparameterization: array size is negative or bigger than max int")
+      match
+        Z_lt_ge_dec (-1) z,
+        Z_lt_ge_dec z (Integers.Int.modulus - 1),
+        Z_lt_ge_dec z (Integers.Ptrofs.modulus - 1)
+      with
+        | left _, left _, left _ => Errors.OK tt
+        | _, _, _ => Errors.Error (Errors.msg "Reparameterization: array size is negative or bigger than max int")
       end
   | _ => Errors.OK tt
   end.

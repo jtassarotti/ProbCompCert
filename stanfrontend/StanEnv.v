@@ -99,6 +99,24 @@ Axiom log_ext_spec :
   Events.external_call log_ef_external ge
     (Values.Vfloat (IRF a) :: nil) m Events.E0 (Values.Vfloat (IRF (ln a))) m.
 
+Lemma log_ext_spec' :
+  forall a ge m,
+  Events.external_call log_ef_external ge
+    (Values.Vfloat a :: nil) m Events.E0 (Values.Vfloat (IRF (ln (IFR a)))) m.
+Proof.
+  intros.
+  rewrite -{1}(IRF_IFR_inv a). eapply log_ext_spec.
+Qed.
+
+Lemma log_ext_spec'' :
+  forall a b ge m,
+  IRF (ln (IFR a)) = b ->
+  Events.external_call log_ef_external ge
+    (Values.Vfloat a :: nil) m Events.E0 (Values.Vfloat b) m.
+Proof.
+  intros ???? <-. eapply log_ext_spec'.
+Qed.
+
 Axiom log_ext_no_mem_dep :
   forall a ge m,
   no_mem_dep log_ef_external ge
@@ -125,6 +143,8 @@ Axiom float_mul_irf: forall a b,
   (Floats.Float.mul (IRF a) (IRF b)) = IRF (a * b).
 Axiom IFR_zero :
   IFR (Floats.Float.zero) = 0.
+Axiom IFR_one :
+  IFR (Floats.Float.of_int Integers.Int.one) = 1.
 
 Lemma float_add_irf': forall a b,
   (Floats.Float.add a b) = IRF (IFR a + IFR b).

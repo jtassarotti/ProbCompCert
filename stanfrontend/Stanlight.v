@@ -97,15 +97,69 @@ Definition globalenv (p: program) :=
 Fixpoint count_down_ofs (n: nat) :=
   match n with
   | O => nil
-  | S n' => (Ptrofs.repr (Z.of_nat n')) :: count_down_ofs n'
+  | S n' => (Ptrofs.repr (Z.of_nat (S n'))) :: count_down_ofs n'
   end.
 
 Definition count_up_ofs (n: nat) := rev (count_down_ofs n).
 
+Fixpoint count_up_ofs_aux (start: nat) (n: nat) :=
+  match n with
+  | O => nil
+  | S n' => (Ptrofs.repr (Z.of_nat start)) :: count_up_ofs_aux (S start) n'
+  end.
+
+Lemma count_up_ofs_aux_S_r st n :
+  count_up_ofs_aux st (S n) = count_up_ofs_aux st n ++ ((Ptrofs.repr (Z.of_nat (st + n))) :: nil).
+Proof.
+  revert st.
+  induction n; intros st; simpl; auto.
+  { repeat f_equal; lia. }
+  { simpl in IHn. replace (st + S n)%nat with (S (st + n)) by lia.
+    rewrite <-IHn. auto.
+  }
+Qed.
+
+Lemma count_up_ofs_equiv n :
+  count_up_ofs n = count_up_ofs_aux 1 n.
+Proof.
+  induction n.
+  { simpl; auto. }
+  { simpl. unfold count_up_ofs. simpl. unfold count_up_ofs in IHn. rewrite IHn.
+    rewrite <-count_up_ofs_aux_S_r. auto.
+  }
+Qed.
+
 Fixpoint count_down_int (n: nat) : list Integers.Int.int :=
   match n with
   | O => nil
-  | S n' => (Int.repr (Z.of_nat n')) :: count_down_int n'
+  | S n' => (Int.repr (Z.of_nat (S n'))) :: count_down_int n'
   end.
 
 Definition count_up_int (n: nat) := rev (count_down_int n).
+
+Fixpoint count_up_int_aux (start: nat) (n: nat) :=
+  match n with
+  | O => nil
+  | S n' => (Int.repr (Z.of_nat start)) :: count_up_int_aux (S start) n'
+  end.
+
+Lemma count_up_int_aux_S_r st n :
+  count_up_int_aux st (S n) = count_up_int_aux st n ++ ((Int.repr (Z.of_nat (st + n))) :: nil).
+Proof.
+  revert st.
+  induction n; intros st; simpl; auto.
+  { repeat f_equal; lia. }
+  { simpl in IHn. replace (st + S n)%nat with (S (st + n)) by lia.
+    rewrite <-IHn. auto.
+  }
+Qed.
+
+Lemma count_up_int_equiv n :
+  count_up_int n = count_up_int_aux (S O) n.
+Proof.
+  induction n.
+  { simpl; auto. }
+  { simpl. unfold count_up_int. simpl. unfold count_up_int in IHn. rewrite IHn.
+    rewrite <-count_up_int_aux_S_r. auto.
+  }
+Qed.

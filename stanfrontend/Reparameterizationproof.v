@@ -42,7 +42,7 @@ Definition match_varinfo (v: variable) (tv: variable) :=
 
 Definition wf_type (b: basic) :=
   match b with
-  | Barray _ z => (-1 < z < Integers.Ptrofs.modulus)%Z
+  | Barray _ z => (-1 < z /\ z < Integers.Int.modulus - 1 /\ z < Integers.Ptrofs.modulus - 1)%Z
   | _ => True
   end.
 
@@ -59,6 +59,16 @@ Definition match_prog (p: program) (tp: program) : Prop :=
   NoDup (pr_parameters_ids p) /\
   Forall (λ '(_, b, _), wf_type b) (pr_parameters_vars p).
     
+Lemma typeof_correction_fold_plus fe l typ i :
+  (∀ e, typeof e = Breal -> typeof (fe e) = Breal) ->
+  typeof (fold_right (fun ofs e => Ebinop (fe (Eindexed (Evar i typ)
+                                                (Econs (Econst_int ofs Bint) Enil) Breal)) Stanlight.Plus e Breal)
+        (Econst_float Floats.Float.zero Breal)
+        l) = Breal.
+Proof.
+  intros Hfe.
+  induction l => //=.
+Qed.
 
 Lemma param_check_shadow_ok id b o xt:
   param_check_shadow (id, b, o) = OK xt ->
@@ -144,7 +154,7 @@ Proof.
     { econstructor. }
     { inv Hcheck_sizes; econstructor; eauto.
       { move: H1. destruct a as ((?&[])&?) => //=.
-        do 2 destruct (Z_lt_ge_dec _ _) => //=.
+        do 3 destruct (Z_lt_ge_dec _ _) => //=.
       }
     }
   }
@@ -750,6 +760,17 @@ Proof.
   }
 Qed.
 
+Lemma NoDup_pr_parameters_ids_prog : NoDup (pr_parameters_ids prog).
+Proof.
+  specialize (TRANSL'). rewrite /match_prog'. intuition.
+Qed.
+
+Lemma wf_type_pr_parameters_ids_prog :
+  Forall (λ '(_, b, _), wf_type b) (pr_parameters_vars prog).
+Proof.
+  specialize (TRANSL'). rewrite /match_prog'. intuition.
+Qed.
+
 Let ge := globalenv prog.
 Let tge := globalenv tprog.
 
@@ -1318,12 +1339,11 @@ Proof.
   auto.
 Qed.
 
-Lemma In_flatten_parameter_list_id id b ofs :
-  In (id, b, ofs) (flatten_parameter_list (pr_parameters_vars tprog)) ->
-  In id (pr_parameters_ids tprog).
+Lemma In_flatten_parameter_list_id' prs id b ofs :
+  In (id, b, ofs) (flatten_parameter_list prs) ->
+  In id (map (fun '(id, _ ,_) => id) prs).
 Proof.
-  rewrite /pr_parameters_ids.
-  induction (pr_parameters_vars _).
+  induction prs.
   - inversion 1.
   - destruct a as ((?&[])&?) => //=;
     try (destruct 1 as [Hleft|Hright]; [ left; congruence | right; eauto ]).
@@ -1333,6 +1353,11 @@ Proof.
       apply in_combine_l in Hleft. apply repeat_spec in Hleft. left; congruence. }
     { right. eauto. }
 Qed.
+
+Lemma In_flatten_parameter_list_id pr id b ofs :
+  In (id, b, ofs) (flatten_parameter_list (pr_parameters_vars pr)) ->
+  In id (pr_parameters_ids pr).
+Proof. eapply In_flatten_parameter_list_id'. Qed.
 
 Lemma set_global_params_no_shadow vs pm :
   set_global_params (pr_parameters_ids tprog) (flatten_parameter_list (pr_parameters_vars tprog)) vs empty pm ->
@@ -2013,23 +2038,245 @@ Proof.
   rewrite /flatten_parameter_list//=.
 Qed.
 
+Lemma count_up_ofs_aux_range1 st n ofs' :
+  (Z.of_nat (st + n) <= Integers.Ptrofs.modulus ->
+   In ofs' (count_up_ofs_aux st n) ->
+   Z.of_nat st <= Integers.Ptrofs.intval ofs')%Z.
+Proof.
+  revert st.
+  induction n => st.
+  { simpl. intros Hlt Hin. exfalso; eauto. }
+  { simpl. intros Hlt [Hleft|Hright].
+    { subst.
+      specialize Integers.Ptrofs.unsigned_repr.
+      rewrite /Integers.Ptrofs.unsigned.
+      intros ->; try lia.
+      split; try lia. rewrite /Integers.Ptrofs.max_unsigned; lia.
+    }
+    specialize (IHn (S st)).
+    etransitivity; last eapply IHn; try lia; eauto.
+  }
+Qed.
+
 Lemma flat_nodups_parameters : flat_nodups (flatten_parameter_list (pr_parameters_vars tprog)).
 Proof.
   rewrite flatten_parameter_list_tprog.
+  specialize (NoDup_pr_parameters_ids_prog).
+  specialize (wf_type_pr_parameters_ids_prog).
+  rewrite /pr_parameters_ids.
   rewrite pr_parameters_vars_found_parameters.
   induction found_parameters.
   { econstructor. }
   { rewrite /=. destruct a as ((id, v), e).
     rewrite flatten_parameter_list_cons.
     rewrite /parameter_basic_to_list/data_basic_to_list/=.
-    { destruct (vd_type v) => //=.
-      { econstructor; last eauto.
-        intros b' ofs' Hin.
-Abort.        
+    {
+      destruct (vd_type v) => //= Hsize Hnodup.
+      { inv Hnodup.
+        econstructor; last first.
+        { eapply IHl; eauto. inv Hsize; eauto. }
+        { rewrite /flatten_parameter_list.
+          intros b2 ofs2 Hin2.
+          eapply In_flatten_parameter_list_id' in Hin2. eauto.
+        }
+      }
+      { inv Hnodup.
+        econstructor; last first.
+        { eapply IHl; eauto. inv Hsize; eauto. }
+        { rewrite /flatten_parameter_list.
+          intros b2 ofs2 Hin2.
+          eapply In_flatten_parameter_list_id' in Hin2. eauto.
+        }
+      }
+      {
+        inv Hnodup. inv Hsize.
+        rewrite count_up_ofs_equiv.
+        assert (Z.of_nat (1 + (Z.to_nat z)) <= Integers.Ptrofs.modulus)%Z as Hlt.
+        { simpl. unfold wf_type in H3. lia. }
+        revert Hlt.
+        generalize 0%nat as st.
+        induction (Z.to_nat z) => st Hlt.
+        { rewrite //=. eapply IHl; eauto. }
+        { simpl. econstructor; last first.
+          { eapply IHn. lia. }
+          intros b' ofs' Hin. apply in_app_or in Hin.
+          destruct Hin as [Hinl|Hinr]; last first.
+          { eapply In_flatten_parameter_list_id' in Hinr. eauto. }
+          apply in_combine_r in Hinl.
+
+          specialize Integers.Ptrofs.unsigned_repr.
+          rewrite /Integers.Ptrofs.unsigned.
+          intros ->; last first.
+          {split; try lia. rewrite /Integers.Ptrofs.max_unsigned; lia. }
+
+          eapply Zlt_not_eq.
+          eapply Z.lt_le_trans; last first.
+          { eapply (count_up_ofs_aux_range1 (S (S st)) n); eauto. lia. }
+          { lia. }
+        }
+      }
+      { inv Hnodup.
+        econstructor; last first.
+        { eapply IHl; eauto. inv Hsize; eauto. }
+        { rewrite /flatten_parameter_list.
+          intros b2 ofs2 Hin2.
+          eapply In_flatten_parameter_list_id' in Hin2. eauto.
+        }
+      }
+    }
+  }
+Qed.
+
+
+Lemma flat_nodups_cons_inv {A} x (l2 : list (AST.ident * A * _)) :
+  flat_nodups (x :: l2)%list ->
+  flat_nodups l2.
+Proof. inversion 1; eauto. Qed.
+
+Lemma flat_nodups_app_tail_inv {A} (l1 l2 : list (AST.ident * A * _)) :
+  flat_nodups (l1 ++ l2)%list ->
+  flat_nodups l2.
+Proof.
+  induction l1.
+  - simpl. auto.
+  - simpl. intros ?%flat_nodups_cons_inv; auto.
+Qed.
+
+Lemma assign_global_params_nodups_get i b ofs bs pm0 v vs pm :
+  assign_global_params ((i, b, ofs) :: bs) pm0 (Values.Vfloat v :: vs) pm ->
+  flat_nodups (((i, b, ofs) :: bs)) ->
+  is_id_alloc pm i = true /\ get pm i (Integers.Ptrofs.intval ofs) = Some v.
+Proof.
+  intros Hassign Hnin.
+  exploit (assign_global_params_tail_not_in); eauto.
+  { inv Hnin; eauto. }
+  intros. split; auto.
+  eapply gs_is_alloc; eauto.
+Qed.
+
+Lemma typeof_collect_corrections {A} (l : list (_ * _ * A)) :
+  typeof (collect_corrections l) = Breal.
+Proof.
+  induction l as [|((?&v)&?) ?]; eauto => //=.
+  rewrite /change_of_variable_correction.
+  rewrite /change_of_variable_correction_fun.
+  destruct (vd_constraint v), (vd_type v) => //=; destruct b => //=.
+Qed.
+
+Let lower_upper_correction_expr :=
+      (fun a b x =>
+              let a := Econst_float a Breal in
+              let b := Econst_float b Breal in
+              let one := Econst_float (Floats.Float.of_int Integers.Int.one) Breal in
+              let call := Ecall (Evar $"expit" (Bfunction (Bcons Breal Bnil) Breal)) (Econs x Enil) Breal in
+              let pre_log := (Ebinop (Ebinop b Minus a Breal) Times
+                                (Ebinop call Times (Ebinop one Minus call Breal) Breal) Breal) in
+              Ecall (Evar $"log" (Bfunction (Bcons Breal Bnil) Breal)) (Econs pre_log Enil) Breal).
+
+Lemma eval_correction_lower_upper e m pm t a b xpr r 
+  (VE : valid_env_full e)
+  (PARAM_NOSHADOW: param_mem_no_shadow_mathlib pm) :
+  eval_expr tge e m pm t xpr (Values.Vfloat (IRF r)) ->
+  eval_expr tge e m pm t
+            (lower_upper_correction_expr a b xpr)
+           (Values.Vfloat (IRF (log_deriv_constrain_fn (Clower_upper a b) r))).
+Proof.
+  destruct VE as (VE1&VE2).
+  simpl.
+  edestruct (tprog_genv_has_mathlib) as (_&(expit&Hfe&Hfuncte)&(log&Hfl&Hfunctl)).
+  intros Hexpr.
+  econstructor. 
+  {
+    eapply eval_Elvalue.
+    eapply eval_Evar_global; eauto.
+    { rewrite /env_no_shadow_mathlib in VE2.
+      inversion VE2 as [|??? Hnoshadow'].
+      inversion Hnoshadow' as [|??? Hnoshadow''].
+      inversion Hnoshadow'' as [|??? Hnoshadow'''].
+      eauto.
+    }
+    {
+      inversion PARAM_NOSHADOW as [|??? Hnoshadow'].
+      inversion Hnoshadow' as [|??? Hnoshadow''].
+      inversion Hnoshadow'' as [|??? Hnoshadow'''].
+      eauto.
+    }
+    { eapply deref_loc_reference; eauto. }
+  }
+  { econstructor; last by econstructor.
+    { 
+      econstructor.
+      { repeat econstructor. }
+      {  econstructor.  econstructor.
+         { eapply eval_Elvalue.
+           eapply eval_Evar_global; eauto.
+           { rewrite /env_no_shadow_mathlib in VE2.
+             inversion VE2 as [|??? Hnoshadow'].
+             inversion Hnoshadow' as [|??? Hnoshadow''].
+             inversion Hnoshadow'' as [|??? Hnoshadow'''].
+             eauto.
+           }
+           {
+             inversion PARAM_NOSHADOW as [|??? Hnoshadow'].
+             inversion Hnoshadow' as [|??? Hnoshadow''].
+             inversion Hnoshadow'' as [|??? Hnoshadow'''].
+             eauto.
+           }
+           { eapply deref_loc_reference; eauto. }
+         }
+         { econstructor. eauto. econstructor. }
+         { eauto. }
+         { eauto. }
+         { rewrite //=. }
+         eapply expit_ext_spec.
+         econstructor.
+         { repeat econstructor. }
+         { econstructor.
+           eapply eval_Elvalue.
+           eapply eval_Evar_global; eauto.
+           { rewrite /env_no_shadow_mathlib in VE2.
+             inversion VE2 as [|??? Hnoshadow'].
+             inversion Hnoshadow' as [|??? Hnoshadow''].
+             inversion Hnoshadow'' as [|??? Hnoshadow'''].
+             eauto.
+           }
+           {
+             inversion PARAM_NOSHADOW as [|??? Hnoshadow'].
+             inversion Hnoshadow' as [|??? Hnoshadow''].
+             inversion Hnoshadow'' as [|??? Hnoshadow'''].
+             eauto.
+           }
+           { eapply deref_loc_reference; eauto. }
+           { econstructor. eauto. econstructor. }
+           { eauto. }
+           { eauto. }
+           { rewrite //=. }
+           eapply expit_ext_spec.
+         }
+      rewrite //=.
+      rewrite //=.
+    }
+    rewrite //=.
+  }
+  }
+  eauto.
+  eauto.
+  rewrite //=.
+  eapply log_ext_spec''.
+  { f_equal. f_equal. rewrite /deriv_constrain_lb_ub.
+    rewrite ?float_mul_irf'.
+    rewrite ?float_sub_irf'.
+    rewrite ?IFR_IRF_inv.
+    rewrite ?float_sub_irf'.
+    rewrite ?IFR_one.
+    nra.
+  }
+Qed.
 
 Lemma eval_correction e m pm0 pm t
   (ENOSHADOW : env_no_shadow_param e pm)
-  (VE : valid_env_full e) :
+  (VE : valid_env_full e)
+  (PARAM_NOSHADOW: param_mem_no_shadow_mathlib pm) :
   assign_global_params (flatten_parameter_list (pr_parameters_vars tprog)) pm0
     (map R2val (param_unmap params)) pm ->
   eval_expr tge e m pm t fcorrection
@@ -2039,6 +2286,8 @@ Proof.
   rewrite /fcorrection.
   clear Hequps.
   rewrite /log_dgs.
+  specialize (wf_type_pr_parameters_ids_prog).
+  specialize (flat_nodups_parameters).
   rewrite flatten_parameter_constraints_found_parameters.
   rewrite flatten_parameter_list_tprog.
   rewrite pr_parameters_vars_found_parameters.
@@ -2047,13 +2296,14 @@ Proof.
   rewrite /flatten_parameter_list/=.
   rewrite /flatten_ident_variable_list//=.
   induction (found_parameters).
-  { rewrite //=. intros ups pm0.
+  { rewrite //=. intros ups pm0 Hnodups Hsize.
     inversion 1; subst.
     rewrite IRF_0. econstructor. }
-  { intros ups pm0.
+  { intros ups pm0 Hnodups Hsize.
     destruct a as ((?&?)&?).
     rewrite /=/change_of_variable_correction/=.
     destruct (vd_constraint v) eqn:Hvd.
+    (* CIdentity *)
     { rewrite /=.
       rewrite map_app.
       destruct (vd_type v).
@@ -2062,12 +2312,16 @@ Proof.
         simpl.
         rewrite Hvd /=. rewrite Rplus_0_l. destruct ups; inv H6.
         eapply IHl; eauto.
+        { simpl in Hnodups. eapply flat_nodups_app_tail_inv in Hnodups; eauto. }
+        { inv Hsize; eauto. }
       }
       { rewrite /=.
         inversion 1. subst.
         simpl.
         rewrite Hvd /=. rewrite Rplus_0_l. destruct ups; inv H6.
         eapply IHl; eauto.
+        { simpl in Hnodups. eapply flat_nodups_app_tail_inv in Hnodups; eauto. }
+        { inv Hsize; eauto. }
       }
       {
         intros Hassign.
@@ -2090,6 +2344,9 @@ Proof.
           intros l'. destruct l' => //=. rewrite IHn. nra. }
         rewrite Heq0 Rplus_0_l.
         eapply IHl.
+        { simpl in Hnodups.
+          eapply flat_nodups_app_tail_inv in Hnodups; eauto. }
+        { inv Hsize; eauto. }
         rewrite Hups2. eauto.
       }
       { rewrite /=.
@@ -2097,37 +2354,85 @@ Proof.
         simpl.
         rewrite Hvd /=. rewrite Rplus_0_l. destruct ups; inv H6.
         eapply IHl; eauto.
+        { simpl in Hnodups. eapply flat_nodups_app_tail_inv in Hnodups; eauto. }
+        { inv Hsize; eauto. }
       }
     }
+    (* Clower *)
     { rewrite /=.
       rewrite map_app.
+      simpl in Hnodups.
       destruct (vd_type v) eqn:Hvdty.
       { rewrite /=.
         inversion 1. subst.
         simpl.
-        rewrite Hvd /=. econstructor. 
+        rewrite Hvd /=.
         rewrite -H6 in H.
-        (*
-          inversion 1; subst.
-          induction 
-
-
-        econstructor.
-        { econstructor.
-
-        simpl in H.
-        inv H. subst.
-        eapply IHl; eauto.
+        destruct ups as [|? ups]; inv H6.
+        exploit (assign_global_params_nodups_get); eauto.
+        intros (?&?).
+        econstructor. 
+        econstructor. econstructor.
+        { eapply ENOSHADOW; auto. }
+        { eauto. }
+        eapply (IHl ups); eauto.
+        { simpl in Hnodups. inv Hnodups; eauto. }
+        { inv Hsize; eauto. }
+        simpl.
+        rewrite ln_exp. 
+        rewrite typeof_collect_corrections /=.
+        rewrite /Sop.sem_add//=.
+        rewrite /Sop.sem_binarith//=.
+        rewrite float_add_irf IFR_IRF_inv //.
       }
       { rewrite /=.
         inversion 1. subst.
         simpl.
-        rewrite Hvd /=. rewrite Rplus_0_l. destruct ups; inv H6.
-        eapply IHl; eauto.
+        rewrite Hvd /=.
+        rewrite -H6 in H.
+        destruct ups as [|? ups]; inv H6.
+        exploit (assign_global_params_nodups_get); eauto.
+        intros (?&?).
+        econstructor. 
+        econstructor. econstructor.
+        { eapply ENOSHADOW; auto. }
+        { eauto. }
+        eapply (IHl ups); eauto.
+        { simpl in Hnodups. inv Hnodups; eauto. }
+        { inv Hsize; eauto. }
+        simpl.
+        rewrite ln_exp. 
+        rewrite typeof_collect_corrections /=.
+        rewrite /Sop.sem_add//=.
+        rewrite /Sop.sem_binarith//=.
+        rewrite float_add_irf IFR_IRF_inv //.
+      }
+      2:{
+        rewrite /=.
+        inversion 1. subst.
+        simpl.
+        rewrite Hvd /=.
+        rewrite -H6 in H.
+        destruct ups as [|? ups]; inv H6.
+        exploit (assign_global_params_nodups_get); eauto.
+        intros (?&?).
+        econstructor. 
+        econstructor. econstructor.
+        { eapply ENOSHADOW; auto. }
+        { eauto. }
+        eapply (IHl ups); eauto.
+        { simpl in Hnodups. inv Hnodups; eauto. }
+        { inv Hsize; eauto. }
+        simpl.
+        rewrite ln_exp. 
+        rewrite typeof_collect_corrections /=.
+        rewrite /Sop.sem_add//=.
+        rewrite /Sop.sem_binarith//=.
+        rewrite float_add_irf IFR_IRF_inv //.
       }
       {
         intros Hassign.
-        eapply assign_global_params_app_inv in Hassign as (pm'&vs1&vs2&Heq1&Hlen&Hassign1&Hassign2).
+        exploit assign_global_params_app_inv; eauto. intros (pm'&vs1&vs2&Heq1&Hlen&Hassign1&Hassign2).
         apply map_eq_app in Heq1 as (ups1&ups2&Heq_ups&Hups1&Hups2).
         rewrite Heq_ups. rewrite ?map_app.
         rewrite list_apply_app; last first.
@@ -2136,27 +2441,429 @@ Proof.
           rewrite Hlen length_array_basic_to_list1 //.
         }
         rewrite list_plus_app.
-        assert ((list_plus
-             (list_apply
-                (map log_deriv_constrain_fn
-                   (map (λ '(_, v0, _), vd_constraint v0)
-                      (repeat (i, {| vd_type := b; vd_constraint := Cidentity |}, o) (Z.to_nat z))))
-                (map val2R (map R2val ups1)))) = 0) as Heq0.
-        { clear. generalize (map val2R (map R2val ups1)). induction (Z.to_nat z) => //=.
-          intros l'. destruct l' => //=. rewrite IHn. nra. }
-        rewrite Heq0 Rplus_0_l.
-        eapply IHl.
-        rewrite Hups2. eauto.
+
+        eapply (eval_Ebinop _ _ _ _ _ _ _ _ _
+                  ((Values.Vfloat (IRF (list_plus
+                                          (list_apply
+                                             (map log_deriv_constrain_fn
+                                                (map (λ '(_, v0, _), vd_constraint v0)
+                                                   (repeat (i, {| vd_type := b; vd_constraint := Clower f |}, o) (Z.to_nat z))))
+                                             (map val2R (map R2val ups1)))))))).
+        {
+          clear Hassign2 Hassign2.
+          move:Hnodups Hassign Hlen.
+          rewrite /parameter_basic_to_list/data_basic_to_list/=.
+          rewrite count_up_ofs_equiv.
+          rewrite count_up_int_equiv.
+          inv Hsize. unfold wf_type in H1.
+          rewrite Hvdty in H1.
+          assert (Z.of_nat (S O) + (Z.of_nat (Z.to_nat z)) < Integers.Ptrofs.modulus /\
+                    Z.of_nat (S O) + (Z.of_nat (Z.to_nat z)) < Integers.Int.modulus
+                 )%Z as Hsize'.
+          { lia. }
+          move: Hsize'.
+
+        generalize 0%nat as st.
+        clear Hassign1.
+        revert pm0 ups1.
+        induction (Z.to_nat z).
+        { simpl. intros st Hnodups Hassign Hlen. rewrite IRF_0. econstructor. }
+        {
+          intros pm0 ups1 st Hsize. simpl.
+          simpl. intros Hnodups Hassign Hlen.
+          subst.
+          destruct ups1 as [| u ups1].
+          { exfalso. simpl in Hlen. lia. }
+          simpl in Hassign.
+          exploit (assign_global_params_nodups_get); eauto.
+          intros (?&?).
+          econstructor.
+          { econstructor. econstructor.
+            { eapply ENOSHADOW; auto. }
+            { econstructor. econstructor. econstructor. }
+            rewrite /Integers.Ptrofs.of_int.
+            rewrite Integers.Int.unsigned_repr; eauto.
+            {  clear -Hsize. split; first lia.
+               move: Hsize.
+               rewrite /Integers.Int.max_unsigned.
+               lia. }
+          }
+          eapply IHn.
+          { lia. }
+          { inv Hnodups; eauto. }
+          { inv Hassign; eauto. }
+          { simpl in Hlen. lia. }
+
+          rewrite (typeof_correction_fold_plus (λ x, x)) //=.
+          rewrite /Sop.sem_add//=.
+          rewrite /Sop.sem_binarith//=.
+          rewrite ln_exp. rewrite float_add_irf'.
+          simpl.
+          rewrite ?IFR_IRF_inv //.
+        }
+      }
+      { eapply IHl.  eauto.
+        { simpl in Hnodups.
+          eapply flat_nodups_app_tail_inv in Hnodups; eauto. }
+        { inv Hsize; eauto. }
+        { erewrite Hups2; eauto. }
+      }
+      rewrite (typeof_correction_fold_plus (λ x, x)) //=.
+      rewrite typeof_collect_corrections /=.
+      rewrite /Sop.sem_add//=.
+      rewrite /Sop.sem_binarith//=.
+      rewrite float_add_irf'.
+      repeat f_equal; rewrite ?IFR_IRF_inv; eauto.
+      }
+    }
+    (* Cupper *)
+    { rewrite /=.
+      rewrite map_app.
+      simpl in Hnodups.
+      destruct (vd_type v) eqn:Hvdty.
+      { rewrite /=.
+        inversion 1. subst.
+        simpl.
+        rewrite Hvd /=.
+        rewrite -H6 in H.
+        destruct ups as [|? ups]; inv H6.
+        exploit (assign_global_params_nodups_get); eauto.
+        intros (?&?).
+        econstructor. 
+        { econstructor. econstructor. econstructor. econstructor.
+          { eapply ENOSHADOW; auto. }
+          { eauto. }
+          rewrite //=. }
+        eapply (IHl ups); eauto.
+        { simpl in Hnodups. inv Hnodups; eauto. }
+        { inv Hsize; eauto. }
+        simpl.
+        rewrite ln_exp. 
+        rewrite typeof_collect_corrections /=.
+        rewrite /Sop.sem_add//=.
+        rewrite /Sop.sem_binarith//=.
+        rewrite float_sub_irf'.
+        rewrite float_add_irf' IFR_IRF_inv //.
+        rewrite -IRF_0. rewrite ?IFR_IRF_inv. do 3 f_equal. rewrite /list_apply. nra.
       }
       { rewrite /=.
         inversion 1. subst.
         simpl.
-        rewrite Hvd /=. rewrite Rplus_0_l. destruct ups; inv H6.
-        eapply IHl; eauto.
+        rewrite Hvd /=.
+        rewrite -H6 in H.
+        destruct ups as [|? ups]; inv H6.
+        exploit (assign_global_params_nodups_get); eauto.
+        intros (?&?).
+        econstructor. 
+        { econstructor. econstructor. econstructor. econstructor.
+          { eapply ENOSHADOW; auto. }
+          { eauto. }
+          rewrite //=. }
+        eapply (IHl ups); eauto.
+        { simpl in Hnodups. inv Hnodups; eauto. }
+        { inv Hsize; eauto. }
+        simpl.
+        rewrite ln_exp. 
+        rewrite typeof_collect_corrections /=.
+        rewrite /Sop.sem_add//=.
+        rewrite /Sop.sem_binarith//=.
+        rewrite float_sub_irf'.
+        rewrite float_add_irf' IFR_IRF_inv //.
+        rewrite -IRF_0. rewrite ?IFR_IRF_inv. do 3 f_equal. rewrite /list_apply. nra.
       }
+      2:{
+        rewrite /=.
+        inversion 1. subst.
+        simpl.
+        rewrite Hvd /=.
+        rewrite -H6 in H.
+        destruct ups as [|? ups]; inv H6.
+        exploit (assign_global_params_nodups_get); eauto.
+        intros (?&?).
+        econstructor. 
+        { econstructor. econstructor. econstructor. econstructor.
+          { eapply ENOSHADOW; auto. }
+          { eauto. }
+          rewrite //=. }
+        eapply (IHl ups); eauto.
+        { simpl in Hnodups. inv Hnodups; eauto. }
+        { inv Hsize; eauto. }
+        simpl.
+        rewrite ln_exp. 
+        rewrite typeof_collect_corrections /=.
+        rewrite /Sop.sem_add//=.
+        rewrite /Sop.sem_binarith//=.
+        rewrite float_sub_irf'.
+        rewrite float_add_irf' IFR_IRF_inv //.
+        rewrite -IRF_0. rewrite ?IFR_IRF_inv. do 3 f_equal. rewrite /list_apply. nra.
+      }
+      {
+        intros Hassign.
+        exploit assign_global_params_app_inv; eauto. intros (pm'&vs1&vs2&Heq1&Hlen&Hassign1&Hassign2).
+        apply map_eq_app in Heq1 as (ups1&ups2&Heq_ups&Hups1&Hups2).
+        rewrite Heq_ups. rewrite ?map_app.
+        rewrite list_apply_app; last first.
+        { rewrite Hups1. rewrite ?map_length.
+          rewrite repeat_length.
+          rewrite Hlen length_array_basic_to_list1 //.
+        }
+        rewrite list_plus_app.
+
+        eapply (eval_Ebinop _ _ _ _ _ _ _ _ _
+                  ((Values.Vfloat (IRF (list_plus
+                                          (list_apply
+                                             (map log_deriv_constrain_fn
+                                                (map (λ '(_, v0, _), vd_constraint v0)
+                                                   (repeat (i, {| vd_type := b; vd_constraint := Cupper f |}, o) (Z.to_nat z))))
+                                             (map val2R (map R2val ups1)))))))).
+        {
+          clear Hassign2 Hassign2.
+          move:Hnodups Hassign Hlen.
+          rewrite /parameter_basic_to_list/data_basic_to_list/=.
+          rewrite count_up_ofs_equiv.
+          rewrite count_up_int_equiv.
+          inv Hsize. unfold wf_type in H1.
+          rewrite Hvdty in H1.
+          assert (Z.of_nat (S O) + (Z.of_nat (Z.to_nat z)) < Integers.Ptrofs.modulus /\
+                    Z.of_nat (S O) + (Z.of_nat (Z.to_nat z)) < Integers.Int.modulus
+                 )%Z as Hsize'.
+          { lia. }
+          move: Hsize'.
+
+        generalize 0%nat as st.
+        clear Hassign1.
+        revert pm0 ups1.
+        induction (Z.to_nat z).
+        { simpl. intros st Hnodups Hassign Hlen. rewrite IRF_0. econstructor. }
+        {
+          intros pm0 ups1 st Hsize. simpl.
+          simpl. intros Hnodups Hassign Hlen.
+          subst.
+          destruct ups1 as [| u ups1].
+          { exfalso. simpl in Hlen. lia. }
+          simpl in Hassign.
+          exploit (assign_global_params_nodups_get); eauto.
+          intros (?&?).
+          econstructor.
+          { econstructor.
+            { econstructor. }
+            { econstructor. econstructor.
+              { eapply ENOSHADOW; auto. }
+              { econstructor. econstructor. econstructor. }
+            rewrite /Integers.Ptrofs.of_int.
+            rewrite Integers.Int.unsigned_repr; eauto.
+            {  clear -Hsize. split; first lia.
+               move: Hsize.
+               rewrite /Integers.Int.max_unsigned.
+               lia. }
+            }
+            { rewrite //=. }
+          }
+          eapply IHn.
+          { lia. }
+          { inv Hnodups; eauto. }
+          { inv Hassign; eauto. }
+          { simpl in Hlen. lia. }
+
+          rewrite (typeof_correction_fold_plus
+                     (λ x, (Ebinop (Econst_float Floats.Float.zero Breal) Minus x Breal))) //=.
+          rewrite /Sop.sem_add//=.
+          rewrite /Sop.sem_binarith//=.
+          rewrite ln_exp.
+        rewrite float_sub_irf'.
+        rewrite float_add_irf' IFR_IRF_inv //.
+        rewrite -IRF_0. rewrite ?IFR_IRF_inv. do 3 f_equal. rewrite /list_apply. nra.
+        }
+      }
+      { eapply IHl.  eauto.
+        { simpl in Hnodups.
+          eapply flat_nodups_app_tail_inv in Hnodups; eauto. }
+        { inv Hsize; eauto. }
+        { erewrite Hups2; eauto. }
+      }
+      rewrite (typeof_correction_fold_plus (λ x, (Ebinop (Econst_float Floats.Float.zero Breal) Minus x Breal))) //=.
+      rewrite typeof_collect_corrections /=.
+      rewrite /Sop.sem_add//=.
+      rewrite /Sop.sem_binarith//=.
+      rewrite float_add_irf'.
+      repeat f_equal; rewrite ?IFR_IRF_inv; eauto.
     }
-         *)
-Abort.
+    (* Clower_upper *)
+    }
+    { rewrite /=.
+      rewrite map_app.
+      simpl in Hnodups.
+      destruct (vd_type v) eqn:Hvdty.
+      {
+        rewrite /=.
+        inversion 1. subst.
+        simpl.
+        rewrite Hvd /=.
+        rewrite -H6 in H.
+        destruct ups as [|? ups]; inv H6.
+        exploit (assign_global_params_nodups_get); eauto.
+        intros (?&?).
+        econstructor.
+        { eapply eval_correction_lower_upper; auto.
+          econstructor; eauto.
+          { econstructor. eapply ENOSHADOW; auto. }
+        }
+        eapply (IHl ups); eauto.
+        { simpl in Hnodups. inv Hnodups; eauto. }
+        { inv Hsize; eauto. }
+        simpl.
+        rewrite typeof_collect_corrections /=.
+        rewrite /Sop.sem_add//=.
+        rewrite /Sop.sem_binarith//=.
+        rewrite float_add_irf' IFR_IRF_inv //.
+        rewrite ?IFR_IRF_inv. do 3 f_equal.
+      }
+      {
+        rewrite /=.
+        inversion 1. subst.
+        simpl.
+        rewrite Hvd /=.
+        rewrite -H6 in H.
+        destruct ups as [|? ups]; inv H6.
+        exploit (assign_global_params_nodups_get); eauto.
+        intros (?&?).
+        econstructor.
+        { eapply eval_correction_lower_upper; auto.
+          econstructor; eauto.
+          { econstructor. eapply ENOSHADOW; auto. }
+        }
+        eapply (IHl ups); eauto.
+        { simpl in Hnodups. inv Hnodups; eauto. }
+        { inv Hsize; eauto. }
+        simpl.
+        rewrite typeof_collect_corrections /=.
+        rewrite /Sop.sem_add//=.
+        rewrite /Sop.sem_binarith//=.
+        rewrite float_add_irf' IFR_IRF_inv //.
+        rewrite ?IFR_IRF_inv. do 3 f_equal.
+      }
+      2:{
+        rewrite /=.
+        inversion 1. subst.
+        simpl.
+        rewrite Hvd /=.
+        rewrite -H6 in H.
+        destruct ups as [|? ups]; inv H6.
+        exploit (assign_global_params_nodups_get); eauto.
+        intros (?&?).
+        econstructor.
+        { eapply eval_correction_lower_upper; auto.
+          econstructor; eauto.
+          { econstructor. eapply ENOSHADOW; auto. }
+        }
+        eapply (IHl ups); eauto.
+        { simpl in Hnodups. inv Hnodups; eauto. }
+        { inv Hsize; eauto. }
+        simpl.
+        rewrite typeof_collect_corrections /=.
+        rewrite /Sop.sem_add//=.
+        rewrite /Sop.sem_binarith//=.
+        rewrite float_add_irf' IFR_IRF_inv //.
+        rewrite ?IFR_IRF_inv. do 3 f_equal.
+      }
+      {
+        intros Hassign.
+        exploit assign_global_params_app_inv; eauto. intros (pm'&vs1&vs2&Heq1&Hlen&Hassign1&Hassign2).
+        apply map_eq_app in Heq1 as (ups1&ups2&Heq_ups&Hups1&Hups2).
+        rewrite Heq_ups. rewrite ?map_app.
+        rewrite list_apply_app; last first.
+        { rewrite Hups1. rewrite ?map_length.
+          rewrite repeat_length.
+          rewrite Hlen length_array_basic_to_list1 //.
+        }
+        rewrite list_plus_app.
+
+        eapply (eval_Ebinop _ _ _ _ _ _ _ _ _
+                  ((Values.Vfloat (IRF (list_plus
+                                          (list_apply
+                                             (map log_deriv_constrain_fn
+                                                (map (λ '(_, v0, _), vd_constraint v0)
+                                                   (repeat (i, {| vd_type := b; vd_constraint := Clower_upper f f0 |}, o) (Z.to_nat z))))
+                                             (map val2R (map R2val ups1)))))))).
+        {
+          clear Hassign2 Hassign2.
+          move:Hnodups Hassign Hlen.
+          rewrite /parameter_basic_to_list/data_basic_to_list/=.
+          rewrite count_up_ofs_equiv.
+          rewrite count_up_int_equiv.
+          inv Hsize. unfold wf_type in H1.
+          rewrite Hvdty in H1.
+          assert (Z.of_nat (S O) + (Z.of_nat (Z.to_nat z)) < Integers.Ptrofs.modulus /\
+                    Z.of_nat (S O) + (Z.of_nat (Z.to_nat z)) < Integers.Int.modulus
+                 )%Z as Hsize'.
+          { lia. }
+          move: Hsize'.
+
+        generalize 0%nat as st.
+        clear Hassign1.
+        revert pm0 ups1.
+        induction (Z.to_nat z).
+        { simpl. intros st Hnodups Hassign Hlen. rewrite IRF_0. econstructor. }
+        {
+          intros pm0 ups1 st Hsize. simpl.
+          simpl. intros Hnodups Hassign Hlen.
+          subst.
+          destruct ups1 as [| u ups1].
+          { exfalso. simpl in Hlen. lia. }
+          simpl in Hassign.
+          exploit (assign_global_params_nodups_get); eauto.
+          intros (?&?).
+          econstructor.
+          { eapply eval_correction_lower_upper; auto.
+            econstructor.
+            { econstructor.
+              { eapply ENOSHADOW; auto. }
+              { econstructor. econstructor. econstructor. }
+            }
+            rewrite /Integers.Ptrofs.of_int.
+            rewrite Integers.Int.unsigned_repr; eauto.
+            {  clear -Hsize. split; first lia.
+               move: Hsize.
+               rewrite /Integers.Int.max_unsigned.
+               lia. }
+            }
+          eapply IHn.
+          { lia. }
+          { inv Hnodups; eauto. }
+          { inv Hassign; eauto. }
+          { simpl in Hlen. lia. }
+
+          rewrite /=.
+
+          match goal with
+          | [ |- context [transf_type ?a]] => assert (a = Breal) as ->
+          end.
+          { induction (count_up_int_aux _ _) => //=. }
+
+          rewrite /Sop.sem_add//=.
+          rewrite /Sop.sem_binarith//=.
+        rewrite float_add_irf' IFR_IRF_inv //.
+        rewrite ?IFR_IRF_inv. do 3 f_equal.
+        }
+      }
+      { eapply IHl.  eauto.
+        { simpl in Hnodups.
+          eapply flat_nodups_app_tail_inv in Hnodups; eauto. }
+        { inv Hsize; eauto. }
+        { erewrite Hups2; eauto. }
+      }
+      match goal with
+      | [ |- context [transf_type ?a]] => assert (a = Breal) as ->
+      end.
+      { induction (count_up_int _) => //=. }
+      rewrite typeof_collect_corrections /=.
+      rewrite /Sop.sem_add//=.
+      rewrite /Sop.sem_binarith//=.
+      rewrite float_add_irf'.
+      repeat f_equal; rewrite ?IFR_IRF_inv; eauto.
+      }
+   } }
+Qed.
 
 Lemma step_simulation:
   forall S1 t S2, step ge S1 t S2 ->
