@@ -6,7 +6,6 @@ Require Import Globalenvs.
 
 Require Import Stanlight.
 Require Import Ssemantics.
-Require Import DenotationalSimulationChange.
 Require Import Coqlib.
 Require Import Transforms.
 Require Import IteratedRInt.
@@ -166,3 +165,12 @@ Lemma float_mul_irf': forall a b,
   (Floats.Float.mul a b) = IRF (IFR a * IFR b).
 Proof. intros a b. rewrite -float_mul_irf ?IRF_IFR_inv //. Qed.
 
+Lemma IRF_inj t1 t2 :
+  IRF t1 = IRF t2 ->
+  t1 = t2.
+Proof.
+  intros Heq.
+  rewrite -(IFR_IRF_inv t1).
+  rewrite -(IFR_IRF_inv t2).
+  congruence.
+Qed.

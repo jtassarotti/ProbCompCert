@@ -50,6 +50,7 @@ Definition match_prog (p: program) (tp: program) : Prop :=
                                  (id, vd_type v,
                                    Some (fun x => (unconstrained_to_constrained_fun (vd_constraint v) x))))
                             parameters /\
+  pr_data_vars tp = pr_data_vars p /\
   Forall (λ '(id, _, _), ¬ In id math_idents) (pr_parameters_vars p) /\
   NoDup (pr_parameters_ids p) /\
   Forall (λ '(_, b, _), wf_type b) (pr_parameters_vars p).
@@ -87,6 +88,8 @@ Proof.
   split.
   { inversion HOK; subst. simpl. eauto. }
   apply mmap_inversion in Hcheck'.
+  split.
+  { inv HOK => //=. }
   split.
   {
     apply Forall_forall. intros ((?&?)&?) Hin.
@@ -509,15 +512,21 @@ Definition target_unmap (d p : list Values.val) x := x - list_plus (list_apply l
 Lemma target_map_unmap : ∀ d p x, target_map d p (target_unmap d p x) = x.
 Proof. intros d p x. rewrite /target_map/target_unmap. field. Qed.
 
-Lemma target_map_dgs :
-  ∀ data x, in_list_rectangle x (parameter_list_rect tprog) ->
-  target_map data (map R2val x) (log_density_of_program prog data (map R2val (param_map x))) =
-    list_plus (list_apply log_dgs x) + log_density_of_program prog data (map R2val (param_map x)).
+Lemma target_map_plus:
+  ∀ data x v, in_list_rectangle x (parameter_list_rect tprog) ->
+  target_map data (map R2val x) v =
+    list_plus (list_apply log_dgs x) + v.
 Proof.
   rewrite /target_map. intros. f_equal. f_equal. f_equal.
   rewrite map_map. etransitivity; last eapply map_id.
   eapply map_ext. intros. rewrite //= IFR_IRF_inv //.
 Qed.
+
+Lemma target_map_dgs :
+  ∀ data x, in_list_rectangle x (parameter_list_rect tprog) ->
+  target_map data (map R2val x) (log_density_of_program prog data (map R2val (param_map x))) =
+    list_plus (list_apply log_dgs x) + log_density_of_program prog data (map R2val (param_map x)).
+Proof. intros. by apply target_map_plus. Qed.
 
 Lemma gs_monotone :
   wf_rectangle_list (parameter_list_rect prog) ->
@@ -632,6 +641,7 @@ Definition match_prog' : Prop :=
                                  (id, vd_type v,
                                    Some (fun x => (unconstrained_to_constrained_fun (vd_constraint v) x))))
                                found_parameters /\
+  pr_data_vars tprog = pr_data_vars prog /\
   Forall (λ '(id, _, _), ¬ In id math_idents) (pr_parameters_vars prog) /\
   NoDup (pr_parameters_ids prog) /\
   Forall (λ '(_, b, _), wf_type b) (pr_parameters_vars prog).
@@ -686,7 +696,7 @@ Lemma functions_translated:
   Genv.find_funct ge v = Some f ->
   ∃ f', Genv.find_funct tge v = Some f' /\ transf_fundef fpmap fcorrection f = OK f'.
 Proof.
-  intros. destruct TRANSL' as (Hmatch&Hrest&Hcheck&Hnodup&Hsizes).
+  intros. destruct TRANSL' as (Hmatch&Hrest&Hdata&Hcheck&Hnodup&Hsizes).
   eapply (Genv.find_funct_match) in Hmatch as (?&tfun&Htfun); eauto.
   intuition.
   eexists; split; eauto.
@@ -699,7 +709,7 @@ Lemma function_ptr_translated:
   Genv.find_funct_ptr ge v = Some f ->
   ∃ f', Genv.find_funct_ptr tge v = Some f' /\ transf_fundef fpmap fcorrection f = OK f'.
 Proof.
-  intros. destruct TRANSL' as (Hmatch&Hrest&Hcheck&Hnodup&Hsizes).
+  intros. destruct TRANSL' as (Hmatch&Hrest&Hdata&Hcheck&Hnodup&Hsizes).
   eapply (Genv.find_funct_ptr_match) in Hmatch as (?&tfun&Htfun); eauto.
   intuition.
   eexists; split; eauto.
@@ -977,7 +987,9 @@ Definition match_param_mem_none (pm0 pm1 : param_mem) :=
   ∀ id, ParamMap.is_id_alloc pm0 id = false -> ParamMap.is_id_alloc pm1 id = false.
 
 Definition match_param_mem pm0 pm1 :=
-  match_param_mem_some pm0 pm1 /\ match_param_mem_none pm0 pm1.
+  match_param_mem_some pm0 pm1 /\ match_param_mem_none pm0 pm1 /\
+  set_global_params (pr_parameters_ids tprog) (flatten_parameter_list (pr_parameters_vars tprog))
+           (map R2val (param_unmap params)) empty pm1.
 
 Definition wf_param_mem pm :=
   (∀ id, ParamMap.is_id_alloc pm id = false -> fpmap id = None).
@@ -1031,6 +1043,19 @@ Proof.
     }
 Qed.
 
+Lemma fpmap_in_parameters_id_not_none id :
+  In id (pr_parameters_ids tprog) ->
+  fpmap id <> None.
+Proof.
+  rewrite parameters_ids_preserved.
+  rewrite /pr_parameters_ids pr_parameters_vars_found_parameters.
+  intros Hin.
+  eapply list_in_map_inv in Hin as (((?&?)&?)&?&Hin).
+  eapply list_in_map_inv in Hin as (((?&?)&?)&?&Hin).
+  exploit fpmap_spec; intuition eauto.
+  congruence.
+Qed.
+
 Lemma assign_loc_preserved ty m blk ofs v m2 :
   assign_loc ge ty m blk ofs v m2 ->
   assign_loc tge ty m blk ofs v m2.
@@ -1070,32 +1095,36 @@ Proof.
   auto.
 Qed.
 
+Lemma set_global_params_is_id_alloc id vs pm :
+  set_global_params (pr_parameters_ids tprog) (flatten_parameter_list (pr_parameters_vars tprog)) vs empty pm ->
+  ParamMap.is_id_alloc pm id = true -> In id (pr_parameters_ids tprog).
+Proof.
+  destruct 1 as (pm'&Hres&Hassign). intros His.
+  exploit assign_global_params_is_id_alloc_in_flat1; eauto.
+  intros Hcases.
+  destruct Hcases as [Hpm'|Hin'].
+  {
+    exploit reserve_global_params_is_id_alloc_true; eauto.
+    rewrite is_id_empty.
+    intros [Hemp|Hshadow]; first congruence.
+    auto.
+  }
+  {
+    destruct Hin' as (b&ofs'&Hin').
+    apply In_flatten_parameter_list_id in Hin'. auto.
+  }
+Qed.
+
 Lemma set_global_params_no_shadow vs pm :
   set_global_params (pr_parameters_ids tprog) (flatten_parameter_list (pr_parameters_vars tprog)) vs empty pm ->
   param_mem_no_shadow_mathlib pm.
 Proof.
-  destruct 1 as (pm'&Hres&Hassign).
+  intros Hset.
   rewrite /param_mem_no_shadow_mathlib.
   apply Forall_forall. intros x Hin.
   destruct (is_id_alloc _ _) eqn:His; auto.
-  exploit assign_global_params_is_id_alloc_in_flat1; eauto.
-  intros Hcases.
-  assert (In x (pr_parameters_ids prog)).
-  {
-    destruct Hcases as [Hpm'|Hin'].
-    {
-      exploit reserve_global_params_is_id_alloc_true; eauto.
-      rewrite is_id_empty.
-      intros [Hemp|Hshadow]; first congruence.
-      rewrite parameters_ids_preserved in Hshadow.
-      auto.
-    }
-    {
-      destruct Hin' as (b&ofs'&Hin').
-      apply In_flatten_parameter_list_id in Hin'.
-      rewrite parameters_ids_preserved in Hin'. auto.
-    }
-  }
+  exploit set_global_params_is_id_alloc; eauto.
+  rewrite parameters_ids_preserved; intros.
   exploit (math_idents_not_in_parameters); try eassumption.
   intuition.
 Qed.
@@ -1524,14 +1553,14 @@ Proof.
     destruct Hmatch as (_&Hmatch). eapply Hmatch; auto. }
 Qed.
 
-Definition valid_env_full en := valid_env en /\ env_no_shadow_mathlib en.
+Definition valid_env_full en pm1 := valid_env en /\ env_no_shadow_mathlib en /\ env_no_shadow_param en pm1.
 Definition match_param_mem_full pm0 pm1 :=
   match_param_mem pm0 pm1 /\
   wf_param_mem pm0.
 
 Lemma eval_expr_preserved:
   forall en m pm0 pm1 t e e' v,
-  valid_env_full en ->
+  valid_env_full en pm1 ->
   match_param_mem_full pm0 pm1 ->
   transf_expr fpmap e = OK e' ->
   eval_expr ge en m pm0 t e v ->
@@ -1544,7 +1573,7 @@ Qed.
 
 Lemma eval_lvalue_preserved:
   forall en m pm0 pm1 t e loc ofs s,
-  valid_env_full en ->
+  valid_env_full en pm1 ->
   match_param_mem_full pm0 pm1 ->
   eval_lvalue ge en m pm0 t e loc ofs s ->
   match e with
@@ -1562,7 +1591,7 @@ Qed.
 
 Lemma eval_plvalue_preserved:
   forall en m pm0 pm1 t e loc ofs,
-  valid_env_full en ->
+  valid_env_full en pm1 ->
   match_param_mem_full pm0 pm1 ->
   eval_plvalue ge en m pm0 t e loc ofs ->
   match e with
@@ -1580,7 +1609,7 @@ Qed.
 
 Lemma eval_exprlist_preserved:
   forall en m pm0 pm1 t el el' v,
-  valid_env_full en ->
+  valid_env_full en pm1 ->
   match_param_mem_full pm0 pm1 ->
   transf_exprlist fpmap el = OK el' ->
   eval_exprlist ge en m pm0 t el v ->
@@ -1603,7 +1632,7 @@ Inductive match_states: state -> state -> Prop :=
   | match_start_states: forall f f' s s' t e m pm pm'
       (TRF: transf_function fpmap fcorrection f = OK f')
       (TRS: transf_statement fpmap s = OK s')
-      (VE: valid_env_full e)
+      (VE: valid_env_full e pm')
       (MPM: match_param_mem_full pm pm'),
       match_states (Start f s t Kstop e m pm)
                    (Start f' (Ssequence s' (Starget fcorrection)) t Kstop e m pm')
@@ -1611,13 +1640,13 @@ Inductive match_states: state -> state -> Prop :=
       (TRF: transf_function fpmap fcorrection f = OK f')
       (TRS: transf_statement fpmap s = OK s')
       (MCONT: match_cont k k')
-      (VE: valid_env_full e)
+      (VE: valid_env_full e pm')
       (MPM: match_param_mem_full pm pm'),
       match_states (State f s t k e m pm)
                    (State f' s' t k' e m pm')
   | match_return_states: forall f f' t e m pm pm'
       (TRF: transf_function fpmap fcorrection f = OK f')
-      (VE: valid_env_full e)
+      (VE: valid_env_full e pm')
       (MPM: match_param_mem_full pm pm'),
       match_states (Return f (IRF t) e m pm)
                    (Return f' (IRF (target_map data (map R2val (param_unmap params)) t)) e m pm').
@@ -1693,8 +1722,7 @@ Qed.
 
 
 Lemma eval_correction e m pm0 pm t
-  (ENOSHADOW : env_no_shadow_param e pm)
-  (VE : valid_env_full e)
+  (VE : valid_env_full e pm)
   (PARAM_NOSHADOW: param_mem_no_shadow_mathlib pm) :
   assign_global_params (flatten_parameter_list (pr_parameters_vars tprog)) pm0
     (map R2val (param_unmap params)) pm ->
@@ -1716,6 +1744,7 @@ Proof.
   rewrite /flatten_ident_variable_list//=.
   eapply eval_correction; eauto.
   { eapply tprog_genv_has_mathlib. }
+  { eapply VE. }
   { eapply VE. }
 Qed.
 
@@ -1744,7 +1773,12 @@ Proof.
     { eapply plus_three.
       { econstructor; eauto. }
       2: { rewrite Rplus_comm. rewrite -float_add_irf. econstructor. }
-      { econstructor. admit. }
+      { econstructor.
+        destruct MPM as ((?&?&Hset)&?).
+        destruct Hset as (pm''&Hres&Hassign).
+        eapply eval_correction; eauto.
+        { eapply set_global_params_no_shadow. eexists; split; eauto. }
+      }
       rewrite //=.
     }
   - (* Skip *)
@@ -1811,8 +1845,219 @@ Proof.
     econstructor; eauto.
   - (* Tilde *)
     monadInv TRS.
-Abort.
+Qed.
 
+Lemma reserve_global_params_remap pm0 pm :
+  reserve_global_params (pr_parameters_ids prog) pm0 pm ->
+  ∀ pm0', ∃ pm',
+  reserve_global_params (pr_parameters_ids tprog) pm0' pm'.
+Proof.
+  intros Hset. rewrite parameters_ids_preserved. induction Hset.
+  { intros. eexists; econstructor; eauto. }
+  { intros. edestruct IHHset. eexists; econstructor; eauto. }
+Qed.
+
+Lemma assign_global_params_functional_length ids vs pm:
+  (∀ x, In x vs -> ∃ f, x = Values.Vfloat f) ->
+  length ids = length vs ->
+  ∃ pm', assign_global_params ids pm vs pm'.
+Proof.
+  revert vs pm.
+  induction ids; intros vs pm Hfloat Hlength.
+  { destruct vs; last by (simpl in Hlength; congruence).
+    eexists; econstructor; eauto. }
+  { destruct vs; first by (simpl in Hlength; congruence).
+    destruct a as ((?&?)&?).
+    edestruct (Hfloat v).
+    { by left. }
+    edestruct IHids.
+    { intros ? Hin. eapply Hfloat. right. eauto. }
+    { simpl in Hlength. inv Hlength. eauto. }
+    {
+      subst. eexists. econstructor; eauto.
+    }
+  }
+Qed.
+
+Lemma assign_global_params_functional_length_inv ids1 vs1 pm1 pm1'  :
+  assign_global_params ids1 pm1 vs1 pm1' ->
+  length ids1 = length vs1.
+Proof.
+  induction 1.
+  { eauto. }
+  { simpl. congruence. }
+Qed.
+
+Lemma length_param_unmap_le x :
+  (length (param_unmap x) <= length x)%nat.
+Proof.
+  rewrite /param_unmap ?map_length ?combine_length. lia.
+Qed.
+
+Lemma length_param_map_le x :
+  (length (param_map x) <= length x)%nat.
+Proof.
+  rewrite /param_map ?map_length ?combine_length. lia.
+Qed.
+
+Lemma length_param_unmap :
+  length (param_unmap params) = length params.
+Proof.
+  exploit (param_map_unmap params); eauto.
+  intros Heq.
+  specialize (length_param_unmap_le params).
+  specialize (length_param_map_le (param_unmap params)).
+  rewrite Heq. lia.
+Qed.
+
+Lemma assign_global_params_remap pm0 pm :
+  assign_global_params (flatten_parameter_list (pr_parameters_vars prog))
+                    pm0 (map R2val params) pm ->
+  ∀ pm0', ∃ pm',
+  assign_global_params (flatten_parameter_list (pr_parameters_vars tprog))
+                    pm0' (map R2val (param_unmap params)) pm'.
+Proof.
+  rewrite flatten_parameter_list_tprog.
+  intros Hassign.
+  exploit (assign_global_params_functional_length_inv); eauto.
+  intros Hlen.
+  intros pm0'.
+  eapply assign_global_params_functional_length.
+  { induction (param_unmap params) => //=.
+    intros x [Hleft|Hright]; eauto.
+  }
+  rewrite Hlen.
+  rewrite map_length.
+  rewrite map_length.
+  rewrite length_param_unmap. auto.
+Qed.
+
+Lemma set_global_params_remap pm0 pm :
+  set_global_params (pr_parameters_ids prog) (flatten_parameter_list (pr_parameters_vars prog))
+                    (map R2val params) pm0 pm ->
+  ∀ pm0', ∃ pm',
+  set_global_params (pr_parameters_ids tprog) (flatten_parameter_list (pr_parameters_vars tprog))
+                    (map R2val (param_unmap params)) pm0' pm'.
+Proof.
+  intros Hset pm0'.
+  destruct Hset as (pmres&Hres&Hassign).
+  exploit (reserve_global_params_remap); eauto.
+  intros (pmres'&Hres').
+  exploit (assign_global_params_remap); eauto.
+  intros (pm'&Hassign').
+  eexists; econstructor; eauto.
+Qed.
+
+Lemma data_vars_preserved :
+  pr_data_vars tprog = pr_data_vars prog.
+Proof.
+  destruct TRANSL' as (?&?). intuition.
+Qed.
+
+Lemma alloc_variables_in_env env m vs env' m' :
+  alloc_variables env m vs env' m' ->
+  ∀ id loc b, Maps.PTree.get id env' = Some (loc, b) ->
+              (In (id, b) vs \/ Maps.PTree.get id env = Some (loc, b)).
+Proof.
+  induction 1.
+  - intros. eauto.
+  - intros. edestruct IHalloc_variables as [Hleft|Hright].
+    { eauto. }
+    { left. right. eauto. }
+    destruct (Pos.eq_dec id0 id). subst.
+    { rewrite Maps.PTree.gss in Hright. inv Hright. left. left. eauto. }
+    { rewrite Maps.PTree.gso in Hright; last congruence. eauto. }
+Qed.
+
+Lemma transf_initial_states:
+  forall S1, initial_state prog data (map R2val params) S1 ->
+  exists S2, initial_state tprog data (map R2val (param_unmap params)) S2 /\ match_states S1 S2.
+Proof.
+  intros S1 Hmatch. inv Hmatch.
+  exploit (set_global_params_remap); eauto.
+  intros (pm'&Hset).
+  exploit (function_ptr_translated); eauto.
+  intros (f'&Hfindf'&Htransff').
+  monadInv Htransff'.
+  eexists (Start x (fn_body x) (Floats.Float.of_int Integers.Int.zero)
+            Kstop e _ _).
+  split.
+  { econstructor; eauto.
+    { destruct TRANSL' as (TRANS_GEN&?). eapply (Genv.init_mem_match TRANS_GEN); eauto. }
+    { rewrite symbols_preserved. eauto. }
+    { monadInv EQ. rewrite //=. eauto. }
+    { rewrite data_vars_preserved. eapply assign_global_locs_preserved; eauto. }
+  }
+  monadInv EQ.
+  simpl. econstructor; eauto.
+  { rewrite /transf_function. rewrite /bind. rewrite EQ EQ1 EQ0. eauto. }
+  {
+    split.
+    { rewrite /valid_env. intros id Hget.
+      destruct (Maps.PTree.get id e) as [(?&?)|] eqn:Hgetenv; last by congruence.
+      eapply alloc_variables_in_env in Hgetenv; eauto.
+      destruct Hgetenv as [Hin|Hfalso].
+      { apply mmap_inversion in EQ0.
+        eapply list_forall2_in_left in EQ0 as (?&?&Hcheck); eauto.
+        rewrite /vars_check_shadow in Hcheck.
+        rewrite /check_non_param in Hcheck. simpl in Hcheck. destruct (fpmap id); inv Hcheck; auto.
+      }
+      { rewrite Maps.PTree.gempty in Hfalso; congruence. }
+    }
+    split.
+    {
+      rewrite /env_no_shadow_mathlib.
+      apply Forall_forall. intros x Hin.
+      apply mmap_inversion in EQ.
+      destruct (Maps.PTree.get x e) as [(?&?)|] eqn:Hgetenv; auto.
+      eapply alloc_variables_in_env in Hgetenv; eauto.
+      destruct Hgetenv as [Hin'|Hfalso].
+      {
+        eapply list_forall2_in_left in EQ as (?&?&?); eauto.
+        eapply vars_check_shadow_ok in Hin; eauto.
+        exfalso; auto.
+      }
+      { rewrite Maps.PTree.gempty in Hfalso; congruence. }
+    }
+    rewrite /env_no_shadow_param.
+    {
+      intros x Halloc.
+      apply mmap_inversion in EQ0.
+      destruct (Maps.PTree.get x e) as [(?&?)|] eqn:Hgetenv; auto.
+      eapply alloc_variables_in_env in Hgetenv; eauto.
+      destruct Hgetenv as [Hin'|Hfalso].
+      {
+        eapply list_forall2_in_left in EQ0 as (?&?&Hcheck); eauto.
+        exploit (set_global_params_is_id_alloc); eauto. intros Hin.
+        eapply (fpmap_in_parameters_id_not_none) in Hin.
+        rewrite /check_non_param in Hcheck. simpl in Hcheck. destruct (fpmap x); try congruence.
+      }
+      { rewrite Maps.PTree.gempty in Hfalso; congruence. }
+    }
+  }
+  { split.
+    { split.
+      { eapply set_global_params_match_param_mem_some; eauto. }
+      split; auto.
+      { eapply set_global_params_match_param_mem_none; eauto. }
+    }
+    { eapply set_global_params_wf; eauto. }
+  }
+Qed.
+
+Lemma transf_final_states:
+  forall S1 S2 t r, match_states S1 S2 -> final_state (IRF t) S1 r
+                    -> final_state (IRF (target_map data (map R2val (param_unmap params)) t)) S2 r.
+Proof.
+  intros S1 S2 t r Hmatch Hfinal. inv Hfinal; inv Hmatch.
+  { econstructor. exploit IRF_inj; eauto => ->. auto. }
+  { econstructor. intros Heq.
+    eapply IRF_inj in Heq.
+    rewrite ?target_map_plus in Heq;
+      try (apply param_unmap_in_dom; auto).
+    assert (t = t1) by nra. congruence.
+  }
+Qed.
 
 Theorem transf_program_correct_change t:
     is_safe prog data (map R2val params) ->
@@ -1821,9 +2066,13 @@ Theorem transf_program_correct_change t:
          (IRF (target_map data (map R2val (param_unmap params)) t))).
 Proof.
   intros Hsafe.
-Admitted.
+  eapply forward_simulation_plus.
+  eapply senv_preserved.
+  eexact transf_initial_states.
+  intros. eapply transf_final_states; eauto.
+  intros. eapply step_simulation; eauto.
+Qed.
 
-(* TODO: Joe: this doesn't make sense, because we ought to be remapping data/params in target *)
 Theorem transf_program_correct tval params':
   forward_simulation (Ssemantics.semantics prog data params' tval) (Ssemantics.semantics tprog data params' tval).
 Proof.
@@ -1831,6 +2080,38 @@ Proof.
 Admitted.
 
 End PRESERVATION.
+
+Section DENOTATIONAL_PRESERVATION.
+
+Variable prog: Stanlight.program.
+Variable tprog: Stanlight.program.
+Variable TRANSL: match_prog prog tprog.
+
+Theorem denotational_preserved :
+  denotational_refinement tprog prog.
+Proof.
+  eapply (DenotationalSimulationChange.denotational_preserved
+            prog
+            tprog
+            (param_unmap prog)
+            (param_map prog)
+            (target_map prog)
+            (target_unmap prog)).
+  { eapply target_map_unmap. }
+  { by eapply dimen_preserved. }
+  { by eapply wf_paramter_rect_tprog. }
+  { by eapply param_unmap_map. }
+  { by eapply param_map_in_dom. }
+  { intros.  eapply transf_program_correct_change; eauto. admit. admit. }
+  { by eapply param_map_gs. }
+  { by eapply target_map_dgs. }
+  { by eapply gs_monotone. }
+  { by eapply gs_image. }
+  { by eapply gs_deriv. }
+  { intros. eapply eval_param_map_list_preserved; eauto. admit. }
+Abort.
+
+End DENOTATIONAL_PRESERVATION.
 
 Global Instance TransfReparameterizationtLink : TransfLink match_prog.
 Admitted.

@@ -48,6 +48,19 @@ Proof.
   congruence.
 Qed.
 
+Lemma vars_check_shadow_ok id b xt:
+  vars_check_shadow (id, b) = OK xt ->
+  ¬ In id math_idents.
+Proof.
+  intros Hin.
+  unfold vars_check_shadow in Hin.
+  destruct (forallb _ _) eqn:Hforallb; last by inv Hin.
+  rewrite forallb_forall in Hforallb * => Hforallb.
+  intros Hin'. eapply Hforallb in Hin'.
+  destruct (Pos.eq_dec id id); inv Hin'.
+  congruence.
+Qed.
+
 Lemma program_of_program_eq p tp :
   pr_defs p = pr_defs tp -> (program_of_program p) = (program_of_program tp).
 Proof.

@@ -13,6 +13,7 @@ Local Open Scope clight_scope.
 
 Require ClassicalEpsilon.
 Require Import Reals.
+Require Import StanEnv.
 From Coq Require Import Reals Psatz ssreflect ssrbool Utf8.
 
 Require Import Ssemantics.
@@ -76,11 +77,6 @@ Variable transf_correct:
     forward_simulation (Ssemantics.semantics prog data (map R2val params) (IRF t))
       (Ssemantics.semantics tprog data (map R2val (param_unmap params))
          (IRF (target_map data (map R2val (param_unmap params)) t))).
-
-Variable IFR_IRF_inv :
-  ∀ x, IFR (IRF x) = x.
-Variable IRF_IFR_inv :
-  ∀ x, IRF (IFR x) = x.
 
 (*
 Variable parameters_phi:
