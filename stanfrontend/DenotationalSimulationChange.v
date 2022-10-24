@@ -73,6 +73,8 @@ Variable param_map_in_dom :
 
 Variable transf_correct:
   forall data params t,
+    genv_has_mathlib (globalenv prog) ->
+    in_list_rectangle params (parameter_list_rect prog) ->
     is_safe prog data (map R2val params) ->
     forward_simulation (Ssemantics.semantics prog data (map R2val params) (IRF t))
       (Ssemantics.semantics tprog data (map R2val (param_unmap params))
@@ -87,14 +89,20 @@ Lemma dimen_preserved:
 Proof. rewrite /parameter_dimension/flatten_parameter_constraints. rewrite parameters_preserved //. Qed.
 *)
 
+Section has_math.
+
+Variable genv_has_math :
+  genv_has_mathlib (globalenv prog).
+
 Lemma returns_target_value_fsim data params t:
+  in_list_rectangle params (parameter_list_rect prog) ->
   is_safe prog data (map R2val params) ->
   returns_target_value prog data (map R2val params) (IRF t) ->
   returns_target_value tprog data
     (map R2val (param_unmap params))
     (IRF (target_map data (map R2val (param_unmap params)) t)).
 Proof.
-  intros Hsafe.
+  intros Hrect Hsafe.
   intros (s1&s2&Hinit&Hstar&Hfinal).
   destruct (transf_correct data params t) as [index order match_states props]; eauto.
   edestruct (fsim_match_initial_states) as (?&s1'&Hinit'&Hmatch1); eauto.
@@ -104,12 +112,13 @@ Proof.
 Qed.
 
 Lemma returns_target_value_bsim data params t:
+  in_list_rectangle params (parameter_list_rect prog) ->
   is_safe prog data (map R2val params) ->
   returns_target_value tprog data (map R2val (param_unmap params))
     (IRF (target_map data (map R2val (param_unmap params)) t)) ->
   returns_target_value prog data (map R2val params) (IRF t).
 Proof.
-  intros Hsafe (s1&s2&Hinit&Hstar&Hfinal).
+  intros ? Hsafe (s1&s2&Hinit&Hstar&Hfinal).
   specialize (transf_correct data params t) as Hfsim.
   apply forward_to_backward_simulation in Hfsim as Hbsim;
     auto using semantics_determinate, semantics_receptive.
@@ -126,11 +135,12 @@ Proof.
 Qed.
 
 Lemma  log_density_map data params :
+  in_list_rectangle params (parameter_list_rect prog) ->
   is_safe prog data (map R2val params) ->
   target_map data (map R2val (param_unmap params)) (log_density_of_program prog data (map R2val params)) =
   log_density_of_program tprog data (map R2val (param_unmap params)).
 Proof.
-  intros HP.
+  intros ? HP.
   rewrite {1}/log_density_of_program.
   rewrite /pred_to_default_fun.
   destruct (ClassicalEpsilon.excluded_middle_informative) as [(v&Hreturns)|Hne].
@@ -157,7 +167,8 @@ Proof.
   rewrite /is_safe. split.
   { intros t.
     edestruct Hsafe as ((s&Hinit)&_).
-    specialize (transf_correct data (param_map params) (target_unmap data (map R2val params) (IFR t)) Hsafe)
+    specialize (transf_correct data (param_map params) (target_unmap data (map R2val params) (IFR t))
+                  genv_has_math Hin' Hsafe)
       as Hfsim.
     destruct Hfsim. edestruct fsim_match_initial_states as (ind&s'&?); eauto.
     exists s'. rewrite param_unmap_map in H; intuition.
@@ -189,6 +200,8 @@ Proof.
   }
 Qed.
 
+End has_math.
+
 (* The last lemma assumes that the transformation actually in fact
    corresponds to a change of variables where we've accounted for the Jacobian *)
 Variable gs : list (R -> R).
@@ -213,6 +226,7 @@ Variable gs_deriv :
     (map (λ (f : R → R) (x : R), exp (f x)) log_dgs).
 Variable eval_param_map_list_preserved :
   ∀ x,
+    genv_has_mathlib (globalenv prog) ->
     in_list_rectangle x (parameter_list_rect tprog) ->
     eval_param_map_list tprog x = eval_param_map_list prog (param_map x).
 
@@ -245,7 +259,7 @@ Proof.
   - intros data Hwf Hsafe. apply safe_data_preserved; auto.
   - intros data rt vt Hsafe Hwf Hsubset.
     rewrite /is_program_distribution/is_program_normalizing_constant/is_unnormalized_program_distribution.
-    intros (vnum&vnorm&Hneq0&His_norm&His_num&Hdiv).
+    intros ? (vnum&vnorm&Hneq0&His_norm&His_num&Hdiv).
     eexists vnum, vnorm;  repeat split; auto.
     {
       assert (vnorm = IIRInt_list (program_normalizing_constant_integrand prog data) (parameter_list_rect prog))

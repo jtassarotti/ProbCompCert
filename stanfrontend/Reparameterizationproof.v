@@ -2102,14 +2102,14 @@ Proof.
   { by eapply wf_paramter_rect_tprog. }
   { by eapply param_unmap_map. }
   { by eapply param_map_in_dom. }
-  { intros.  eapply transf_program_correct_change; eauto. admit. admit. }
+  { intros. eapply transf_program_correct_change; eauto. }
   { by eapply param_map_gs. }
   { by eapply target_map_dgs. }
   { by eapply gs_monotone. }
   { by eapply gs_image. }
   { by eapply gs_deriv. }
-  { intros. eapply eval_param_map_list_preserved; eauto. admit. }
-Abort.
+  { intros. eapply eval_param_map_list_preserved; eauto. }
+Qed.
 
 End DENOTATIONAL_PRESERVATION.
 

@@ -5,6 +5,7 @@ Require Import Ctypes Cop Stanlight.
 Require Import Smallstep.
 Require Import Linking.
 Require Import IteratedRInt.
+Require Import StanEnv.
 Require Vector.
 
 Require Import Clightdefs.
@@ -201,10 +202,10 @@ Lemma denotational_preserved :
 Proof.
   exists (dimen_preserved).
   split.
-  - intros data Hsafe. apply safe_data_preserved; auto.
+  - intros data Hsafe ?. apply safe_data_preserved; auto.
   - intros data rt vt Hsafe Hwf Hsubset.
     rewrite /is_program_distribution/is_program_normalizing_constant/is_unnormalized_program_distribution.
-    intros (vnum&vnorm&Hneq0&His_norm&His_num&Hdiv).
+    intros ? (vnum&vnorm&Hneq0&His_norm&His_num&Hdiv).
     exists vnum, vnorm. repeat split; auto.
     {
       rewrite parameter_list_rect_preserved.

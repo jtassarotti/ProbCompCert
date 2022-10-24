@@ -8,6 +8,7 @@ Require Import Linking.
 Require Import IteratedRInt.
 Require Import Sop.
 Require Import ParamMap.
+Require Import StanEnv.
 Require Vector.
 
 Set Bullet Behavior "Strict Subproofs".
@@ -139,7 +140,6 @@ Definition binary_op_conversion (op: b_op): binary_operation :=
 Definition no_mem_dep ef ge vargs m vres : Prop :=
   external_call ef ge vargs m E0 vres m ->
   forall m', external_call ef ge vargs m' E0 vres m'.
-
 
 Inductive eval_expr: expr -> val -> Prop :=
   | eval_Econst_int: forall i ty,
@@ -751,10 +751,6 @@ Section DENOTATIONAL.
     - auto.
   Qed.
 
-  (* IFR -> inject float into real, named in analogy to INR : nat -> R, IZR: Z -> R *)
-  Axiom IFR : float -> R.
-  Axiom IRF: R -> float.
-
   (* Return a final target value if one can be obtained from running the program, otherwise
      returns Float.zero *)
   Definition log_density_of_program (p: program) (data: list val) (params: list val) : R :=
@@ -1059,9 +1055,11 @@ Section DENOTATIONAL.
   Definition denotational_refinement (p1 p2: program) :=
     ∃ (Hpf: parameter_dimension p1 = parameter_dimension p2),
       (∀ data, wf_rectangle_list (parameter_list_rect p2) ->
+               genv_has_mathlib (globalenv p2) ->
                safe_data p2 data ->
                safe_data p1 data) /\
       (∀ data rt vt, safe_data p2 data ->
+                  genv_has_mathlib (globalenv p2) ->
                   wf_rectangle_list (parameter_list_rect p2) ->
                   rectangle_list_subset rt (parameter_list_rect p2) ->
                   is_program_distribution p2 data rt vt ->
