@@ -447,3 +447,116 @@ Proof.
     nra.
   }
 Qed.
+
+Lemma assign_global_params_app_inv ids1 ids2 vs pm0 pm :
+  assign_global_params (ids1 ++ ids2) pm0 vs pm ->
+  ∃ pm' vs1 vs2,
+    vs = List.app vs1 vs2 /\
+    length vs1 = length ids1 /\
+    assign_global_params ids1 pm0 vs1 pm' /\
+    assign_global_params ids2 pm' vs2 pm.
+Proof.
+  revert vs pm0 pm.
+  induction ids1.
+  { intros vs pm0 pm. simpl. exists pm0, nil, vs. rewrite //=; intuition eauto.
+    econstructor. }
+  { intros vs pm0 pm Hassign.
+    inversion Hassign. subst. exploit IHids1; eauto. intros (pm'&vs1'&vs2'&Heq1&Hlen1&Hassign1&Hassign2).
+    eexists pm', (_ :: vs1'), vs2'.
+    split; eauto.
+    { simpl. rewrite Heq1 //=. }
+    split; simpl; auto.
+    split; eauto.
+    { econstructor; eauto. }
+  }
+Qed.
+
+Lemma list_apply_app {A B: Type} (fs1 fs2: list (A -> B)) (xs1 xs2: list A) :
+  length fs1 = length xs1 ->
+  list_apply (fs1 ++ fs2) (xs1 ++ xs2) =
+  (list_apply fs1 xs1 ++ list_apply fs2 xs2)%list.
+Proof.
+  revert xs1. induction fs1 => xs1.
+  { rewrite //=. destruct xs1; by inversion 1.  }
+  { rewrite //=. destruct xs1; first by inversion 1.
+    simpl. inversion 1. rewrite /list_apply/=. f_equal. eauto.
+  }
+Qed.
+
+Lemma list_plus_app (xs1 xs2: list R) :
+  list_plus (xs1 ++ xs2) = list_plus xs1 + list_plus xs2.
+Proof.
+  induction xs1 => //=; try nra.
+Qed.
+
+Lemma length_array_basic_to_list1 i b z o :
+  length (parameter_basic_to_list (i, Barray b z, o)) = Z.to_nat z.
+Proof.
+  rewrite /parameter_basic_to_list/data_basic_to_list/=.
+  rewrite combine_length.
+  rewrite repeat_length.
+  rewrite count_up_ofs_len.
+  rewrite Nat.min_id //.
+Qed.
+
+Lemma assign_global_params_not_in_nochange i ofs bs pm0 vs pm :
+  assign_global_params bs pm0 vs pm ->
+  (∀ b ofs', In (i, b, ofs') bs -> Integers.Ptrofs.intval ofs <> Integers.Ptrofs.intval ofs') ->
+  get pm i (Integers.Ptrofs.intval ofs) = get pm0 i (Integers.Ptrofs.intval ofs).
+Proof.
+  intros Hassign.
+  induction Hassign => Hnin; auto.
+  rewrite IHHassign; last first.
+  { intros ?? Hin'. eapply Hnin. right; eauto. }
+  subst. rewrite gso //.
+  destruct (Pos.eq_dec i id); last by auto.
+  subst.
+  destruct (Z.eq_dec (Integers.Ptrofs.intval ofs) (Integers.Ptrofs.intval ofs0)); last by auto.
+  exfalso.
+  eapply Hnin; first by left. eauto.
+Qed.
+  
+Lemma assign_global_params_tail_not_in i b ofs bs pm0 v vs pm :
+  assign_global_params ((i, b, ofs) :: bs) pm0 (Values.Vfloat v :: vs) pm ->
+  (∀ b ofs', In (i, b, ofs') bs -> Integers.Ptrofs.intval ofs <> Integers.Ptrofs.intval ofs') ->
+  get pm i (Integers.Ptrofs.intval ofs) = Some v.
+Proof.
+  intros Hassign Hnin.
+  inv Hassign.
+  exploit assign_global_params_not_in_nochange; eauto => ->.
+  rewrite gss //.
+Qed.
+
+Inductive flat_nodups {A: Type} : list (AST.ident * A * Integers.Ptrofs.int) -> Prop :=
+  | flat_nodups_nil :
+    flat_nodups nil
+  | flat_nodups_cons bs id a ofs :
+     (∀ b ofs', In (id, b, ofs') bs -> Integers.Ptrofs.intval ofs <> Integers.Ptrofs.intval ofs') ->
+     flat_nodups bs ->
+     flat_nodups ((id, a, ofs) :: bs).
+
+Lemma flatten_parameter_list_cons hd tl :
+  (flatten_parameter_list (hd :: tl) = parameter_basic_to_list hd ++ flatten_parameter_list tl)%list.
+Proof.
+  rewrite /flatten_parameter_list//=.
+Qed.
+
+Lemma count_up_ofs_aux_range1 st n ofs' :
+  (Z.of_nat (st + n) <= Integers.Ptrofs.modulus ->
+   In ofs' (count_up_ofs_aux st n) ->
+   Z.of_nat st <= Integers.Ptrofs.intval ofs')%Z.
+Proof.
+  revert st.
+  induction n => st.
+  { simpl. intros Hlt Hin. exfalso; eauto. }
+  { simpl. intros Hlt [Hleft|Hright].
+    { subst.
+      specialize Integers.Ptrofs.unsigned_repr.
+      rewrite /Integers.Ptrofs.unsigned.
+      intros ->; try lia.
+      split; try lia. rewrite /Integers.Ptrofs.max_unsigned; lia.
+    }
+    specialize (IHn (S st)).
+    etransitivity; last eapply IHn; try lia; eauto.
+  }
+Qed.

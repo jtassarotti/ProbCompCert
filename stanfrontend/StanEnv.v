@@ -146,6 +146,14 @@ Axiom IFR_zero :
 Axiom IFR_one :
   IFR (Floats.Float.of_int Integers.Int.one) = 1.
 
+Lemma IFR_0 :
+  IFR (Floats.Float.zero) = 0.
+Proof. apply IFR_zero. Qed.
+
+Lemma IRF_0 :
+  IRF 0 = Floats.Float.zero.
+Proof. rewrite -IFR_0 IRF_IFR_inv //. Qed.
+
 Lemma float_add_irf': forall a b,
   (Floats.Float.add a b) = IRF (IFR a + IFR b).
 Proof. intros a b. rewrite -float_add_irf ?IRF_IFR_inv //. Qed.
