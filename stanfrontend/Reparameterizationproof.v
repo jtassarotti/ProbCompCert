@@ -2130,12 +2130,6 @@ Proof.
   intros. eapply step_simulation; eauto.
 Qed.
 
-Theorem transf_program_correct tval params':
-  forward_simulation (Ssemantics.semantics prog data params' tval) (Ssemantics.semantics tprog data params' tval).
-Proof.
-  clear -TRANSL.
-Admitted.
-
 End PRESERVATION.
 
 Section DENOTATIONAL_PRESERVATION.
