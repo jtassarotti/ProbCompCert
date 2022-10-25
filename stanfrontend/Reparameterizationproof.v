@@ -54,7 +54,7 @@ Definition match_prog (p: program) (tp: program) : Prop :=
   Forall (λ '(id, _, _), ¬ In id math_idents) (pr_parameters_vars p) /\
   NoDup (pr_parameters_ids p) /\
   Forall (λ '(_, b, _), wf_type b) (pr_parameters_vars p).
-    
+
 Lemma transf_program_match:
   forall p tp: program, transf_program p = OK tp -> match_prog p tp.
 Proof.
@@ -1626,7 +1626,12 @@ Inductive match_cont: cont -> cont -> Prop :=
       (MCONT: match_cont k k'),
       match_cont (Kseq s k) (Kseq s' k')
   | match_Kstop:
-      match_cont Kstop (Kseq (Starget fcorrection) Kstop).
+      match_cont Kstop (Kseq (Starget fcorrection) Kstop)
+  | match_Kfor: forall id e2 e2' s s' k k'
+      (TRE: transf_expr fpmap e2 = OK e2')
+      (TRS: transf_statement fpmap s = OK s')
+      (MCONT: match_cont k k'),
+      match_cont (Kfor id e2 s k) (Kfor id e2' s' k').
 
 Inductive match_states: state -> state -> Prop :=
   | match_start_states: forall f f' s s' t e m pm pm'
@@ -1845,6 +1850,58 @@ Proof.
     econstructor; eauto.
   - (* Tilde *)
     monadInv TRS.
+  - monadInv TRS.
+    exploit (eval_lvalue_preserved); eauto => /= ?.
+    eexists. split.
+    {
+    eapply plus_one.
+    econstructor.
+    { eauto. }
+    { eapply eval_expr_preserved; eauto. }
+    { eapply eval_expr_preserved; eauto. }
+    { eapply assign_loc_preserved; eauto. }
+    { auto. }
+    }
+    econstructor; eauto. econstructor; eauto.
+  - monadInv TRS.
+    exploit (eval_lvalue_preserved); eauto => /= ?.
+    eexists. split.
+    {
+    eapply plus_one.
+    eapply step_for_start_false.
+    { eauto. }
+    { eapply eval_expr_preserved; eauto. }
+    { eapply eval_expr_preserved; eauto. }
+    { auto. }
+    }
+    econstructor; eauto.
+  - monadInv TRS.
+    inv MCONT.
+    exploit (eval_lvalue_preserved); eauto => /= ?.
+    eexists. split.
+    {
+    eapply plus_one.
+    eapply step_for_iter_true.
+    { eauto. }
+    { eauto. }
+    { eapply eval_expr_preserved; eauto. }
+    { eapply assign_loc_preserved; eauto. }
+    { auto. }
+    }
+    econstructor; eauto. econstructor; eauto.
+  - monadInv TRS.
+    inv MCONT.
+    exploit (eval_lvalue_preserved); eauto => /= ?.
+    eexists. split.
+    {
+    eapply plus_one.
+    eapply step_for_iter_false.
+    { eauto. }
+    { eauto. }
+    { eapply eval_expr_preserved; eauto. }
+    { auto. }
+    }
+    econstructor; eauto.
 Qed.
 
 Lemma reserve_global_params_remap pm0 pm :

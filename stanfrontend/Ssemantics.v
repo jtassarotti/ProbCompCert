@@ -223,9 +223,8 @@ End EXPR.
 Inductive cont: Type :=
   | Kstop: cont
   | Kseq: statement -> cont -> cont (* Kseq s2 k = after s1 in s1;s2 *)
-  | Kfor2: expr -> statement -> statement -> cont -> cont (* Kfor2 e2 e3 s k = after e2 in for(e1;e2;e3) s *)
-  | Kfor3: expr -> statement -> statement -> cont -> cont (* Kfor3 e2 e3 s k = after s in for(e1;e2;e3) s *)
-  | Kfor4: expr -> statement -> statement -> cont -> cont (* Kfor4 e2 e3 s k = after e3 in for(e1;e2;e3) s *)
+  | Kfor: ident -> expr -> statement -> cont -> cont
+        (* Kfor i e2 s k = runs after s in for(i = e1 to e2) { s } *)
   .
 
 Inductive state: Type :=
@@ -299,6 +298,40 @@ Inductive step: state -> trace -> state -> Prop :=
     (* External calls must not (1) modify memory or (2) emit an observable trace event *)
     external_call ef ge (v :: vargs) m E0 (Vfloat vres) m ->
     step (State f (Stilde a ad al) t k e m pm) E0 (State f Sskip (Floats.Float.add t vres) k e m pm)
+
+  | step_for_start_true: forall f i a1 a2 s t k e m pm loc ofs v1 m' v2,
+    eval_lvalue e m pm t (Evar i Bint) loc ofs Slocal ->
+    eval_expr e m pm t a1 (Values.Vint v1) ->
+    eval_expr e m pm t a2 (Values.Vint v2) ->
+    assign_loc ge Bint m loc ofs (Values.Vint v1) m' ->
+    (Int.unsigned v1 <= Int.unsigned v2)%Z ->
+    step (State f (Sfor i a1 a2 s) t k e m pm) E0
+         (State f s t (Kfor i a2 s k) e m' pm)
+  (* TODO: the manual is ambiguous as to whether if
+     you have for (n in 2:1) { } whether n will have 2 outside the loop.
+     Here we assume not *)
+  | step_for_start_false: forall f i a1 a2 s t k e m pm loc ofs v1 v2,
+    eval_lvalue e m pm t (Evar i Bint) loc ofs Slocal ->
+    eval_expr e m pm t a1 (Values.Vint v1) ->
+    eval_expr e m pm t a2 (Values.Vint v2) ->
+    ¬ (Int.unsigned v1 <= Int.unsigned v2)%Z ->
+    step (State f (Sfor i a1 a2 s) t k e m pm) E0
+         (State f Sskip t k e m pm)
+  | step_for_iter_true: forall f i a2 s t k e m pm loc ofs v1 m' v2,
+    eval_lvalue e m pm t (Evar i Bint) loc ofs Slocal ->
+    deref_loc Bint m loc ofs (Values.Vint v1) ->
+    eval_expr e m pm t a2 (Values.Vint v2) ->
+    assign_loc ge Bint m loc ofs (Values.Vint (Int.add v1 Int.one)) m' ->
+    (Int.unsigned (Int.add v1 Int.one) <= Int.unsigned v2)%Z ->
+    step (State f Sskip t (Kfor i a2 s k) e m pm) E0
+         (State f s t (Kfor i a2 s k) e m' pm)
+  | step_for_iter_false: forall f i a2 s t k e m pm loc ofs v1 v2,
+    eval_lvalue e m pm t (Evar i Bint) loc ofs Slocal ->
+    deref_loc Bint m loc ofs (Values.Vint v1) ->
+    eval_expr e m pm t a2 (Values.Vint v2) ->
+    ¬ (Int.unsigned (Int.add v1 Int.one) <= Int.unsigned v2)%Z ->
+    step (State f Sskip t (Kfor i a2 s k) e m pm) E0
+         (State f Sskip t k e m pm)
 .
 
 Fixpoint type_of_basic (b: basic) : Type :=
@@ -650,6 +683,37 @@ Proof.
     { eapply H7. }
     { eapply H22. }
     intros Himpl. intuition congruence.
+  + subst.
+    assert (v2 = v3) by congruence; subst.
+    assert (v1 = v0) by congruence; subst.
+    assert (m' = m'0) by (eapply assign_loc_determ; eauto). subst. eauto.
+  + subst.
+    assert (v2 = v3) by congruence; subst.
+    assert (v1 = v0) by congruence; subst.
+    intuition.
+  + subst.
+    assert (v2 = v3) by congruence; subst.
+    assert (v1 = v0) by congruence; subst.
+    intuition.
+  + subst.
+    assert (v2 = v3) by congruence; subst.
+    assert (v1 = v0).
+    { cut (Vint v1 = Vint v0); first by congruence.
+      eapply deref_loc_determ; eauto. }
+    subst.
+    assert (m' = m'0) by (eapply assign_loc_determ; eauto). subst. eauto.
+  + subst.
+    assert (v2 = v3) by congruence; subst.
+    assert (v1 = v0).
+    { cut (Vint v1 = Vint v0); first by congruence.
+      eapply deref_loc_determ; eauto. }
+    subst. intuition.
+  + subst.
+    assert (v2 = v3) by congruence; subst.
+    assert (v1 = v0).
+    { cut (Vint v1 = Vint v0); first by congruence.
+      eapply deref_loc_determ; eauto. }
+    subst. intuition.
 - (* single event *)
   red; simpl. destruct 1; simpl; try lia;
   eapply external_call_trace_length; eauto.

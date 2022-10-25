@@ -137,7 +137,7 @@ Proof.
   econstructor; eauto.
   econstructor; eauto.
   econstructor; eauto.
-  
+
   split.
   intros e loc ofs EVAL.
   eapply IND; eauto; intros; subst; subst P1; subst P2; subst P3; simpl; intros.
@@ -276,7 +276,10 @@ Inductive match_cont: cont -> cont -> Prop :=
       match_cont k k' ->
       match_cont (Kseq s k) (Kseq (transf_statement s) k')
   | match_Kstop:
-      match_cont Kstop Kstop.
+      match_cont Kstop Kstop
+  | match_Kfor: forall id e2 s k k',
+      match_cont k k' ->
+      match_cont (Kfor id e2 s k) (Kfor id e2 (transf_statement s) k').
 
 Inductive match_states: state -> state -> Prop :=
   | match_start_states: forall f s t k k' e m pm
@@ -350,6 +353,26 @@ Proof.
     * eapply Events.external_call_symbols_preserved; eauto. apply senv_preserved.
   }
   econstructor; eauto.
+  - (* For start true *)
+  eexists. split.
+  econstructor; eauto using eval_lvalue_preserved, eval_expr_preserved.
+  { inv H2. eapply assign_loc_value; eauto. }
+  econstructor. econstructor; eauto.
+  - (* For start false *)
+  eexists. split.
+  eapply step_for_start_false; eauto using eval_lvalue_preserved, eval_expr_preserved.
+  econstructor. eauto.
+  - (* For iter true *)
+  inv MCONT.
+  eexists. split.
+  econstructor; eauto using eval_lvalue_preserved, eval_expr_preserved.
+  { inv H2. eapply assign_loc_value; eauto. }
+  econstructor. econstructor; eauto.
+  - (* For iter false *)
+  inv MCONT.
+  eexists. split.
+  eapply step_for_iter_false; eauto using eval_lvalue_preserved, eval_expr_preserved.
+  econstructor. eauto.
 Qed.
 
 Lemma transf_initial_states:
