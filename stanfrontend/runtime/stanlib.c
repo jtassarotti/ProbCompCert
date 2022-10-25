@@ -81,10 +81,14 @@ double uniform_lpmf(int x, double a, double b)
     return (k < a || k > b) ? INFINITY : (-log(b - a));
 }
 
-/* TODO: this could be optimized to drop constants */
 double normal_lpdf(double x, double mean, double variance)
 {
   return log(1 / (sqrt(variance * 2 * M_PI)) * exp(- pow((x-mean),2) / (2 * variance)));
+}
+
+double normal_lupdf(double x, double mean, double variance)
+{
+  return (- pow((x-mean),2) / (2 * variance));
 }
 
 double bernoulli_lpmf(int x, double p)
@@ -97,6 +101,11 @@ double bernoulli_lpmf(int x, double p)
 double cauchy_lpdf(double x, double location, double scale)
 {
   return log(1 / (M_PI * scale * (1 + pow((x - location)/scale,2))));
+}
+
+double cauchy_lupdf(double x, double location, double scale)
+{
+  return -log((1 + pow((x - location)/scale,2)));
 }
 
 double bernoulli_logit_lpmf(int x, double alpha)
