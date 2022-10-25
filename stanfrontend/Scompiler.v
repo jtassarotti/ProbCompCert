@@ -38,8 +38,6 @@ Definition transf_stanlight_program (p: Stanlight.program) : res Stanlight.progr
 (* Full translation of stanlight to Clight *)
 Definition transf_stan_program(p: Stanlight.program): res Clight.program :=
   (transf_stanlight_program p)
-  @@ time "Sampling" Sampling.transf_program
-  @@@ time "Reparameterization" Reparameterization.transf_program
   @@@ time "Clightification" Clightification.transf_program
   @@ print (print_CStan 0)
   @@@ time "VariableAllocation" VariableAllocation.transf_program
