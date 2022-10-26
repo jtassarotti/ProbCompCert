@@ -5,7 +5,7 @@ data {
 parameters {
   real alpha;
   real beta;
-  real<lower=0.0> sigma;
+  real<lower=0.1> sigma;
 }
 model {
   alpha ~ normal(0,1);

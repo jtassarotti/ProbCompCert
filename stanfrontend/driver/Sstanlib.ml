@@ -25,7 +25,13 @@ let library_math_functions = [
     "normal_lpdf",
     tdouble,
     [tdouble; tdouble; tdouble];
+    "normal_lupdf",
+    tdouble,
+    [tdouble; tdouble; tdouble];
     "cauchy_lpdf",
+    tdouble,
+    [tdouble; tdouble; tdouble];
+    "cauchy_lupdf",
     tdouble,
     [tdouble; tdouble; tdouble];
     "exponential_lpdf",

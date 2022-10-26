@@ -7,6 +7,7 @@ Require Import Asm.
 Require Import String.
 
 Require Import Compiler.
+Require Import AdditiveConst.
 Require Import Reparameterization. 
 Require Import Clightification.
 Require Import Sampling.
@@ -38,6 +39,7 @@ Definition transf_stanlight_program (p: Stanlight.program) : res Stanlight.progr
 (* Full translation of stanlight to Clight *)
 Definition transf_stan_program(p: Stanlight.program): res Clight.program :=
   (transf_stanlight_program p)
+  @@ time "AdditiveConst" AdditiveConst.transf_program
   @@@ time "Clightification" Clightification.transf_program
   @@ print (print_CStan 0)
   @@@ time "VariableAllocation" VariableAllocation.transf_program

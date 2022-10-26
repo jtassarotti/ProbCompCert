@@ -88,7 +88,7 @@ double normal_lpdf(double x, double mean, double variance)
 
 double normal_lupdf(double x, double mean, double variance)
 {
-  return (- pow((x-mean),2) / (2 * variance));
+  return (- log(sqrt(variance)) - pow((x-mean),2) / (2 * variance));
 }
 
 double bernoulli_lpmf(int x, double p)
@@ -105,7 +105,7 @@ double cauchy_lpdf(double x, double location, double scale)
 
 double cauchy_lupdf(double x, double location, double scale)
 {
-  return -log((1 + pow((x - location)/scale,2)));
+  return (- log(scale) - log((1 + pow((x - location)/scale,2))));
 }
 
 double bernoulli_logit_lpmf(int x, double alpha)
