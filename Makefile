@@ -157,6 +157,7 @@ PARSER=Cabs.v Parser.v
 
 STANFRONTEND=Stan.v Stanlight.v StanEnv.v Sop.v ParamMap.v Ssemantics.v DenotationalSimulation.v \
   DenotationalSimulationChange.v \
+  DenotationalSimulationAdditive.v \
   Sparser.v \
   CStan.v \
   CStanCont.v \
