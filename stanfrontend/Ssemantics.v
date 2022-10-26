@@ -86,7 +86,7 @@ Section EXPR.
 Variable e: env.
 Variable m: mem.
 (* parameter mem indexed by id + offset rather than pointer indirection model *)
-Variable pm : param_mem.
+Variable pm : param_mem float.
 Variable t: float.
 
 Definition typeof (e: expr) : basic :=
@@ -235,7 +235,7 @@ Inductive state: Type :=
       (k: cont)
       (e: env)
       (m: mem)
-      (pm: param_mem)
+      (pm: param_mem float)
   | Start
       (f: function)
       (s: statement)
@@ -243,13 +243,13 @@ Inductive state: Type :=
       (k: cont)
       (e: env)
       (m: mem)
-      (pm: param_mem)
+      (pm: param_mem float)
   | Return
       (f: function)
       (t: float)
       (e: env)
       (m: mem)
-      (pm: param_mem)
+      (pm: param_mem float)
     : state.
 
 Definition var_names (vars: list(ident * basic)) : list ident :=
@@ -397,7 +397,7 @@ Inductive assign_global_locs (ge: genv) : list (ident * basic * Ptrofs.int) -> m
       assign_global_locs ge bs m2 vs m3 ->
       assign_global_locs ge ((id, ty, ofs) :: bs) m1 (v :: vs) m3.
 
-Inductive reserve_global_params : list ident -> param_mem -> param_mem -> Prop :=
+Inductive reserve_global_params : list ident -> param_mem float -> param_mem float -> Prop :=
   | reserve_global_params_nil : forall m,
       reserve_global_params nil m m
   | reserve_global_params_cons : forall m1 m2 m3 id bs,
@@ -405,7 +405,7 @@ Inductive reserve_global_params : list ident -> param_mem -> param_mem -> Prop :
       reserve_global_params bs m2 m3 ->
       reserve_global_params (id :: bs) m1 m3.
 
-Inductive assign_global_params : list (ident * basic * Ptrofs.int) -> param_mem -> list val -> param_mem -> Prop :=
+Inductive assign_global_params : list (ident * basic * Ptrofs.int) -> param_mem float -> list val -> param_mem float -> Prop :=
   | assign_global_params_nil : forall m,
       assign_global_params nil m nil m
   | assign_global_params_cons : forall m1 m2 m3 id ty ofs f bs vs,
@@ -480,7 +480,7 @@ Inductive initial_state (p: program) (data : list val) (params: list val) : stat
       alloc_variables empty_env m0 f.(fn_vars) e m1 ->
       assign_global_locs ge (flatten_data_list p.(pr_data_vars)) m1 data m2 ->
       set_global_params (pr_parameters_ids p) (flatten_parameter_list p.(pr_parameters_vars))
-                            params ParamMap.empty pm ->
+                            params (ParamMap.empty float) pm ->
       initial_state p data params (Start f f.(fn_body) ((Floats.Float.of_int Integers.Int.zero)) Kstop e m2 pm).
 
 
@@ -956,11 +956,11 @@ Section DENOTATIONAL.
    *)
 
   Definition eval_expr_fun p a :=
-    pred_to_default_fun (eval_expr (globalenv p) empty_env Mem.empty ParamMap.empty
+    pred_to_default_fun (eval_expr (globalenv p) empty_env Mem.empty (ParamMap.empty float)
                            (Float.zero) a) (Vfloat (Float.zero)).
 
   Lemma eval_expr_fun_spec p a v :
-    eval_expr (globalenv p) empty_env Mem.empty ParamMap.empty (Float.zero) a v ->
+    eval_expr (globalenv p) empty_env Mem.empty (ParamMap.empty float) (Float.zero) a v ->
     eval_expr_fun p a = v.
   Proof.
     intros Hexp. rewrite /eval_expr_fun/pred_to_default_fun.
@@ -1030,7 +1030,7 @@ Section DENOTATIONAL.
     eval_expr_fun p1 a = eval_expr_fun p2 a.
   Proof.
     intros. rewrite {1}/eval_expr_fun. symmetry.
-    destruct (pred_to_default_fun_spec1 (eval_expr (globalenv p1) empty_env Mem.empty ParamMap.empty Float.zero a)
+    destruct (pred_to_default_fun_spec1 (eval_expr (globalenv p1) empty_env Mem.empty (ParamMap.empty _) Float.zero a)
                 (Vfloat Float.zero)) as [(v&Hv&Heq)|(Hnex&Heq)].
     - rewrite Heq. apply eval_expr_fun_spec; eauto.
       eapply eval_expr_match; eauto.

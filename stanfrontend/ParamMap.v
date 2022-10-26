@@ -13,10 +13,15 @@ Require Import Values.
 Require Export Memdata.
 Require Export Memtype.
 
+Local Set Implicit Arguments.
 
-Definition param_mem := PTree.t (ZTree.t float).
+Section param_mem.
 
-Definition empty := PTree.empty (ZTree.t float).
+Context {A : Type}.
+
+Definition param_mem := PTree.t (ZTree.t A).
+
+Definition empty := PTree.empty (ZTree.t A).
 
 Definition is_id_alloc (pm : param_mem) id : bool :=
   match pm ! id with
@@ -24,7 +29,7 @@ Definition is_id_alloc (pm : param_mem) id : bool :=
   | _ => false
   end.
 
-Definition get (pm: param_mem) (id: ident) (ofs: Z) : option float :=
+Definition get (pm: param_mem) (id: ident) (ofs: Z) : option A :=
   match pm ! id with
   | Some zm => ZTree.get ofs zm
   | _ => None
@@ -37,17 +42,17 @@ Definition reserve (pm: param_mem) (id: ident) : param_mem :=
   end.
 
 (* Set "allocates" and stores *)
-Definition set (pm: param_mem) (id: ident) (ofs: Z) (f : float) : param_mem :=
+Definition set (pm: param_mem) (id: ident) (ofs: Z) (f : A) : param_mem :=
   match pm ! id with
   | Some zm => 
       let zm := ZTree.set ofs f zm in
       PTree.set id zm pm
   | _ =>  
-      let zm := ZTree.set ofs f (ZTree.empty float) in
+      let zm := ZTree.set ofs f (ZTree.empty A) in
       PTree.set id zm pm
   end.
   
-Definition store (pm: param_mem) (id: ident) (ofs: Z) (f : float) : option param_mem :=
+Definition store (pm: param_mem) (id: ident) (ofs: Z) (f : A) : option param_mem :=
   match pm ! id with
   | Some zm => 
       match ZTree.get ofs zm with
@@ -207,3 +212,8 @@ Lemma gempty id ofs :
 Proof.
   rewrite /get/empty. rewrite PTree.gempty //.
 Qed.
+
+End param_mem.
+
+Global Arguments param_mem  _ : clear implicits.
+Global Arguments empty  _ : clear implicits.

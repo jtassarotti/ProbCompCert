@@ -141,7 +141,7 @@ Definition math_idents := ($"log" :: $"expit" :: $"exp" :: nil).
 Definition env_no_shadow_mathlib {B} (env: PTree.t B) :=
   Forall (fun id => PTree.get id env = None) math_idents.
 
-Definition param_mem_no_shadow_mathlib (pm: param_mem) :=
+Definition param_mem_no_shadow_mathlib {B} (pm: param_mem B) :=
   Forall (fun id => is_id_alloc pm id = false) math_idents.
 
 Axiom float_add_irf: forall a b,

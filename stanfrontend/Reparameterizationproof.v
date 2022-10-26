@@ -974,7 +974,7 @@ Proof.
     eapply typeof_fpmap; eauto. }
 Qed.
 
-Definition match_param_mem_some (pm0 pm1 : param_mem) :=
+Definition match_param_mem_some (pm0 pm1 : param_mem _) :=
   ∀ id ofs fl, ParamMap.get pm0 id ofs = Some fl ->
               ∃ fe fl', ParamMap.get pm1 id ofs = Some fl' /\
                        fpmap id = Some fe /\
@@ -983,15 +983,15 @@ Definition match_param_mem_some (pm0 pm1 : param_mem) :=
                               eval_expr tge en' m' pm1 t'
                                 (fe (Econst_float fl' Breal)) (Values.Vfloat fl)).
 
-Definition match_param_mem_none (pm0 pm1 : param_mem) :=
+Definition match_param_mem_none {A} (pm0 pm1 : param_mem A) :=
   ∀ id, ParamMap.is_id_alloc pm0 id = false -> ParamMap.is_id_alloc pm1 id = false.
 
 Definition match_param_mem pm0 pm1 :=
   match_param_mem_some pm0 pm1 /\ match_param_mem_none pm0 pm1 /\
   set_global_params (pr_parameters_ids tprog) (flatten_parameter_list (pr_parameters_vars tprog))
-           (map R2val (param_unmap params)) empty pm1.
+           (map R2val (param_unmap params)) (empty _) pm1.
 
-Definition wf_param_mem pm :=
+Definition wf_param_mem {A} (pm: param_mem A) :=
   (∀ id, ParamMap.is_id_alloc pm id = false -> fpmap id = None).
 
 Definition valid_env (en : env) :=
@@ -1096,7 +1096,8 @@ Proof.
 Qed.
 
 Lemma set_global_params_is_id_alloc id vs pm :
-  set_global_params (pr_parameters_ids tprog) (flatten_parameter_list (pr_parameters_vars tprog)) vs empty pm ->
+  set_global_params (pr_parameters_ids tprog) (flatten_parameter_list (pr_parameters_vars tprog))
+    vs (empty _) pm ->
   ParamMap.is_id_alloc pm id = true -> In id (pr_parameters_ids tprog).
 Proof.
   destruct 1 as (pm'&Hres&Hassign). intros His.
@@ -1116,7 +1117,8 @@ Proof.
 Qed.
 
 Lemma set_global_params_no_shadow vs pm :
-  set_global_params (pr_parameters_ids tprog) (flatten_parameter_list (pr_parameters_vars tprog)) vs empty pm ->
+  set_global_params (pr_parameters_ids tprog) (flatten_parameter_list (pr_parameters_vars tprog)) vs
+    (empty _) pm ->
   param_mem_no_shadow_mathlib pm.
 Proof.
   intros Hset.
@@ -1130,8 +1132,10 @@ Proof.
 Qed.
 
 Lemma set_global_params_match_param_mem_none vs1 pm1 vs2 pm2:
-  set_global_params (pr_parameters_ids prog) (flatten_parameter_list (pr_parameters_vars prog)) vs1 empty pm1 ->
-  set_global_params (pr_parameters_ids tprog) (flatten_parameter_list (pr_parameters_vars tprog)) vs2 empty pm2 ->
+  set_global_params (pr_parameters_ids prog) (flatten_parameter_list (pr_parameters_vars prog)) vs1
+    (empty _) pm1 ->
+  set_global_params (pr_parameters_ids tprog) (flatten_parameter_list (pr_parameters_vars tprog)) vs2
+    (empty _) pm2 ->
   match_param_mem_none pm1 pm2.
 Proof.
   intros (pm1'&Hreserve1&Hassign1).
@@ -1288,9 +1292,9 @@ Qed.
 
 Lemma set_global_params_match_param_mem_some pm1 pm2:
   set_global_params (pr_parameters_ids prog)
-    (flatten_parameter_list (pr_parameters_vars prog)) (map R2val params) empty pm1 ->
+    (flatten_parameter_list (pr_parameters_vars prog)) (map R2val params) (empty _) pm1 ->
   set_global_params (pr_parameters_ids tprog)
-    (flatten_parameter_list (pr_parameters_vars tprog)) (map R2val (param_unmap params)) empty pm2 ->
+    (flatten_parameter_list (pr_parameters_vars tprog)) (map R2val (param_unmap params)) (empty _) pm2 ->
   match_param_mem_some pm1 pm2.
 Proof.
   intros Hset1 Hset2.
@@ -1391,7 +1395,7 @@ Proof.
 Qed.
 
 Lemma reserve_global_params_wf pm:
-  reserve_global_params (pr_parameters_ids prog) ParamMap.empty pm ->
+  reserve_global_params (pr_parameters_ids prog) (ParamMap.empty _) pm ->
   wf_param_mem pm.
 Proof.
   rewrite /wf_param_mem/fpmap/pr_parameters_ids.
@@ -1434,7 +1438,7 @@ Proof.
 Qed.
 
 Lemma set_global_params_wf pm flat vs :
-  set_global_params (pr_parameters_ids prog) flat vs ParamMap.empty pm ->
+  set_global_params (pr_parameters_ids prog) flat vs (ParamMap.empty _) pm ->
   wf_param_mem pm.
 Proof.
   intros (?&Hres&Hassign).
@@ -1553,7 +1557,8 @@ Proof.
     destruct Hmatch as (_&Hmatch). eapply Hmatch; auto. }
 Qed.
 
-Definition valid_env_full en pm1 := valid_env en /\ env_no_shadow_mathlib en /\ env_no_shadow_param en pm1.
+Definition valid_env_full {A} en (pm1 : param_mem A) :=
+  valid_env en /\ env_no_shadow_mathlib en /\ env_no_shadow_param en pm1.
 Definition match_param_mem_full pm0 pm1 :=
   match_param_mem pm0 pm1 /\
   wf_param_mem pm0.

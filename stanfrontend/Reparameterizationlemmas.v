@@ -574,7 +574,7 @@ Proof.
   }
 Qed.
 
-Definition env_no_shadow_param (en : env) pm :=
+Definition env_no_shadow_param {A} (en : env) (pm : ParamMap.param_mem A) :=
   forall id, ParamMap.is_id_alloc pm id = true -> Maps.PTree.get id en = None.
 
 Definition wf_type (b: basic) :=
@@ -623,7 +623,7 @@ Lemma eval_correction e m pm t found_parameters tge
   (ENOSHADOW : env_no_shadow_param e pm)
   (VE : env_no_shadow_mathlib e)
   (PARAM_NOSHADOW: param_mem_no_shadow_mathlib pm) :
-  ∀ (ups : list R) (pm0 : param_mem),
+  ∀ (ups : list R) (pm0 : param_mem _),
     flat_nodups
       (concat (map parameter_basic_to_list (map (λ '(id, v, fe), (id, vd_type v, fe)) found_parameters)))
     → Forall (λ '(_, b, _), wf_type b) (map (λ '(id, v, fe), (id, vd_type v, fe)) found_parameters)
