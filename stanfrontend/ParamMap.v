@@ -44,17 +44,24 @@ Definition reserve (pm: param_mem) (id: ident) : param_mem :=
 (* Set "allocates" and stores *)
 Definition set (pm: param_mem) (id: ident) (ofs: Z) (f : A) : param_mem :=
   match pm ! id with
-  | Some zm => 
+  | Some zm =>
       let zm := ZTree.set ofs f zm in
       PTree.set id zm pm
-  | _ =>  
+  | _ =>
       let zm := ZTree.set ofs f (ZTree.empty A) in
       PTree.set id zm pm
   end.
-  
+
+(* Set "allocates" and stores id from offset 1 to sz *)
+Fixpoint setv (pm: param_mem) (id: ident) (sz: nat) (f : A) : param_mem :=
+  match sz with
+  | O => reserve pm id
+  | S n' => setv (set pm id (Z.of_nat sz) f) id n' f
+end.
+
 Definition store (pm: param_mem) (id: ident) (ofs: Z) (f : A) : option param_mem :=
   match pm ! id with
-  | Some zm => 
+  | Some zm =>
       match ZTree.get ofs zm with
       | None => None
       | Some _ =>
@@ -63,7 +70,7 @@ Definition store (pm: param_mem) (id: ident) (ofs: Z) (f : A) : option param_mem
       end
   | _ => None
   end.
-  
+
 Lemma gs_is_alloc pm id ofs f :
   get pm id ofs = Some f -> is_id_alloc pm id = true.
 Proof.
@@ -93,7 +100,7 @@ Lemma set_preserves_alloc_rev pm pm' id ofs v id':
 Proof.
   unfold set, is_id_alloc; intros <-.
   destruct (pm ! id) as [?|] eqn:Heq; simpl; try congruence.
-  { 
+  {
     destruct (pm ! id') as [?|] eqn:Heq'; simpl; try congruence.
     destruct (Pos.eq_dec id id'); subst.
     { rewrite PTree.gss; auto. }
@@ -201,16 +208,59 @@ Proof.
   { rewrite PTree.gss //. }
 Qed.
 
+Lemma is_id_setv_same id pm v n :
+  is_id_alloc (setv pm id n v) id = true.
+Proof.
+  revert pm.
+  induction n => pm.
+  { rewrite is_id_reserve_same //. }
+  { rewrite IHn; auto. }
+Qed.
+
+Lemma is_id_setv_other id id' pm v n :
+  id' <> id ->
+  is_id_alloc (setv pm id n v) id' =  is_id_alloc pm id'.
+Proof.
+  revert pm.
+  induction n => pm.
+  { intros. rewrite is_id_reserve_other //. }
+  { intros. rewrite IHn; auto. rewrite is_id_set_other //. }
+Qed.
+
 Lemma is_id_empty id :
   is_id_alloc empty id = false.
 Proof.
   rewrite /is_id_alloc. rewrite PTree.gempty //.
 Qed.
-  
+
 Lemma gempty id ofs :
   get empty id ofs = None.
 Proof.
   rewrite /get/empty. rewrite PTree.gempty //.
+Qed.
+
+Lemma store_some_is_id_alloc m id ofs v m' :
+  store m id ofs v = Some m' ->
+  is_id_alloc m id = true /\ is_id_alloc m' id = true.
+Proof.
+  rewrite /store/is_id_alloc.
+  destruct (m ! id); try congruence.
+  destruct (ZTree.get _ _); try congruence.
+  inversion 1; subst; split; auto.
+  rewrite PTree.gss //.
+Qed.
+
+Lemma store_same_is_id_alloc m id id' ofs v m' :
+  store m id ofs v = Some m' ->
+  is_id_alloc m' id' = is_id_alloc m id'.
+Proof.
+  rewrite /store/is_id_alloc.
+  destruct (m ! id) eqn:Hlook; try congruence.
+  destruct (ZTree.get _ _); try congruence.
+  inversion 1; subst.
+  destruct (Pos.eq_dec id id').
+  { subst. rewrite PTree.gss // Hlook. auto. }
+  { rewrite PTree.gso //. congruence. }
 Qed.
 
 End param_mem.

@@ -777,16 +777,16 @@ Proof.
       simpl.
       econstructor.
       { econstructor.
-        eapply eval_Elvalue.
+        eapply eval_Eglvalue.
         eapply eval_Evar_global; eauto.
-        { rewrite /env_no_shadow_mathlib in Hnoshadow1.
-          inversion Hnoshadow1 as [|??? Hnoshadow'].
+        {
+          inversion Hnoshadow2 as [|??? Hnoshadow'].
           inversion Hnoshadow' as [|??? Hnoshadow''].
           inversion Hnoshadow'' as [|??? Hnoshadow'''].
           eauto.
         }
-        {
-          inversion Hnoshadow2 as [|??? Hnoshadow'].
+        { rewrite /env_no_shadow_mathlib in Hnoshadow1.
+          inversion Hnoshadow1 as [|??? Hnoshadow'].
           inversion Hnoshadow' as [|??? Hnoshadow''].
           inversion Hnoshadow'' as [|??? Hnoshadow'''].
           eauto.
@@ -819,16 +819,16 @@ Proof.
           rewrite float_sub_irf. f_equal. rewrite IFR_zero. nra.
         }
         econstructor.
-        eapply eval_Elvalue.
+        eapply eval_Eglvalue.
         eapply eval_Evar_global; eauto.
-        { rewrite /env_no_shadow_mathlib in Hnoshadow1.
-          inversion Hnoshadow1 as [|??? Hnoshadow'].
+        {
+          inversion Hnoshadow2 as [|??? Hnoshadow'].
           inversion Hnoshadow' as [|??? Hnoshadow''].
           inversion Hnoshadow'' as [|??? Hnoshadow'''].
           eauto.
         }
-        {
-          inversion Hnoshadow2 as [|??? Hnoshadow'].
+        { rewrite /env_no_shadow_mathlib in Hnoshadow1.
+          inversion Hnoshadow1 as [|??? Hnoshadow'].
           inversion Hnoshadow' as [|??? Hnoshadow''].
           inversion Hnoshadow'' as [|??? Hnoshadow'''].
           eauto.
@@ -856,16 +856,16 @@ Proof.
       { repeat econstructor. }
       {
         econstructor.
-        eapply eval_Elvalue.
+        eapply eval_Eglvalue.
         eapply eval_Evar_global; eauto.
-        { rewrite /env_no_shadow_mathlib in Hnoshadow1.
-          inversion Hnoshadow1 as [|??? Hnoshadow'].
+        {
+          inversion Hnoshadow2 as [|??? Hnoshadow'].
           inversion Hnoshadow' as [|??? Hnoshadow''].
           inversion Hnoshadow'' as [|??? Hnoshadow'''].
           eauto.
         }
-        {
-          inversion Hnoshadow2 as [|??? Hnoshadow'].
+        { rewrite /env_no_shadow_mathlib in Hnoshadow1.
+          inversion Hnoshadow1 as [|??? Hnoshadow'].
           inversion Hnoshadow' as [|??? Hnoshadow''].
           inversion Hnoshadow'' as [|??? Hnoshadow'''].
           eauto.
@@ -940,12 +940,6 @@ Qed.
 Variable data : list Values.val.
 Variable params : list R.
 
-Scheme eval_expr_rec := Minimality for eval_expr Sort Prop
-  with eval_lvalue_rec := Minimality for eval_lvalue Sort Prop
-  with eval_exprlist_rec := Minimality for eval_exprlist Sort Prop.
-
-Combined Scheme eval_expr_mutind from eval_expr_rec, eval_lvalue_rec, eval_exprlist_rec.
-
 Lemma typeof_fpmap :
   ∀ i fe efill, fpmap i = Some fe -> typeof efill = Breal -> typeof (fe efill) = Breal.
 Proof.
@@ -995,7 +989,7 @@ Definition wf_param_mem {A} (pm: param_mem A) :=
   (∀ id, ParamMap.is_id_alloc pm id = false -> fpmap id = None).
 
 Definition valid_env (en : env) :=
-  forall id, Maps.PTree.get id en <> None -> fpmap id = None.
+  forall id, ParamMap.is_id_alloc en id = true -> fpmap id = None.
 
 Lemma In_found_parameters_inv id v oe :
   In (id, v, oe) found_parameters ->
@@ -1357,8 +1351,9 @@ Proof.
     inv Heval2.
     {  econstructor; eauto.
        inv H4; try (inv H; done). econstructor; eauto.
-      inv H3. subst. econstructor; auto.
+      inv H3. econstructor; auto.
       exploit eval_const_float; eauto; intros; subst; eauto. }
+    inv H.
     inv H.
     inv H.
   }
@@ -1378,6 +1373,7 @@ Proof.
       exploit eval_const_float; eauto; intros; subst; eauto.
       inv H.
       inv H.
+      inv H.
     }
   }
   { intros Heval1 Heval2.
@@ -1388,6 +1384,7 @@ Proof.
       inv H8. inv H3. subst. econstructor; eauto.
       econstructor; eauto.
       exploit eval_const_float; eauto; intros; subst; eauto.
+      inv H.
       inv H.
       inv H.
     }
@@ -1466,21 +1463,21 @@ Lemma evaluation_preserved:
   /\  (forall el vl, eval_exprlist ge en m pm0 t el vl ->
                      forall el', transf_exprlist fpmap el = OK el' ->
                                  eval_exprlist tge en m pm1 t el' vl)
-  /\  (forall e loc ofs, eval_plvalue ge en m pm0 t e loc ofs ->
+  /\  (forall e loc ofs, eval_llvalue ge en m pm0 t e loc ofs ->
                            match e with
                            | Eindexed e el ty =>
                                forall el', transf_exprlist fpmap el = OK el' ->
-                                           eval_plvalue tge en m pm1 t (Eindexed e el' ty)
+                                           eval_llvalue tge en m pm1 t (Eindexed e el' ty)
                                              loc ofs
-                           | _ => eval_plvalue tge en m pm1 t e loc ofs
+                           | _ => eval_llvalue tge en m pm1 t e loc ofs
                            end)
-  /\  (forall e loc ofs s, eval_lvalue ge en m pm0 t e loc ofs s ->
+  /\  (forall e loc ofs, eval_glvalue ge en m pm0 t e loc ofs ->
                            match e with
                            | Eindexed e el ty =>
                                forall el', transf_exprlist fpmap el = OK el' ->
-                                           eval_lvalue tge en m pm1 t (Eindexed e el' ty)
-                                             loc ofs s
-                           | _ => eval_lvalue tge en m pm1 t e loc ofs s
+                                           eval_glvalue tge en m pm1 t (Eindexed e el' ty)
+                                             loc ofs
+                           | _ => eval_glvalue tge en m pm1 t e loc ofs
                            end).
 Proof.
   intros en m pm0 pm1 t Hval Hmatch Hwf Hnoshadow.
@@ -1505,56 +1502,72 @@ Proof.
   {
     inversion H; subst.
     { simpl in H2.
-      destruct Hmatch as (Hmatch&_).
-      exploit Hmatch; eauto. intros (fe&fl'&Hget'&Hfpmap&Heval).
-      rewrite Hfpmap in H2. destruct ty; inversion H2; subst.
-      eapply eval_expr_fpmap_ctxt; eauto.
-      econstructor; eauto.
+      destruct (fpmap id) as [|] eqn:Hfpmap.
+      { exfalso.
+        destruct (ParamMap.is_id_alloc pm0 id) eqn:Halloc.
+        { rewrite Hval in Hfpmap; try congruence.
+          exploit (@gs_is_alloc Values.val); eauto. }
+        {
+          rewrite Hwf // in Hfpmap.
+        }
+      }
+      inv H2. subst. econstructor; eauto.
     }
     { simpl in H2.
-      destruct Hmatch as (Hmatch&_).
-      apply bind_inversion in H2 as (al'&Htransf'&Hret).
-      exploit Hmatch; eauto. intros (fe&fl'&Hget'&Hfpmap&Heval).
-      rewrite Hfpmap in Hret. destruct ty; inversion Hret; subst.
-      eapply eval_expr_fpmap_ctxt; eauto.
-      econstructor; eauto.
+      destruct (fpmap id) as [|] eqn:Hfpmap.
+      { exfalso.
+        destruct (ParamMap.is_id_alloc pm0 id) eqn:Halloc.
+        { rewrite Hval in Hfpmap; try congruence.
+          exploit (@gs_is_alloc Values.val); eauto.
+        }
+        {
+          rewrite Hwf // in Hfpmap.
+        }
+      }
+      monadInv H2. econstructor; eauto.
     }
   }
   {
-    inversion H; subst.
-    { simpl in H2.
-      rewrite Hval in H2; last by congruence.
-      { inversion H2; subst. econstructor; eauto. }
+    inv H.
+    { simpl in H3.
+      destruct Hmatch as (Hmatch&_).
+      exploit Hmatch; eauto. intros (fe&fl'&Hget'&Hfpmap&Heval).
+      rewrite Hfpmap in H3. destruct ty; inversion H3; subst.
+      eapply eval_expr_fpmap_ctxt; eauto.
+      eapply eval_Eplvalue; eauto.
     }
-    { simpl in H2.
-      rewrite Hwf in H2; auto.
-      { inversion H2; subst. econstructor; eauto. }
+    { simpl in H3.
+      destruct Hmatch as (Hmatch&_).
+      apply bind_inversion in H3 as (al'&Htransf'&Hret).
+      exploit Hmatch; eauto. intros (fe&fl'&Hget'&Hfpmap&Heval).
+      rewrite Hfpmap in Hret. destruct ty; inversion Hret; subst.
+      eapply eval_expr_fpmap_ctxt; eauto.
+      eapply eval_Eplvalue; eauto.
     }
+  }
+  {
+    inv H.
     { simpl in H2.
-      rewrite Hwf in H2; auto.
-      { apply bind_inversion in H2 as (al'&Htransf'&Hret).
-        inv Hret.
-        econstructor; eauto.
-      }
-    }
+      rewrite Hwf // in H2. inv H2. eapply eval_Eglvalue; eauto. }
+    { inv H3.
+      simpl in H2.
+      rewrite Hwf // in H2. monadInv H2. eapply eval_Eglvalue; eauto. }
   }
 
   (* list *)
   { monadInv H. simpl. econstructor; eauto. }
   { monadInv H3. simpl. econstructor; eauto. }
 
-  (* lvalue *)
+  (* llvalue *)
   { simpl. econstructor; eauto. }
   { simpl. econstructor; eauto. }
 
-  { simpl. econstructor; eauto. }
+  (* glvalue *)
   { simpl. econstructor; eauto.
     { destruct Hmatch as (_&Hmatch). eapply Hmatch; auto. }
     { rewrite symbols_preserved; auto. }
   }
-
-  { simpl. try econstructor; eauto.
-    destruct Hmatch as (_&Hmatch). eapply Hmatch; auto. }
+  { simpl. try econstructor; eauto. }
 Qed.
 
 Definition valid_env_full {A} en (pm1 : param_mem A) :=
@@ -1576,17 +1589,17 @@ Proof.
   eapply evaluation_preserved; intuition eauto.
 Qed.
 
-Lemma eval_lvalue_preserved:
-  forall en m pm0 pm1 t e loc ofs s,
+Lemma eval_glvalue_preserved:
+  forall en m pm0 pm1 t e loc ofs,
   valid_env_full en pm1 ->
   match_param_mem_full pm0 pm1 ->
-  eval_lvalue ge en m pm0 t e loc ofs s ->
+  eval_glvalue ge en m pm0 t e loc ofs ->
   match e with
   | Eindexed e el ty =>
       forall el', transf_exprlist fpmap el = OK el' ->
-                  eval_lvalue tge en m pm1 t (Eindexed e el' ty)
-                  loc ofs s
-  | _ => eval_lvalue tge en m pm1 t e loc ofs s
+                  eval_glvalue tge en m pm1 t (Eindexed e el' ty)
+                  loc ofs
+  | _ => eval_glvalue tge en m pm1 t e loc ofs
   end.
 Proof.
   rewrite /valid_env_full/match_param_mem_full.
@@ -1594,17 +1607,17 @@ Proof.
   eapply evaluation_preserved; intuition eauto.
 Qed.
 
-Lemma eval_plvalue_preserved:
+Lemma eval_llvalue_preserved:
   forall en m pm0 pm1 t e loc ofs,
   valid_env_full en pm1 ->
   match_param_mem_full pm0 pm1 ->
-  eval_plvalue ge en m pm0 t e loc ofs ->
+  eval_llvalue ge en m pm0 t e loc ofs ->
   match e with
   | Eindexed e el ty =>
       forall el', transf_exprlist fpmap el = OK el' ->
-                  eval_plvalue tge en m pm1 t (Eindexed e el' ty)
+                  eval_llvalue tge en m pm1 t (Eindexed e el' ty)
                   loc ofs
-  | _ => eval_plvalue tge en m pm1 t e loc ofs
+  | _ => eval_llvalue tge en m pm1 t e loc ofs
   end.
 Proof.
   rewrite /valid_env_full/match_param_mem_full.
@@ -1748,7 +1761,6 @@ Proof.
   rewrite flatten_parameter_constraints_found_parameters.
   rewrite flatten_parameter_list_tprog.
   rewrite pr_parameters_vars_found_parameters.
-  revert ups pm0.
   rewrite //=.
   rewrite /flatten_parameter_list/=.
   rewrite /flatten_ident_variable_list//=.
@@ -1757,6 +1769,23 @@ Proof.
   { eapply VE. }
   { eapply VE. }
 Qed.
+
+Lemma valid_env_store_preserve (e : env) (pm : param_mem Floats.float) loc ofs (v : Values.val) e' :
+  valid_env_full e pm ->
+  store e loc ofs v = Some e' ->
+  valid_env_full e' pm.
+Proof.
+  intros Hvalid Hstore.
+   assert (∀ id, is_id_alloc e' id = is_id_alloc e id).
+   { intros id. eapply store_same_is_id_alloc; eauto. }
+   split; [| split].
+   { intros ??. eapply Hvalid. eauto. }
+   { rewrite /env_no_shadow_mathlib.
+     eapply Forall_impl; last eapply Hvalid. intros; eauto. }
+   { rewrite /env_no_shadow_param. intros ? Htrue.
+     eapply Hvalid in Htrue. eauto. }
+Qed.
+
 
 Lemma step_simulation:
   forall S1 t S2, step ge S1 t S2 ->
@@ -1785,7 +1814,7 @@ Proof.
       2: { rewrite Rplus_comm. rewrite -float_add_irf. econstructor. }
       { econstructor.
         destruct MPM as ((?&?&Hset)&?).
-        destruct Hset as (pm''&Hres&Hassign).
+        destruct Hset as (pm''&Hres&Hassign); eauto.
         eapply eval_correction; eauto.
         { eapply set_global_params_no_shadow. eexists; split; eauto. }
       }
@@ -1805,33 +1834,76 @@ Proof.
     { econstructor; eauto. econstructor; eauto. }
   - (* Assignment *)
     monadInv TRS.
-    exploit (eval_lvalue_preserved); eauto.
+    exploit (eval_llvalue_preserved); eauto.
+    exploit (eval_expr_preserved); eauto.
+    intros Hexpr Hlvalue.
+    inv H.
+    {
+      eexists.
+      assert (fpmap id = None) as Hfpmap.
+      { exploit (@store_some_is_id_alloc Values.val); eauto.
+        intros (His&_). eapply VE; eauto. }
+
+      split.
+      {
+        eapply plus_one.
+        simpl in EQ.
+        rewrite Hfpmap in EQ. inv EQ.
+        econstructor; eauto.
+      }
+      econstructor; eauto.
+      eapply valid_env_store_preserve; eauto.
+    }
+    {
+      monadInv EQ.
+      eexists.
+      assert (fpmap id = None) as Hfpmap.
+      { exploit (@store_some_is_id_alloc Values.val); eauto.
+        intros (His&_). eapply VE; eauto. }
+
+      split.
+      {
+        eapply plus_one.
+        inv H2.
+        rewrite Hfpmap in EQ2. inv EQ2.
+        econstructor; eauto.
+      }
+      econstructor; eauto.
+      eapply valid_env_store_preserve; eauto.
+    }
+  - (* Assignment *)
+    monadInv TRS.
+    exploit (eval_glvalue_preserved); eauto.
     exploit (eval_expr_preserved); eauto.
     intros Hexpr Hlvalue.
     inv H.
     {
       eexists. split.
-      eapply plus_one.
-      simpl in EQ.
-      assert (fpmap id = None) as Hfpmap.
-      { apply VE; congruence. }
-      rewrite Hfpmap in EQ. inv EQ.
-      econstructor; eauto.
-      { erewrite typeof_transf_expr; eauto. }
-      { eapply assign_loc_preserved; eauto. }
+      {
+        eapply plus_one.
+        simpl in EQ.
+        assert (fpmap id = None) as Hfpmap.
+        { destruct MPM as (?&Hwf). apply Hwf. eauto. }
+        rewrite Hfpmap in EQ. inv EQ.
+        eapply step_assign_mem; eauto.
+        { erewrite typeof_transf_expr; eauto. }
+        { eapply assign_loc_preserved; eauto. }
+      }
       { econstructor; eauto. }
     }
     {
       monadInv EQ.
-      eexists. split.
-      eapply plus_one.
       inv H3.
-      assert (fpmap id = None) as Hfpmap.
-      { apply VE; congruence. }
-      rewrite Hfpmap in EQ2. inv EQ2.
-      econstructor; eauto.
-      { erewrite typeof_transf_expr; eauto. }
-      { eapply assign_loc_preserved; eauto. }
+      eexists. split.
+      {
+        eapply plus_one.
+        assert (fpmap id = None) as Hfpmap.
+        { destruct MPM as (?&Hwf). apply Hwf. eauto. }
+        rewrite Hfpmap in EQ2. inv EQ2.
+        eapply step_assign_mem; eauto.
+        { erewrite typeof_transf_expr; eauto. }
+        { eapply assign_loc_preserved; eauto. }
+      }
       { econstructor; eauto. }
     }
   - (* Conditional statement *)
@@ -1856,7 +1928,7 @@ Proof.
   - (* Tilde *)
     monadInv TRS.
   - monadInv TRS.
-    exploit (eval_lvalue_preserved); eauto => /= ?.
+    exploit (eval_llvalue_preserved); eauto => /= ?.
     eexists. split.
     {
     eapply plus_one.
@@ -1864,17 +1936,16 @@ Proof.
     { eauto. }
     { eapply eval_expr_preserved; eauto. }
     { eapply eval_expr_preserved; eauto. }
-    { eapply assign_loc_preserved; eauto. }
-    { auto. }
+    { eauto. }
+    { eauto. }
     }
     econstructor; eauto. econstructor; eauto.
+    eapply valid_env_store_preserve; eauto.
   - monadInv TRS.
-    exploit (eval_lvalue_preserved); eauto => /= ?.
     eexists. split.
     {
     eapply plus_one.
     eapply step_for_start_false.
-    { eauto. }
     { eapply eval_expr_preserved; eauto. }
     { eapply eval_expr_preserved; eauto. }
     { auto. }
@@ -1882,7 +1953,7 @@ Proof.
     econstructor; eauto.
   - monadInv TRS.
     inv MCONT.
-    exploit (eval_lvalue_preserved); eauto => /= ?.
+    exploit (eval_llvalue_preserved); eauto => /= ?.
     eexists. split.
     {
     eapply plus_one.
@@ -1890,13 +1961,14 @@ Proof.
     { eauto. }
     { eauto. }
     { eapply eval_expr_preserved; eauto. }
-    { eapply assign_loc_preserved; eauto. }
+    { eauto. }
     { auto. }
     }
     econstructor; eauto. econstructor; eauto.
+    eapply valid_env_store_preserve; eauto.
   - monadInv TRS.
     inv MCONT.
-    exploit (eval_lvalue_preserved); eauto => /= ?.
+    exploit (eval_llvalue_preserved); eauto => /= ?.
     eexists. split.
     {
     eapply plus_one.
@@ -2016,19 +2088,19 @@ Proof.
   destruct TRANSL' as (?&?). intuition.
 Qed.
 
-Lemma alloc_variables_in_env env m vs env' m' :
-  alloc_variables env m vs env' m' ->
-  ∀ id loc b, Maps.PTree.get id env' = Some (loc, b) ->
-              (In (id, b) vs \/ Maps.PTree.get id env = Some (loc, b)).
+Lemma alloc_variables_in_env env vs env' :
+  alloc_variables env vs env'->
+  ∀ id, is_id_alloc env' id = true ->
+              (∃ b, In (id, b) vs) \/ is_id_alloc env id = true.
 Proof.
   induction 1.
   - intros. eauto.
   - intros. edestruct IHalloc_variables as [Hleft|Hright].
     { eauto. }
-    { left. right. eauto. }
+    { left. destruct Hleft.  eexists; right. eauto. }
     destruct (Pos.eq_dec id0 id). subst.
-    { rewrite Maps.PTree.gss in Hright. inv Hright. left. left. eauto. }
-    { rewrite Maps.PTree.gso in Hright; last congruence. eauto. }
+    { left. eexists. left. eauto. }
+    { rewrite is_id_setv_other // in Hright. right; eauto. }
 Qed.
 
 Lemma transf_initial_states:
@@ -2047,7 +2119,7 @@ Proof.
   { econstructor; eauto.
     { destruct TRANSL' as (TRANS_GEN&?). eapply (Genv.init_mem_match TRANS_GEN); eauto. }
     { rewrite symbols_preserved. eauto. }
-    { monadInv EQ. rewrite //=. eauto. }
+    { monadInv EQ. rewrite //=. }
     { rewrite data_vars_preserved. eapply assign_global_locs_preserved; eauto. }
   }
   monadInv EQ.
@@ -2056,45 +2128,44 @@ Proof.
   {
     split.
     { rewrite /valid_env. intros id Hget.
-      destruct (Maps.PTree.get id e) as [(?&?)|] eqn:Hgetenv; last by congruence.
-      eapply alloc_variables_in_env in Hgetenv; eauto.
-      destruct Hgetenv as [Hin|Hfalso].
+      eapply alloc_variables_in_env in Hget; eauto.
+      destruct Hget as [(?&Hin)|Hfalso].
       { apply mmap_inversion in EQ0.
         eapply list_forall2_in_left in EQ0 as (?&?&Hcheck); eauto.
         rewrite /vars_check_shadow in Hcheck.
         rewrite /check_non_param in Hcheck. simpl in Hcheck. destruct (fpmap id); inv Hcheck; auto.
       }
-      { rewrite Maps.PTree.gempty in Hfalso; congruence. }
+      { rewrite is_id_empty in Hfalso; congruence. }
     }
     split.
     {
       rewrite /env_no_shadow_mathlib.
       apply Forall_forall. intros x Hin.
       apply mmap_inversion in EQ.
-      destruct (Maps.PTree.get x e) as [(?&?)|] eqn:Hgetenv; auto.
+      destruct (is_id_alloc e x) as [] eqn:Hgetenv; auto.
       eapply alloc_variables_in_env in Hgetenv; eauto.
-      destruct Hgetenv as [Hin'|Hfalso].
+      destruct Hgetenv as [(?&Hin')|Hfalso].
       {
         eapply list_forall2_in_left in EQ as (?&?&?); eauto.
         eapply vars_check_shadow_ok in Hin; eauto.
         exfalso; auto.
       }
-      { rewrite Maps.PTree.gempty in Hfalso; congruence. }
+      { rewrite is_id_empty in Hfalso; congruence. }
     }
     rewrite /env_no_shadow_param.
     {
       intros x Halloc.
       apply mmap_inversion in EQ0.
-      destruct (Maps.PTree.get x e) as [(?&?)|] eqn:Hgetenv; auto.
+      destruct (is_id_alloc e x) as [] eqn:Hgetenv; auto.
       eapply alloc_variables_in_env in Hgetenv; eauto.
-      destruct Hgetenv as [Hin'|Hfalso].
+      destruct Hgetenv as [(?&Hin')|Hfalso].
       {
         eapply list_forall2_in_left in EQ0 as (?&?&Hcheck); eauto.
         exploit (set_global_params_is_id_alloc); eauto. intros Hin.
         eapply (fpmap_in_parameters_id_not_none) in Hin.
         rewrite /check_non_param in Hcheck. simpl in Hcheck. destruct (fpmap x); try congruence.
       }
-      { rewrite Maps.PTree.gempty in Hfalso; congruence. }
+      { rewrite is_id_empty in Hfalso; congruence. }
     }
   }
   { split.

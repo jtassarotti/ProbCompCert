@@ -375,16 +375,16 @@ Proof.
   intros Hexpr.
   econstructor. 
   {
-    eapply eval_Elvalue.
+    eapply eval_Eglvalue.
     eapply eval_Evar_global; eauto.
-    { rewrite /env_no_shadow_mathlib in VE2.
-      inversion VE2 as [|??? Hnoshadow'].
+    {
+      inversion PARAM_NOSHADOW as [|??? Hnoshadow'].
       inversion Hnoshadow' as [|??? Hnoshadow''].
       inversion Hnoshadow'' as [|??? Hnoshadow'''].
       eauto.
     }
-    {
-      inversion PARAM_NOSHADOW as [|??? Hnoshadow'].
+    { rewrite /env_no_shadow_mathlib in VE2.
+      inversion VE2 as [|??? Hnoshadow'].
       inversion Hnoshadow' as [|??? Hnoshadow''].
       inversion Hnoshadow'' as [|??? Hnoshadow'''].
       eauto.
@@ -396,16 +396,16 @@ Proof.
       econstructor.
       { repeat econstructor. }
       {  econstructor.  econstructor.
-         { eapply eval_Elvalue.
+         { eapply eval_Eglvalue.
            eapply eval_Evar_global; eauto.
-           { rewrite /env_no_shadow_mathlib in VE2.
-             inversion VE2 as [|??? Hnoshadow'].
+           {
+             inversion PARAM_NOSHADOW as [|??? Hnoshadow'].
              inversion Hnoshadow' as [|??? Hnoshadow''].
              inversion Hnoshadow'' as [|??? Hnoshadow'''].
              eauto.
            }
-           {
-             inversion PARAM_NOSHADOW as [|??? Hnoshadow'].
+           { rewrite /env_no_shadow_mathlib in VE2.
+             inversion VE2 as [|??? Hnoshadow'].
              inversion Hnoshadow' as [|??? Hnoshadow''].
              inversion Hnoshadow'' as [|??? Hnoshadow'''].
              eauto.
@@ -420,16 +420,16 @@ Proof.
          econstructor.
          { repeat econstructor. }
          { econstructor.
-           eapply eval_Elvalue.
+           eapply eval_Eglvalue.
            eapply eval_Evar_global; eauto.
-           { rewrite /env_no_shadow_mathlib in VE2.
-             inversion VE2 as [|??? Hnoshadow'].
+           {
+             inversion PARAM_NOSHADOW as [|??? Hnoshadow'].
              inversion Hnoshadow' as [|??? Hnoshadow''].
              inversion Hnoshadow'' as [|??? Hnoshadow'''].
              eauto.
            }
-           {
-             inversion PARAM_NOSHADOW as [|??? Hnoshadow'].
+           { rewrite /env_no_shadow_mathlib in VE2.
+             inversion VE2 as [|??? Hnoshadow'].
              inversion Hnoshadow' as [|??? Hnoshadow''].
              inversion Hnoshadow'' as [|??? Hnoshadow'''].
              eauto.
@@ -575,7 +575,7 @@ Proof.
 Qed.
 
 Definition env_no_shadow_param {A} (en : env) (pm : ParamMap.param_mem A) :=
-  forall id, ParamMap.is_id_alloc pm id = true -> Maps.PTree.get id en = None.
+  forall id, ParamMap.is_id_alloc pm id = true -> ParamMap.is_id_alloc en id = false.
 
 Definition wf_type (b: basic) :=
   match b with
@@ -716,7 +716,8 @@ Proof.
         exploit (assign_global_params_nodups_get); eauto.
         intros (?&?).
         econstructor. 
-        econstructor. econstructor.
+        eapply eval_Eplvalue.
+        econstructor.
         { eapply ENOSHADOW; auto. }
         { eauto. }
         eapply (IHl ups); eauto.
@@ -738,7 +739,8 @@ Proof.
         exploit (assign_global_params_nodups_get); eauto.
         intros (?&?).
         econstructor. 
-        econstructor. econstructor.
+        eapply eval_Eplvalue.
+        econstructor.
         { eapply ENOSHADOW; auto. }
         { eauto. }
         eapply (IHl ups); eauto.
@@ -761,7 +763,8 @@ Proof.
         exploit (assign_global_params_nodups_get); eauto.
         intros (?&?).
         econstructor. 
-        econstructor. econstructor.
+        eapply eval_Eplvalue.
+        econstructor.
         { eapply ENOSHADOW; auto. }
         { eauto. }
         eapply (IHl ups); eauto.
@@ -822,9 +825,10 @@ Proof.
           exploit (assign_global_params_nodups_get); eauto.
           intros (?&?).
           econstructor.
-          { econstructor. econstructor.
+          { eapply eval_Eplvalue.
+            econstructor.
+            { repeat econstructor; eauto. }
             { eapply ENOSHADOW; auto. }
-            { econstructor. econstructor. econstructor. }
             rewrite /Integers.Ptrofs.of_int.
             rewrite Integers.Int.unsigned_repr; eauto.
             {  clear -Hsize. split; first lia.
@@ -874,7 +878,9 @@ Proof.
         exploit (assign_global_params_nodups_get); eauto.
         intros (?&?).
         econstructor. 
-        { econstructor. econstructor. econstructor. econstructor.
+        { econstructor. econstructor.
+          eapply eval_Eplvalue.
+          econstructor.
           { eapply ENOSHADOW; auto. }
           { eauto. }
           rewrite //=. }
@@ -899,7 +905,9 @@ Proof.
         exploit (assign_global_params_nodups_get); eauto.
         intros (?&?).
         econstructor. 
-        { econstructor. econstructor. econstructor. econstructor.
+        { econstructor. econstructor.
+          eapply eval_Eplvalue.
+          econstructor.
           { eapply ENOSHADOW; auto. }
           { eauto. }
           rewrite //=. }
@@ -925,7 +933,9 @@ Proof.
         exploit (assign_global_params_nodups_get); eauto.
         intros (?&?).
         econstructor. 
-        { econstructor. econstructor. econstructor. econstructor.
+        { econstructor. econstructor.
+          eapply eval_Eplvalue.
+          econstructor.
           { eapply ENOSHADOW; auto. }
           { eauto. }
           rewrite //=. }
@@ -991,9 +1001,10 @@ Proof.
           econstructor.
           { econstructor.
             { econstructor. }
-            { econstructor. econstructor.
+            { eapply eval_Eplvalue. 
+              econstructor.
+              { repeat econstructor. }
               { eapply ENOSHADOW; auto. }
-              { econstructor. econstructor. econstructor. }
             rewrite /Integers.Ptrofs.of_int.
             rewrite Integers.Int.unsigned_repr; eauto.
             {  clear -Hsize. split; first lia.
@@ -1049,8 +1060,10 @@ Proof.
         intros (?&?).
         econstructor.
         { eapply eval_correction_lower_upper; auto.
+          eapply eval_Eplvalue.
           econstructor; eauto.
-          { econstructor. eapply ENOSHADOW; auto. }
+          { eapply ENOSHADOW; auto. }
+          eauto.
         }
         eapply (IHl ups); eauto.
         { simpl in Hnodups. inv Hnodups; eauto. }
@@ -1073,8 +1086,10 @@ Proof.
         intros (?&?).
         econstructor.
         { eapply eval_correction_lower_upper; auto.
+          eapply eval_Eplvalue.
           econstructor; eauto.
-          { econstructor. eapply ENOSHADOW; auto. }
+          { eapply ENOSHADOW; auto. }
+          eauto.
         }
         eapply (IHl ups); eauto.
         { simpl in Hnodups. inv Hnodups; eauto. }
@@ -1096,9 +1111,10 @@ Proof.
         exploit (assign_global_params_nodups_get); eauto.
         intros (?&?).
         econstructor.
-        { eapply eval_correction_lower_upper; auto.
+        { eapply eval_correction_lower_upper; auto. eapply eval_Eplvalue.
           econstructor; eauto.
-          { econstructor. eapply ENOSHADOW; auto. }
+          { eapply ENOSHADOW; auto. }
+          eauto.
         }
         eapply (IHl ups); eauto.
         { simpl in Hnodups. inv Hnodups; eauto. }
@@ -1159,11 +1175,10 @@ Proof.
           intros (?&?).
           econstructor.
           { eapply eval_correction_lower_upper; auto.
+            eapply eval_Eplvalue.
             econstructor.
-            { econstructor.
-              { eapply ENOSHADOW; auto. }
-              { econstructor. econstructor. econstructor. }
-            }
+            { repeat econstructor. }
+            { eapply ENOSHADOW; auto. }
             rewrite /Integers.Ptrofs.of_int.
             rewrite Integers.Int.unsigned_repr; eauto.
             {  clear -Hsize. split; first lia.
