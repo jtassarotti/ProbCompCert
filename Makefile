@@ -165,7 +165,7 @@ STANFRONTEND=Stan.v Stanlight.v StanEnv.v Sop.v ParamMap.v Ssemantics.v Denotati
   CStanSemanticsTarget.v \
   Sampling.v Samplingproof.v \
   Reparameterization.v Reparameterizationlemmas.v Reparameterizationproof.v \
-  AdditiveConst.v \
+  AdditiveConst.v AdditiveConstproof.v \
   Clightification.v Clightificationproof.v \
   VariableAllocation.v VariableAllocationproof.v \
   Target.v Targetproof.v \

@@ -80,19 +80,6 @@ Variable m: mem.
 Variable pm : param_mem float.
 Variable t: float.
 
-Definition typeof (e: expr) : basic :=
-  match e with
-  | Econst_int _ ty => ty
-  | Econst_float _ ty => ty
-  | Evar _ ty => ty
-  | Eunop _ _ ty => ty
-  | Ebinop _ _ _ ty => ty
-  | Ecall e el ty => ty
-  | Eindexed e el ty => ty
-  | Etarget ty => ty
-  | Ecast _ ty => ty
-  end.
-
 Fixpoint transf_type (t: basic) : type :=
   match t with
   | Bint => tint

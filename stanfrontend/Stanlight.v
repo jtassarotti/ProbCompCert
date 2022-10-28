@@ -164,3 +164,16 @@ Proof.
     rewrite <-count_up_int_aux_S_r. auto.
   }
 Qed.
+
+Definition typeof (e: expr) : basic :=
+  match e with
+  | Econst_int _ ty => ty
+  | Econst_float _ ty => ty
+  | Evar _ ty => ty
+  | Eunop _ _ ty => ty
+  | Ebinop _ _ _ ty => ty
+  | Ecall e el ty => ty
+  | Eindexed e el ty => ty
+  | Etarget ty => ty
+  | Ecast _ ty => ty
+  end.

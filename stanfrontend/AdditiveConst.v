@@ -47,9 +47,15 @@ Fixpoint drop_const (e: Stanlight.expr) {struct e} : expr :=
           e
       end
   | Ebinop e1 Plus e2 Breal =>
-      Ebinop (drop_const e1) Plus (drop_const e2) Breal
+      match typeof e1, typeof e2 with
+      | Breal, Breal => Ebinop (drop_const e1) Plus (drop_const e2) Breal
+      | _, _ => Ebinop e1 Plus e2 Breal
+      end
   | Ebinop e1 Minus e2 Breal =>
-      Ebinop (drop_const e1) Minus (drop_const e2) Breal
+      match typeof e1, typeof e2 with
+      | Breal, Breal => Ebinop (drop_const e1) Minus (drop_const e2) Breal
+      | _, _ => Ebinop e1 Minus e2 Breal
+      end
   | _ => e
   end.
 
