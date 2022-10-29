@@ -51,7 +51,7 @@ Definition match_prog (p: program) (tp: program) :=
 Fixpoint compute_const_expr (e: Stanlight.expr) {struct e} : R :=
   match e with
   | Econst_float f Breal => IFR f
-  | Ecall (Evar id tyf) el ty =>
+  | Ecall (Evar id (Bfunction _ _)) el ty =>
       match PTree.get id math_fun_const with
       | Some r => r
       | None => 0
@@ -148,6 +148,13 @@ Lemma senv_preserved:
 Proof.
   intros. destruct TRANSL.
   eapply Genv.senv_transf; eauto.
+Qed.
+
+Lemma external_funct_preserved:
+  match_external_funct (globalenv prog) (globalenv tprog).
+Proof.
+  destruct TRANSL as (Hmatch&_). eapply match_program_external_funct; eauto.
+  intros. simpl. congruence.
 Qed.
 
 Remark some_bind_inversion:
@@ -250,14 +257,42 @@ Lemma typeof_drop_const a :
 Proof.
   induction a => //=.
   destruct b; eauto.
-  destruct a; eauto.
+  destruct a; eauto;
+  try destruct b0; eauto.
   { destruct (math_fun_remap ! i); eauto. }
   destruct b, b0 => //=.
   { destruct (typeof a1), (typeof a2) => //=. }
   { destruct (typeof a1), (typeof a2) => //=. }
 Qed.
 
-Lemma evaluation_drop_const_aux en m pm t t':
+Lemma math_fun_remap_const i :
+  (i = $"normal_lpdf" /\ math_fun_remap ! i = Some $"normal_lupdf"
+   /\ math_fun_const ! i = Some (ln(1/sqrt(2 * PI)))) \/
+  (i = $"cauchy_lpdf" /\ math_fun_remap ! i = Some $"cauchy_lupdf"
+   /\ math_fun_const ! i = Some (ln(1/PI))) \/
+  (math_fun_remap ! i = None /\ math_fun_const ! i = None).
+Proof.
+  rewrite /math_fun_const/math_fun_remap.
+  destruct (Pos.eq_dec i $"normal_lpdf").
+  { subst. rewrite ?PTree.gss; auto. }
+  right.
+  rewrite PTree.gso; last congruence.
+  rewrite (@PTree.gso _ i $"normal_lpdf"); last congruence.
+  destruct (Pos.eq_dec i $"cauchy_lpdf").
+  { subst. rewrite ?PTree.gss; auto. }
+  rewrite PTree.gso; last congruence.
+  rewrite (@PTree.gso _ i $"cauchy_lpdf"); last congruence.
+  rewrite ?PTree.gempty; auto.
+Qed.
+
+Lemma tprog_genv_has_mathlib :
+  genv_has_mathlib (globalenv prog) ->
+  genv_has_mathlib (globalenv tprog).
+Proof.
+  apply tprog_genv_has_mathlib; eauto using symbols_preserved, external_funct_preserved.
+Qed.
+
+Lemma evaluation_drop_const_aux en m pm t t' (MATH: genv_has_mathlib ge):
       forall e v, eval_expr ge en m pm t e v ->
                    check_no_target_expr e = Some tt ->
                    ((drop_const e = e /\ compute_const_expr e = 0) \/ 
@@ -268,6 +303,7 @@ Lemma evaluation_drop_const_aux en m pm t t':
                          | _ => v' = v
                          end)).
 Proof.
+  exploit tprog_genv_has_mathlib; auto. intros MATHT.
   intros e v Heval.
   induction Heval; intros; checkInv; simpl; eauto.
   - destruct ty; eauto; [].
@@ -353,8 +389,66 @@ Proof.
           nra. }
       }
     }
-  - destruct a; eauto; [].
-    admit.
+  - destruct a; try destruct b; eauto; [].
+    destruct (math_fun_remap_const i) as [Hnormal|[Hcauchy|Hnone]].
+    { destruct Hnormal as (->&->&->). 
+      right.
+      destruct MATH. destruct GENV_NORMAL_LPDF as (l&Hnorm_symbol&Hnorm_funct). clear GENV_NORMAL_LUPDF.
+      destruct MATHT. destruct GENV_NORMAL_LUPDF as (lu&Hnormu_symbol&Hnormu_funct). 
+      
+      (* We first argue that eval in the source program computed the normal_lpdf *)
+        inv Heval.
+        { (*shadowing case*) admit. }
+        { (*shadowing case*) admit. }
+        inv H5.
+        { inv H1. }
+        inv H4. subst.
+        assert (loc = l) by congruence; subst.
+        assert (AST.EF_external name sig = normal_lpdf_ef_external) as Heqf.
+        { congruence. }
+        rewrite Heqf in H3.
+          exploit (normal_lpdf_ext_inv); eauto. 
+          intros (x&mean&variance&Hpos&Hvargs&Hvres).
+          subst.
+
+      eexists. split.
+      { 
+        eapply eval_Ecall.
+        eapply eval_Eglvalue.
+          econstructor.
+          { admit. }
+          { admit. }
+          eauto.
+          { eapply deref_loc_reference; eauto. }
+          eapply evaluation_preserved_no_target; eauto.
+          eapply Hnormu_funct.
+          2:{ eauto. }
+          reflexivity.
+          eapply normal_lupdf_ext_spec.
+      }
+      eexists. split; eauto. f_equal. 
+      rewrite IFR_IRF_inv. 
+      exploit (sqrt_lt_R0 2); first nra.
+      exploit (sqrt_lt_R0 variance); first nra.
+      specialize (PI_RGT_0). intros HPI.
+      exploit (sqrt_lt_R0 (PI)); first nra.
+      exploit (sqrt_lt_R0 (PI2)).
+      { rewrite /PI in HPI. nra. }
+      intros.
+      rewrite /Rdiv ?sqrt_mult ?ln_mult ?ln_1 ?ln_Rinv; try nra; try eauto using exp_pos.
+      { rewrite ?ln_mult ?ln_exp; try nra. }
+      { repeat apply Rmult_lt_0_compat; auto. }
+      { repeat apply Rmult_lt_0_compat; auto. }
+      { apply Rinv_0_lt_compat; repeat apply Rmult_lt_0_compat; auto. }
+      { apply Rinv_0_lt_compat; repeat apply Rmult_lt_0_compat; auto. }
+      { ring_simplify. apply Rinv_0_lt_compat; repeat apply Rmult_lt_0_compat; auto. }
+      rewrite /PI in HPI; nra.
+    }
+    {
+      (* cauchy *)
+      admit.
+    }
+    { destruct Hnone as (->&->); eauto. }
   - inv H; eauto.
   - inv H; eauto.
   - inv H; eauto.

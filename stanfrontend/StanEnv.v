@@ -194,6 +194,17 @@ Axiom normal_lpdf_ext_spec :
     Events.E0
     (Values.Vfloat (IRF (ln (1 / sqrt(variance * 2 * PI) * exp (- (x - mean)^2 / (2 * variance)))))) m.
 
+Axiom normal_lpdf_ext_inv :
+  forall vs v ge m,
+  Events.external_call normal_lpdf_ef_external ge
+    vs m
+    Events.E0
+    v m ->
+  ∃ x mean variance,
+    0 < variance ∧
+    vs = (Values.Vfloat (IRF x) :: Values.Vfloat (IRF mean) :: Values.Vfloat (IRF variance) :: nil) ∧
+    v = (Values.Vfloat (IRF (ln (1 / sqrt(variance * 2 * PI) * exp (- (x - mean)^2 / (2 * variance)))))).
+
 Definition normal_lupdf_ef_external :=
   (AST.EF_external "normal_lupdf" (AST.mksignature (AST.Tfloat :: AST.Tfloat :: AST.Tfloat :: nil)
                                     (AST.Tret AST.Tfloat)
@@ -237,6 +248,16 @@ Axiom cauchy_lpdf_ext_spec :
     (Values.Vfloat (IRF x) :: Values.Vfloat (IRF location) :: Values.Vfloat (IRF scale) :: nil) m
     Events.E0
     (Values.Vfloat (IRF (ln (1 / (PI * scale * (1 + ((x - location)/scale)^2)))))) m.
+
+Axiom cauchy_lpdf_ext_inv :
+  forall vs v ge m,
+  Events.external_call cauchy_lpdf_ef_external ge
+    vs m
+    Events.E0
+    v m ->
+  ∃ x location scale,
+    vs = (Values.Vfloat (IRF x) :: Values.Vfloat (IRF location) :: Values.Vfloat (IRF scale) :: nil) ∧
+    v = (Values.Vfloat (IRF (ln (1 / (PI * scale * (1 + ((x - location)/scale)^2)))))).
 
 Definition cauchy_lupdf_ef_external :=
   (AST.EF_external "cauchy_lupdf" (AST.mksignature (AST.Tfloat :: AST.Tfloat :: AST.Tfloat :: nil)

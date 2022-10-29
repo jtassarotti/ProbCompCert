@@ -39,10 +39,10 @@ Definition Ezero := Econst_float (Floats.Float.zero) Breal.
 Fixpoint drop_const (e: Stanlight.expr) {struct e} : expr :=
   match e with
   | Econst_float _ Breal => Ezero
-  | Ecall (Evar id tyf) el ty =>
+  | Ecall (Evar id (Bfunction ty1 ty2)) el ty =>
       match PTree.get id math_fun_remap with
       | Some id' =>
-          Ecall (Evar id' tyf) el ty
+          Ecall (Evar id' (Bfunction ty1 ty2)) el ty
       | None =>
           e
       end
