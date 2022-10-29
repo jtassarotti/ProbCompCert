@@ -371,7 +371,7 @@ Lemma eval_correction_lower_upper tge e m pm t a b xpr r
            (Values.Vfloat (IRF (log_deriv_constrain_fn (Clower_upper a b) r))).
 Proof.
   simpl.
-  edestruct MATH as (_&(expit&Hfe&Hfuncte)&(log&Hfl&Hfunctl)).
+  edestruct MATH as [ _ (expit&Hfe&Hfuncte) (log&Hfl&Hfunctl)].
   intros Hexpr.
   econstructor. 
   {

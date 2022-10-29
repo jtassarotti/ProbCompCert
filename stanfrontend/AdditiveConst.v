@@ -194,7 +194,7 @@ Definition vars_check_shadow (p: AST.ident * basic) : option unit :=
   if forallb (fun id' => match (Pos.eq_dec id' id) with
                       | left _ => false
                       | right _ => true
-                         end) StanEnv.math_idents then
+                         end) (StanEnv.pdf_idents ++ StanEnv.math_idents) then
     Some tt
   else
     None.

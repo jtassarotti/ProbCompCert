@@ -105,7 +105,7 @@ double cauchy_lpdf(double x, double location, double scale)
 
 double cauchy_lupdf(double x, double location, double scale)
 {
-  return (- log(scale) - log((1 + pow((x - location)/scale,2))));
+  return (- log(scale * (1 + pow((x - location)/scale,2))));
 }
 
 double bernoulli_logit_lpmf(int x, double alpha)

@@ -746,14 +746,25 @@ Lemma tprog_genv_has_mathlib :
   genv_has_mathlib (globalenv tprog).
 Proof.
   move: prog_genv_has_mathlib.
-  rewrite /genv_has_mathlib.
-  rewrite /genv_exp_spec/genv_log_spec/genv_expit_spec.
-  rewrite ?symbols_preserved.
-  intros (Hexp&Hexpit&Hlog).
+  destruct 1;
+  split; rewrite /genv_exp_spec/genv_log_spec/genv_expit_spec/genv_normal_lpdf_spec/genv_normal_lupdf_spec;
+         rewrite /genv_cauchy_lpdf_spec/genv_cauchy_lupdf_spec;
+    rewrite ?symbols_preserved.
   intuition.
-  { destruct Hexp as (loc&?). exists loc. erewrite ext_functions_preserved; intuition eauto. }
-  { destruct Hexpit as (loc&?). exists loc. erewrite ext_functions_preserved; intuition eauto. }
-  { destruct Hlog as (loc&?). exists loc. erewrite ext_functions_preserved; intuition eauto. }
+  { destruct GENV_EXP as (loc&?). exists loc. split; first by intuition.
+    eapply ext_functions_preserved; intuition eauto. }
+  { destruct GENV_EXPIT as (loc&?). exists loc. split; first by intuition.
+    eapply ext_functions_preserved; intuition eauto. }
+  { destruct GENV_LOG as (loc&?). exists loc. split; first by intuition.
+    eapply ext_functions_preserved; intuition eauto. }
+  { destruct GENV_NORMAL_LPDF as (loc&Hnor). exists loc. split; first by intuition.
+    eapply ext_functions_preserved; intuition eauto. }
+  { destruct GENV_NORMAL_LUPDF as (loc&Hnor). exists loc. split; first by intuition.
+    eapply ext_functions_preserved; intuition eauto. }
+  { destruct GENV_CAUCHY_LPDF as (loc&Hnor). exists loc. split; first by intuition.
+    eapply ext_functions_preserved; intuition eauto. }
+  { destruct GENV_CAUCHY_LUPDF as (loc&Hnor). exists loc. split; first by intuition.
+    eapply ext_functions_preserved; intuition eauto. }
 Qed.
 
 Lemma eval_expr_fun_const pr v :
@@ -773,7 +784,7 @@ Proof.
     destruct c.
     { econstructor. }
     { rewrite /unconstrained_to_constrained_fun.
-      edestruct (tprog_genv_has_mathlib) as ((expl&?&?)&_).
+      edestruct (tprog_genv_has_mathlib) as [ (expl&?&?)].
       simpl.
       econstructor.
       { econstructor.
@@ -808,7 +819,7 @@ Proof.
     }
     {
       rewrite /unconstrained_to_constrained_fun.
-      edestruct (tprog_genv_has_mathlib) as ((expl&?&?)&_).
+      edestruct (tprog_genv_has_mathlib) as [ (expl&?&?)].
       simpl.
       econstructor.
       { econstructor. }
@@ -848,7 +859,7 @@ Proof.
     }
     {
       rewrite /unconstrained_to_constrained_fun.
-      edestruct (tprog_genv_has_mathlib) as (?&(expl&?&?)&_).
+      edestruct (tprog_genv_has_mathlib) as [_ (expl&?&?)].
       simpl.
       econstructor.
       { econstructor. }

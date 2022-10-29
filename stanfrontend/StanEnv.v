@@ -65,7 +65,7 @@ Definition expit_ef_external :=
   (AST.EF_external "expit" (AST.mksignature (AST.Tfloat :: nil) (AST.Tret AST.Tfloat)
                             (AST.mkcallconv None false false))).
 
-Definition genv_expit_spec genv := 
+Definition genv_expit_spec genv :=
   exists loc,
   Globalenvs.Genv.find_symbol genv ($"expit") = Some loc /\
   Globalenvs.Genv.find_funct genv (Values.Vptr loc Integers.Ptrofs.zero) =
@@ -131,19 +131,6 @@ Axiom log_ext_no_mem_dep :
     (Values.Vfloat (IRF a) :: nil) m (Values.Vfloat (IRF (ln a))).
 *)
 
-Definition genv_has_mathlib genv :=
-  genv_exp_spec genv ∧
-  genv_expit_spec genv ∧
-  genv_log_spec genv.
-
-Definition math_idents := ($"log" :: $"expit" :: $"exp" :: nil).
-
-Definition env_no_shadow_mathlib {B} (env: param_mem B) :=
-  Forall (fun id => is_id_alloc env id = false) math_idents.
-
-Definition param_mem_no_shadow_mathlib {B} (pm: param_mem B) :=
-  Forall (fun id => is_id_alloc pm id = false) math_idents.
-
 Axiom float_add_irf: forall a b,
   (Floats.Float.add (IRF a) (IRF b)) = IRF (a + b).
 Axiom float_sub_irf: forall a b,
@@ -184,3 +171,113 @@ Proof.
   rewrite -(IFR_IRF_inv t2).
   congruence.
 Qed.
+
+Definition normal_lpdf_ef_external :=
+  (AST.EF_external "normal_lpdf" (AST.mksignature (AST.Tfloat :: AST.Tfloat :: AST.Tfloat :: nil)
+                                    (AST.Tret AST.Tfloat)
+                                    (AST.mkcallconv None false false))).
+
+Definition genv_normal_lpdf_spec genv :=
+  exists loc,
+  Globalenvs.Genv.find_symbol genv ($"normal_lpdf") = Some loc /\
+  Globalenvs.Genv.find_funct genv (Values.Vptr loc Integers.Ptrofs.zero) =
+    Some (Ctypes.External
+            normal_lpdf_ef_external
+            (Ctypes.Tcons tdouble (Ctypes.Tcons tdouble (Ctypes.Tcons tdouble Ctypes.Tnil)))
+            tdouble
+            (AST.mkcallconv None false false)).
+
+Axiom normal_lpdf_ext_spec :
+  forall x mean variance ge m,
+  Events.external_call normal_lpdf_ef_external ge
+    (Values.Vfloat (IRF x) :: Values.Vfloat (IRF mean) :: Values.Vfloat (IRF variance) :: nil) m
+    Events.E0
+    (Values.Vfloat (IRF (ln (1 / sqrt(variance * 2 * PI) * exp (- (x - mean)^2 / (2 * variance)))))) m.
+
+Definition normal_lupdf_ef_external :=
+  (AST.EF_external "normal_lupdf" (AST.mksignature (AST.Tfloat :: AST.Tfloat :: AST.Tfloat :: nil)
+                                    (AST.Tret AST.Tfloat)
+                                    (AST.mkcallconv None false false))).
+
+Definition genv_normal_lupdf_spec genv :=
+  exists loc,
+  Globalenvs.Genv.find_symbol genv ($"normal_lupdf") = Some loc /\
+  Globalenvs.Genv.find_funct genv (Values.Vptr loc Integers.Ptrofs.zero) =
+    Some (Ctypes.External
+            normal_lupdf_ef_external
+            (Ctypes.Tcons tdouble (Ctypes.Tcons tdouble (Ctypes.Tcons tdouble Ctypes.Tnil)))
+            tdouble
+            (AST.mkcallconv None false false)).
+
+Axiom normal_lupdf_ext_spec :
+  forall x mean variance ge m,
+  Events.external_call normal_lupdf_ef_external ge
+    (Values.Vfloat (IRF x) :: Values.Vfloat (IRF mean) :: Values.Vfloat (IRF variance) :: nil) m
+    Events.E0
+    (Values.Vfloat (IRF ( - ln(sqrt(variance)) - (x - mean)^2 / (2 * variance)))) m.
+
+Definition cauchy_lpdf_ef_external :=
+  (AST.EF_external "cauchy_lpdf" (AST.mksignature (AST.Tfloat :: AST.Tfloat :: AST.Tfloat :: nil)
+                                    (AST.Tret AST.Tfloat)
+                                    (AST.mkcallconv None false false))).
+
+Definition genv_cauchy_lpdf_spec genv :=
+  exists loc,
+  Globalenvs.Genv.find_symbol genv ($"cauchy_lpdf") = Some loc /\
+  Globalenvs.Genv.find_funct genv (Values.Vptr loc Integers.Ptrofs.zero) =
+    Some (Ctypes.External
+            cauchy_lpdf_ef_external
+            (Ctypes.Tcons tdouble (Ctypes.Tcons tdouble (Ctypes.Tcons tdouble Ctypes.Tnil)))
+            tdouble
+            (AST.mkcallconv None false false)).
+
+Axiom cauchy_lpdf_ext_spec :
+  forall x location scale ge m,
+  Events.external_call normal_lpdf_ef_external ge
+    (Values.Vfloat (IRF x) :: Values.Vfloat (IRF location) :: Values.Vfloat (IRF scale) :: nil) m
+    Events.E0
+    (Values.Vfloat (IRF (ln (1 / (PI * scale * (1 + ((x - location)/scale)^2)))))) m.
+
+Definition cauchy_lupdf_ef_external :=
+  (AST.EF_external "cauchy_lupdf" (AST.mksignature (AST.Tfloat :: AST.Tfloat :: AST.Tfloat :: nil)
+                                    (AST.Tret AST.Tfloat)
+                                    (AST.mkcallconv None false false))).
+
+Definition genv_cauchy_lupdf_spec genv :=
+  exists loc,
+  Globalenvs.Genv.find_symbol genv ($"cauchy_lupdf") = Some loc /\
+  Globalenvs.Genv.find_funct genv (Values.Vptr loc Integers.Ptrofs.zero) =
+    Some (Ctypes.External
+            normal_lupdf_ef_external
+            (Ctypes.Tcons tdouble (Ctypes.Tcons tdouble (Ctypes.Tcons tdouble Ctypes.Tnil)))
+            tdouble
+            (AST.mkcallconv None false false)).
+
+Axiom cauchy_lupdf_ext_spec :
+  forall x location scale ge m,
+  Events.external_call normal_lupdf_ef_external ge
+    (Values.Vfloat (IRF x) :: Values.Vfloat (IRF location) :: Values.Vfloat (IRF scale) :: nil) m
+    Events.E0
+    (Values.Vfloat (IRF ( - ln(scale * (1 + ((x - location)/scale)^2))))) m.
+
+Record genv_has_mathlib genv :=
+  { GENV_EXP: genv_exp_spec genv;
+    GENV_EXPIT: genv_expit_spec genv;
+    GENV_LOG: genv_log_spec genv;
+    GENV_NORMAL_LPDF: genv_normal_lpdf_spec genv;
+    GENV_NORMAL_LUPDF: genv_normal_lupdf_spec genv;
+    GENV_CAUCHY_LPDF: genv_cauchy_lpdf_spec genv;
+    GENV_CAUCHY_LUPDF: genv_cauchy_lupdf_spec genv;
+  }.
+
+Definition math_idents := ($"log" :: $"expit" :: $"exp" :: nil).
+Definition pdf_idents := ($"normal_lpdf" :: $"normal_lupdf" :: $"cauchy_lpdf" :: $"cauchy_lupdf" :: nil).
+
+Definition env_no_shadow_mathlib {B} (env: param_mem B) :=
+  Forall (fun id => is_id_alloc env id = false) math_idents.
+
+Definition param_mem_no_shadow_mathlib {B} (pm: param_mem B) :=
+  Forall (fun id => is_id_alloc pm id = false) math_idents.
+
+Definition no_shadow_pdflib {B} (env: param_mem B) :=
+  Forall (fun id => is_id_alloc env id = false) pdf_idents.
