@@ -87,7 +87,7 @@ Fixpoint compute_const_statement' (s: Stanlight.statement) {struct s} : option R
         let i1' := Integers.Int.intval i1 in
         let i2' := Integers.Int.intval i1 in
         Some (r * IZR (Z.max (i2' - i1' + 1)%Z 0)%Z)
-    | false => 
+    | false =>
         Some 0
     end
   | Sfor i e1 e2 s =>
@@ -175,7 +175,7 @@ Ltac monadInv1 H :=
       let x := fresh "x" in (
       let EQ1 := fresh "EQ" in (
       let EQ2 := fresh "EQ" in (
-       destruct (some_bind_inversion _ _ _ _ _ H) as [x [EQ1 EQ2]]; 
+       destruct (some_bind_inversion _ _ _ _ _ H) as [x [EQ1 EQ2]];
       clear H;
       try (monadInv1 EQ2))))
   | (match ?X with left _ => _ | right _ => assertion_failed end = OK _) =>
@@ -226,7 +226,7 @@ Lemma evaluation_preserved_no_target en m pm t t':
   /\  (forall e loc ofs, eval_llvalue ge en m pm t e loc ofs ->
                          check_no_target_expr e = Some tt ->
                          eval_llvalue tge en m pm t' e loc ofs)
-  /\  (forall e loc ofs, eval_glvalue ge en m pm t e loc ofs -> 
+  /\  (forall e loc ofs, eval_glvalue ge en m pm t e loc ofs ->
                          check_no_target_expr e = Some tt ->
                          eval_glvalue tge en m pm t' e loc ofs).
 Proof.
@@ -293,9 +293,11 @@ Proof.
 Qed.
 
 Lemma evaluation_drop_const_aux en m pm t t' (MATH: genv_has_mathlib ge):
+  no_shadow_pdflib en ->
+  no_shadow_pdflib pm ->
       forall e v, eval_expr ge en m pm t e v ->
                    check_no_target_expr e = Some tt ->
-                   ((drop_const e = e /\ compute_const_expr e = 0) \/ 
+                   ((drop_const e = e /\ compute_const_expr e = 0) \/
                    (∃ v', eval_expr tge en m pm t' (drop_const e) v' /\
                          match v with
                          | Values.Vfloat f =>
@@ -303,6 +305,7 @@ Lemma evaluation_drop_const_aux en m pm t t' (MATH: genv_has_mathlib ge):
                          | _ => v' = v
                          end)).
 Proof.
+  intros HNOSHADOW1 HNOSHADOW2.
   exploit tprog_genv_has_mathlib; auto. intros MATHT.
   intros e v Heval.
   induction Heval; intros; checkInv; simpl; eauto.
@@ -318,7 +321,7 @@ Proof.
       { left; split; eauto. intuition congruence. nra. }
       { right. rewrite Hsame. edestruct Hv2 as (v'&Heval'&f'&Heq1&Heq2).
         eexists. split.
-        { econstructor; eauto. 
+        { econstructor; eauto.
           { eapply evaluation_preserved_no_target; eauto. }
           { rewrite //=. rewrite ?Heq1 ?Heq2. rewrite ?typeof_drop_const ?Htype1 ?Htype2 //=. }
         }
@@ -328,7 +331,7 @@ Proof.
       }
       { right. rewrite Hsame'. edestruct Hv1 as (v'&Heval'&f'&Heq1&Heq2).
         eexists. split.
-        { econstructor; eauto. 
+        { econstructor; eauto.
           { eapply evaluation_preserved_no_target; eauto. }
           { rewrite //=. rewrite ?Heq1 ?Heq2. rewrite ?typeof_drop_const ?Htype1 ?Htype2 //=. }
         }
@@ -336,11 +339,11 @@ Proof.
           rewrite ?IFR_IRF_inv ?IRF_IFR_inv.
           nra. }
       }
-      { right. 
+      { right.
         edestruct Hv1 as (v'&Heval'&f'&Heq1&Heq2).
         edestruct Hv2 as (v2&Heval2'&f2'&Heq12&Heq22).
         eexists. split.
-        { econstructor; eauto. 
+        { econstructor; eauto.
           { rewrite //=. rewrite ?Heq1 ?Heq2 ?Heq12 ?Heq22.
             rewrite ?typeof_drop_const ?Htype1 ?Htype2 //=. }
         }
@@ -358,7 +361,7 @@ Proof.
       { left; split; eauto. intuition congruence. nra. }
       { right. rewrite Hsame. edestruct Hv2 as (v'&Heval'&f'&Heq1&Heq2).
         eexists. split.
-        { econstructor; eauto. 
+        { econstructor; eauto.
           { eapply evaluation_preserved_no_target; eauto. }
           { rewrite //=. rewrite ?Heq1 ?Heq2. rewrite ?typeof_drop_const ?Htype1 ?Htype2 //=. }
         }
@@ -368,7 +371,7 @@ Proof.
       }
       { right. rewrite Hsame'. edestruct Hv1 as (v'&Heval'&f'&Heq1&Heq2).
         eexists. split.
-        { econstructor; eauto. 
+        { econstructor; eauto.
           { eapply evaluation_preserved_no_target; eauto. }
           { rewrite //=. rewrite ?Heq1 ?Heq2. rewrite ?typeof_drop_const ?Htype1 ?Htype2 //=. }
         }
@@ -376,11 +379,11 @@ Proof.
           rewrite ?IFR_IRF_inv ?IRF_IFR_inv.
           nra. }
       }
-      { right. 
+      { right.
         edestruct Hv1 as (v'&Heval'&f'&Heq1&Heq2).
         edestruct Hv2 as (v2&Heval2'&f2'&Heq12&Heq22).
         eexists. split.
-        { econstructor; eauto. 
+        { econstructor; eauto.
           { rewrite //=. rewrite ?Heq1 ?Heq2 ?Heq12 ?Heq22.
             rewrite ?typeof_drop_const ?Htype1 ?Htype2 //=. }
         }
@@ -391,15 +394,29 @@ Proof.
     }
   - destruct a; try destruct b; eauto; [].
     destruct (math_fun_remap_const i) as [Hnormal|[Hcauchy|Hnone]].
-    { destruct Hnormal as (->&->&->). 
+    { destruct Hnormal as (->&->&->).
       right.
       destruct MATH. destruct GENV_NORMAL_LPDF as (l&Hnorm_symbol&Hnorm_funct). clear GENV_NORMAL_LUPDF.
-      destruct MATHT. destruct GENV_NORMAL_LUPDF as (lu&Hnormu_symbol&Hnormu_funct). 
-      
+      destruct MATHT. destruct GENV_NORMAL_LUPDF as (lu&Hnormu_symbol&Hnormu_funct).
+
       (* We first argue that eval in the source program computed the normal_lpdf *)
         inv Heval.
-        { (*shadowing case*) admit. }
-        { (*shadowing case*) admit. }
+        {
+          inv H4.
+          inversion HNOSHADOW1 as [|??? Hnoshadow'].
+          inversion Hnoshadow' as [|??? Hnoshadow''].
+          inversion Hnoshadow'' as [|??? Hnoshadow'''].
+          exploit (@gs_is_alloc Values.val); eauto.
+          intros. congruence.
+        }
+        {
+          inv H4.
+          inversion HNOSHADOW2 as [|??? Hnoshadow'].
+          inversion Hnoshadow' as [|??? Hnoshadow''].
+          inversion Hnoshadow'' as [|??? Hnoshadow'''].
+          exploit (@gs_is_alloc Floats.float); eauto.
+          intros. congruence.
+        }
         inv H5.
         { inv H1. }
         inv H4. subst.
@@ -407,27 +424,37 @@ Proof.
         assert (AST.EF_external name sig = normal_lpdf_ef_external) as Heqf.
         { congruence. }
         rewrite Heqf in H3.
-          exploit (normal_lpdf_ext_inv); eauto. 
+          exploit (normal_lpdf_ext_inv); eauto.
           intros (x&mean&variance&Hpos&Hvargs&Hvres).
           subst.
 
       eexists. split.
-      { 
+      {
         eapply eval_Ecall.
         eapply eval_Eglvalue.
-          econstructor.
-          { admit. }
-          { admit. }
-          eauto.
-          { eapply deref_loc_reference; eauto. }
-          eapply evaluation_preserved_no_target; eauto.
-          eapply Hnormu_funct.
-          2:{ eauto. }
-          reflexivity.
-          eapply normal_lupdf_ext_spec.
+        econstructor.
+        {
+          inversion HNOSHADOW2 as [|??? Hnoshadow'].
+          inversion Hnoshadow' as [|??? Hnoshadow''].
+          inversion Hnoshadow'' as [|??? Hnoshadow'''].
+          congruence.
+        }
+        {
+          inversion HNOSHADOW1 as [|??? Hnoshadow'].
+          inversion Hnoshadow' as [|??? Hnoshadow''].
+          inversion Hnoshadow'' as [|??? Hnoshadow'''].
+          congruence.
+        }
+        eauto.
+        { eapply deref_loc_reference; eauto. }
+        eapply evaluation_preserved_no_target; eauto.
+        eapply Hnormu_funct.
+        2:{ eauto. }
+        reflexivity.
+        eapply normal_lupdf_ext_spec.
       }
-      eexists. split; eauto. f_equal. 
-      rewrite IFR_IRF_inv. 
+      eexists. split; eauto. f_equal.
+      rewrite IFR_IRF_inv.
       exploit (sqrt_lt_R0 2); first nra.
       exploit (sqrt_lt_R0 variance); first nra.
       specialize (PI_RGT_0). intros HPI.
@@ -444,15 +471,90 @@ Proof.
       { ring_simplify. apply Rinv_0_lt_compat; repeat apply Rmult_lt_0_compat; auto. }
       rewrite /PI in HPI; nra.
     }
-    {
-      (* cauchy *)
-      admit.
+    { destruct Hcauchy as (->&->&->).
+      right.
+      destruct MATH. destruct GENV_CAUCHY_LPDF as (l&Hcauchy_symbol&Hcauchy_funct). clear GENV_CAUCHY_LUPDF.
+      destruct MATHT. destruct GENV_CAUCHY_LUPDF as (lu&Hcauchyu_symbol&Hcauchyu_funct).
+
+      (* We first argue that eval in the source program computed the cauchy_lpdf *)
+        inv Heval.
+        {
+          inv H4.
+          inversion HNOSHADOW1 as [|??? Hnoshadow'].
+          inversion Hnoshadow' as [|??? Hnoshadow''].
+          inversion Hnoshadow'' as [|??? Hnoshadow'''].
+          exploit (@gs_is_alloc Values.val); eauto.
+          intros. congruence.
+        }
+        {
+          inv H4.
+          inversion HNOSHADOW2 as [|??? Hnoshadow'].
+          inversion Hnoshadow' as [|??? Hnoshadow''].
+          inversion Hnoshadow'' as [|??? Hnoshadow'''].
+          exploit (@gs_is_alloc Floats.float); eauto.
+          intros. congruence.
+        }
+        inv H5.
+        { inv H1. }
+        inv H4. subst.
+        assert (loc = l) by congruence; subst.
+        assert (AST.EF_external name sig = cauchy_lpdf_ef_external) as Heqf.
+        { congruence. }
+        rewrite Heqf in H3.
+          exploit (cauchy_lpdf_ext_inv); eauto.
+          intros (x&mean&variance&Hpos&Hvargs&Hvres).
+          subst.
+
+      eexists. split.
+      {
+        eapply eval_Ecall.
+        eapply eval_Eglvalue.
+        econstructor.
+        {
+          inversion HNOSHADOW2 as [|??? Hnoshadow'].
+          inversion Hnoshadow' as [|??? Hnoshadow''].
+          inversion Hnoshadow'' as [|??? Hnoshadow'''].
+          inversion Hnoshadow''' as [|??? Hnoshadow''''].
+          congruence.
+        }
+        {
+          inversion HNOSHADOW1 as [|??? Hnoshadow'].
+          inversion Hnoshadow' as [|??? Hnoshadow''].
+          inversion Hnoshadow'' as [|??? Hnoshadow'''].
+          inversion Hnoshadow''' as [|??? Hnoshadow''''].
+          congruence.
+        }
+        eauto.
+        { eapply deref_loc_reference; eauto. }
+        eapply evaluation_preserved_no_target; eauto.
+        eapply Hcauchyu_funct.
+        2:{ eauto. }
+        reflexivity.
+        eapply cauchy_lupdf_ext_spec.
+      }
+      eexists. split; eauto. f_equal.
+      rewrite IFR_IRF_inv.
+      exploit (sqrt_lt_R0 2); first nra.
+      exploit (sqrt_lt_R0 variance); first nra.
+      specialize (PI_RGT_0). intros HPI.
+      exploit (sqrt_lt_R0 (PI)); first nra.
+      assert (0 < PI2).
+      { rewrite /PI in HPI. nra. }
+      exploit (sqrt_lt_R0 (PI2)); first nra.
+      assert (0 < 1 + ((x - mean) * / variance) ^ 2).
+      { specialize (pow2_ge_0 ((x - mean) * / variance)).
+        intros. nra. }
+      rewrite /Rdiv ?sqrt_mult ?ln_mult ?ln_1 ?ln_Rinv; try nra; try eauto using exp_pos;
+        rewrite ?ln_mult ?ln_exp; try nra.
+      { repeat apply Rmult_lt_0_compat; auto. nra. }
+      { apply Rinv_0_lt_compat; nra. }
+      { apply Rinv_0_lt_compat; repeat apply Rmult_lt_0_compat; auto. nra. }
     }
     { destruct Hnone as (->&->); eauto. }
   - inv H; eauto.
   - inv H; eauto.
   - inv H; eauto.
-Abort.
+Qed.
 
 Lemma assign_global_locs_preserved bs m1 vs m2 :
   assign_global_locs ge bs m1 vs m2 ->

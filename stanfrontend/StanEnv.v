@@ -256,6 +256,7 @@ Axiom cauchy_lpdf_ext_inv :
     Events.E0
     v m ->
   ∃ x location scale,
+    0 < scale ∧
     vs = (Values.Vfloat (IRF x) :: Values.Vfloat (IRF location) :: Values.Vfloat (IRF scale) :: nil) ∧
     v = (Values.Vfloat (IRF (ln (1 / (PI * scale * (1 + ((x - location)/scale)^2)))))).
 
@@ -269,14 +270,14 @@ Definition genv_cauchy_lupdf_spec genv :=
   Globalenvs.Genv.find_symbol genv ($"cauchy_lupdf") = Some loc /\
   Globalenvs.Genv.find_funct genv (Values.Vptr loc Integers.Ptrofs.zero) =
     Some (Ctypes.External
-            normal_lupdf_ef_external
+            cauchy_lupdf_ef_external
             (Ctypes.Tcons tdouble (Ctypes.Tcons tdouble (Ctypes.Tcons tdouble Ctypes.Tnil)))
             tdouble
             (AST.mkcallconv None false false)).
 
 Axiom cauchy_lupdf_ext_spec :
   forall x location scale ge m,
-  Events.external_call normal_lupdf_ef_external ge
+  Events.external_call cauchy_lupdf_ef_external ge
     (Values.Vfloat (IRF x) :: Values.Vfloat (IRF location) :: Values.Vfloat (IRF scale) :: nil) m
     Events.E0
     (Values.Vfloat (IRF ( - ln(scale * (1 + ((x - location)/scale)^2))))) m.
