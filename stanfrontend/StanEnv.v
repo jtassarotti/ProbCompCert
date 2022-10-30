@@ -303,3 +303,14 @@ Definition param_mem_no_shadow_mathlib {B} (pm: param_mem B) :=
 
 Definition no_shadow_pdflib {B} (env: param_mem B) :=
   Forall (fun id => is_id_alloc env id = false) pdf_idents.
+
+Lemma no_shadow_pdflib_store {B} (env1 env2: param_mem B) id ofs v :
+  no_shadow_pdflib env1 ->
+  store env1 id ofs v = Some env2 ->
+  no_shadow_pdflib env2.
+Proof.
+  rewrite /no_shadow_pdflib => Hforall Hstore.
+  eapply Forall_impl; last eassumption.
+  intros id' => /= ?.
+  erewrite store_same_is_id_alloc; eauto.
+Qed.

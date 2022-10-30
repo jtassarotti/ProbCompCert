@@ -699,15 +699,19 @@ Inductive match_states: state -> state -> Prop :=
   | match_start_states: forall f s s' t e m pm
       (FN: s = (fn_body f))
       (TRS: transf_statement s = Some s')
-      (NT: check_no_target_statement s = Some tt),
+      (NT: check_no_target_statement s = Some tt)
+      (ENOSHADOW: no_shadow_pdflib e)
+      (PMNOSHADOW: no_shadow_pdflib pm),
       match_states (Start f s t Kstop e m pm) (Start (transf_function f) s' t Kstop e m pm)
-  | match_regular_states_change: forall f s s' t t' k k' e m pm iv  rk rs
+  | match_regular_states: forall f s s' t t' k k' e m pm iv  rk rs
       (MCONT: match_cont k k' iv rk)
       (TRSC: transf_const_match s s' rs)
       (NT: check_no_target_statement s = Some tt)
       (NA: Forall (λ '(i, v), check_no_assign i s = true) iv)
       (DIFF: IFR t - IFR t' = compute_const_statement (fn_body f) - rs - rk)
-      (ENV: env_match_vals e iv),
+      (ENV: env_match_vals e iv)
+      (ENOSHADOW: no_shadow_pdflib e)
+      (PMNOSHADOW: no_shadow_pdflib pm),
       match_states (State f s t k e m pm) (State (transf_function f) s' t' k' e m pm)
   | match_return_states: forall f t t' e m pm
       (DIFF: IFR t - IFR t' = compute_const_statement (fn_body f)),
@@ -776,6 +780,9 @@ Lemma eval_expr_const_int_inv genv e m pm t i1 v1  :
   eval_expr genv e m pm t (Econst_int i1 Bint) (Values.Vint v1) ->
   i1 = v1.
 Proof. inversion 1; subst; eauto. inv H0. inv H0. Qed.
+
+Variable prog_genv_has_mathlib :
+  genv_has_mathlib (globalenv prog).
 
 Lemma step_simulation:
   forall S1 t S2, step ge S1 t S2 ->
@@ -866,6 +873,7 @@ Proof.
       { inv H; eauto. }
       { eauto. }
       { eauto. }
+      { eapply no_shadow_pdflib_store; eauto. }
     }
   - (* Assignment *)
     apply some_bind_inversion in NT as ([]&?&NT).
@@ -907,9 +915,6 @@ Proof.
     {
       monadInv TRS.
       exploit evaluation_drop_const_aux; eauto.
-      { admit. }
-      { admit. }
-      { admit. }
       destruct 1 as [Hid|Hex].
       {
         destruct Hid as (Hconst&Hcompute).
@@ -1001,6 +1006,8 @@ Proof.
         destruct (Pos.eq_dec p loc); try inversion 1; auto.
         destruct (Pos.eq_dec loc p); try congruence.
       }
+      { eapply no_shadow_pdflib_store; eauto. }
+      { eauto. }
     }
     {
       destruct Hchange as (i1&i2&sbody'&rbody&->&->&->&Hcheck&Htransf'&Hcomp&Htransf&Hrs).
@@ -1046,6 +1053,8 @@ Proof.
         destruct (Pos.eq_dec loc p); try inversion 1; auto.
         congruence.
       }
+      { eapply no_shadow_pdflib_store; eauto. }
+      { eauto. }
     }
 Abort.
 (*
