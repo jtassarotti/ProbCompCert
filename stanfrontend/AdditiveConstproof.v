@@ -679,14 +679,19 @@ Inductive match_cont: cont -> cont -> list (AST.ident * Integers.Int.int) -> R -
   | match_Kfor_match: forall id e2 s k k' iv r
       (MCONT: match_cont k k' iv r)
       (NT: check_no_target_statement s = Some tt)
-      (NA: Forall (λ '(i, v), check_no_assign i s = true) iv),
+      (NTE: check_no_target_expr e2 = Some tt)
+      (NA: Forall (λ '(i, v), check_no_assign i s = true) iv)
+      (NAI: Forall (λ '(i, v),
+           (match Pos.eq_dec id i return bool with | left _ => false | _ => true end) = true) iv),
       match_cont (Kfor id e2 s k) (Kfor id e2 s k') iv r
   | match_Kfor_change: forall id ub s s' k k' iv r idval rloop
       (MCONT: match_cont k k' iv r)
       (TRS: transf_statement s = Some s')
       (NT: check_no_target_statement s = Some tt)
       (NA: Forall (λ '(i, v), check_no_assign i s = true) ((id, idval) :: iv))
-      (CONST: compute_const_statement' s = Some rloop),
+      (CONST: compute_const_statement' s = Some rloop)
+      (NAI: Forall (λ '(i, v),
+           (match Pos.eq_dec id i return bool with | left _ => false | _ => true end) = true) iv),
       match_cont (Kfor id (Econst_int ub Bint) s k) (Kfor id (Econst_int ub Bint) s' k')
         ((id, idval) :: iv) (IZR (Integers.Int.unsigned ub - Integers.Int.unsigned idval) * rloop + r).
 
@@ -784,6 +789,44 @@ Proof. inversion 1; subst; eauto. inv H0. inv H0. Qed.
 Variable prog_genv_has_mathlib :
   genv_has_mathlib (globalenv prog).
 
+
+Lemma transf_const_match_skip_inv s' rs :
+  transf_const_match Sskip s' rs ->
+  s' = Sskip /\ rs = 0.
+Proof.
+  intros TRSC. inv TRSC; eauto. inv TRS; eauto. inv CONST. eauto.
+Qed.
+
+Lemma transf_const_match_for_inv i a1 a2 s s' rs :
+  transf_const_match (Sfor i a1 a2 s) s' rs ->
+  ((s' = Sfor i a1 a2 s /\ rs = 0) ∨
+          (∃ i1 i2 sbody' rbody,
+              s' = Sfor i a1 a2 sbody' /\
+              a1 = Econst_int i1 Bint /\ a2 = Econst_int i2 Bint /\
+                                   check_no_assign i s = true /\
+                                   transf_statement s = Some sbody' /\
+                                   compute_const_statement' s = Some rbody /\
+                                   transf_const_match s sbody' rbody /\
+                                   rs = ((rbody * IZR (Z.max (Integers.Int.unsigned i2 -
+                                                                Integers.Int.unsigned i1 + 1)%Z 0)%Z)))).
+Proof.
+  intros TRSC.
+  inv TRSC; last by eauto.
+  { simpl in CONST.
+    destruct a1; try (inv TRS; inv CONST; left; eauto; done); [].
+    simpl in TRS.
+    destruct b; try (inv TRS; inv CONST; left; eauto; done); [].
+    destruct a2; try (inv TRS; inv CONST; left; eauto; done); [].
+    destruct b; try (inv TRS; inv CONST; left; eauto; done); [].
+    destruct (check_no_assign i s); last first.
+    { inv CONST. inv TRS. eauto. }
+    right. monadInv TRS. monadInv CONST.
+    do 4 eexists.
+    { repeat split; eauto.
+      econstructor; eauto. }
+  }
+Qed.
+
 Lemma step_simulation:
   forall S1 t S2, step ge S1 t S2 ->
   forall S1', match_states S1 S1' ->
@@ -804,14 +847,12 @@ Proof.
     }
   - (* Return *)
     inv MCONT.
-    assert (s' = Sskip /\ rs = 0) as (->&->).
-    { inv TRSC; eauto. inv TRS; eauto. inv CONST. eauto. }
+    edestruct (transf_const_match_skip_inv) as (?&?); eauto. subst.
     eexists; split.
     { econstructor. }
     { econstructor. nra. }
   - (* Skip *)
-    assert (s' = Sskip /\ rs = 0) as (->&->).
-    { inv TRSC; eauto. inv TRS; eauto. inv CONST; eauto. }
+    edestruct (transf_const_match_skip_inv) as (?&?); eauto. subst.
     inv MCONT.
     eexists. split.
     { econstructor. }
@@ -957,32 +998,7 @@ Proof.
     apply some_bind_inversion in NT as ([]&?&NT).
     apply some_bind_inversion in NT as ([]&?&NT).
     apply some_bind_inversion in NT as ([]&?&NT).
-    assert ((s' = Sfor i a1 a2 s /\ rs = 0) ∨
-              (∃ i1 i2 sbody' rbody,
-                  s' = Sfor i a1 a2 sbody' /\
-                  a1 = Econst_int i1 Bint /\ a2 = Econst_int i2 Bint /\
-                                       check_no_assign i s = true /\
-                                       transf_statement s = Some sbody' /\
-                                       compute_const_statement' s = Some rbody /\
-                                       transf_const_match s sbody' rbody /\
-                                       rs = ((rbody * IZR (Z.max (Integers.Int.unsigned i2 -
-                                                                    Integers.Int.unsigned i1 + 1)%Z 0)%Z))))
-             as [Hid|Hchange].
-    { inv TRSC; last by eauto.
-      { simpl in CONST.
-        destruct a1; try (inv TRS; inv CONST; left; eauto; done); [].
-        simpl in TRS.
-        destruct b; try (inv TRS; inv CONST; left; eauto; done); [].
-        destruct a2; try (inv TRS; inv CONST; left; eauto; done); [].
-        destruct b; try (inv TRS; inv CONST; left; eauto; done); [].
-        destruct (check_no_assign i s); last first.
-        { inv CONST. inv TRS. eauto. }
-        right. monadInv TRS. monadInv CONST.
-        do 4 eexists.
-        { repeat split; eauto.
-          econstructor; eauto. }
-      }
-    }
+    edestruct (transf_const_match_for_inv) as [Hid|Hchange]; first eassumption.
     { destruct Hid as [-> ->]. eexists. split.
       { econstructor; eauto.
         { eapply eval_llvalue_preserved; eauto. }
@@ -993,6 +1009,12 @@ Proof.
       { econstructor; try eauto.
         { eapply Forall_impl; last eapply NA.
           intros (?&?). destruct (Pos.eq_dec p i); try inversion 1; auto. }
+        { eapply Forall_impl; last eapply NA.
+          intros (?&?).
+          destruct (Pos.eq_dec p i); try inversion 1; auto.
+          destruct (Pos.eq_dec i p); try inversion 1; auto.
+          congruence.
+        }
       }
       eapply transf_const_same.
       eauto.
@@ -1030,6 +1052,12 @@ Proof.
           intros (?&?).
           destruct (Pos.eq_dec i0 i); try inversion 1; auto.
         }
+        { eapply Forall_impl; last eapply NA.
+          intros (?&?).
+          destruct (Pos.eq_dec p i); try inversion 1; auto.
+          destruct (Pos.eq_dec i p); try inversion 1; auto.
+          congruence.
+        }
       }
       eauto.
       eauto.
@@ -1056,18 +1084,117 @@ Proof.
       { eapply no_shadow_pdflib_store; eauto. }
       { eauto. }
     }
-Abort.
-(*
-  - monadInv TRS.
+  - (* For *)
+    apply some_bind_inversion in NT as ([]&?&NT).
+    apply some_bind_inversion in NT as ([]&?&NT).
+    apply some_bind_inversion in NT as ([]&?&NT).
+    assert (∃ sbody', (s' = Sfor i a1 a2 sbody') /\ rs = 0) as (sbody'&->&Hrs).
+    { inv TRSC; last by eauto.
+      { simpl in CONST.
+        destruct a1; try (inv TRS; inv CONST; eexists; eauto; done).
+        simpl in TRS.
+        destruct b; try (inv TRS; inv CONST; eexists; eauto; done); [].
+        destruct a2; try (inv TRS; inv CONST; eexists; eauto; done); [].
+        destruct b; try (inv TRS; inv CONST; eexists; eauto; done); [].
+        destruct (check_no_assign i s); last first.
+        { inv CONST. inv TRS. eauto. }
+        monadInv TRS. monadInv CONST.
+        eexists. split; eauto.
+        assert (i0 = v1) as ->.
+        { eapply eval_expr_const_int_inv; eauto. }
+        assert (i1 = v2) as ->.
+        { eapply eval_expr_const_int_inv; eauto. }
+        rewrite Z.max_r; first nra.
+        lia.
+      }
+    }
     eexists. split.
     {
-    eapply plus_one.
-    eapply step_for_start_false.
-    { eapply eval_expr_preserved; eauto. }
-    { eapply eval_expr_preserved; eauto. }
-    { auto. }
+      eapply step_for_start_false; eauto.
+      { eapply eval_expr_preserved; eauto. }
+      { eapply eval_expr_preserved; eauto. }
     }
-    econstructor; eauto.
+    { econstructor; eauto.
+      { subst. eapply transf_const_same. }
+      { clear. induction iv as [|(?&?)] => //=; econstructor; eauto. }
+    }
+  - (* For iter true *)
+    assert (Integers.Ptrofs.intval ofs = 0%Z) as Heq0.
+    {
+      inv H.
+      assert ((Integers.Ptrofs.intval Integers.Ptrofs.zero)
+              =  ((Integers.Ptrofs.unsigned Integers.Ptrofs.zero))) as Hfold.
+      { rewrite //=. }
+      rewrite Hfold.
+      rewrite Integers.Ptrofs.unsigned_zero.
+      auto.
+    }
+
+    edestruct (transf_const_match_skip_inv) as (?&?); eauto. subst.
+    inv MCONT.
+    {
+      eexists. split.
+      {
+        eapply step_for_iter_true; eauto.
+        { eapply eval_llvalue_preserved; eauto. }
+        { eapply eval_expr_preserved; eauto. }
+      }
+      econstructor; eauto.
+      { econstructor; eauto. }
+      { apply transf_const_same. }
+      { eapply store_env_match_vals; last eassumption; eauto.
+        { inv H; subst. eauto. }
+      }
+      { eapply no_shadow_pdflib_store; eauto. }
+    }
+    {
+      eexists. split.
+      {
+        eapply step_for_iter_true; eauto.
+        { eapply eval_llvalue_preserved; eauto. }
+        { eapply eval_expr_preserved; eauto. }
+      }
+      econstructor.
+      {
+        eapply match_Kfor_change with (idval := (Integers.Int.add v1 Integers.Int.one)); eauto.
+        { inv NA0; econstructor; eauto. }
+      }
+      { eapply transf_const_change; eauto. }
+      { eauto. }
+      { inv NA0; econstructor; eauto. }
+      { rewrite DIFF.
+
+        rewrite Integers.Int.unsigned_add_carry.
+        assert (Integers.Int.unsigned (Integers.Int.add_carry v1 Integers.Int.one Integers.Int.zero) = 0%Z) as ->.
+        {
+          rewrite /Integers.Int.add_carry.
+          rewrite ?Integers.Int.unsigned_zero.
+          rewrite ?Integers.Int.unsigned_one.
+          destruct zlt as [Hlt|Hnlt].
+          {rewrite ?Integers.Int.unsigned_zero //. }
+          { specialize (Integers.Int.unsigned_range v2). lia. }
+        }
+        rewrite ?Integers.Int.unsigned_one. rewrite Zmult_0_l.
+        replace (Integers.Int.unsigned v1 + 1 - 0)%Z with (Integers.Int.unsigned v1 + 1)%Z by ring.
+        rewrite ?minus_IZR.
+        rewrite ?plus_IZR. ring_simplify.
+        assert (v1 = idval) as ->.
+        {
+          unfold env_match_vals in ENV.
+          rewrite Heq0 in H0. inv ENV. inv H. congruence.
+        }
+        ring.
+      }
+      { econstructor.
+        { eapply gsts; eauto. inv H. rewrite Heq0 in H2. eauto. }
+        inv ENV. inv H.
+        eapply store_env_match_vals; [| eassumption|]; eauto.
+      }
+      { eapply no_shadow_pdflib_store; eauto. }
+      { eauto. }
+    }
+Abort.
+(*
   - monadInv TRS.
     inv MCONT.
     exploit (eval_llvalue_preserved); eauto => /= ?.

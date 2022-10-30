@@ -304,14 +304,14 @@ Inductive step: state -> trace -> state -> Prop :=
     ParamMap.get e loc (Ptrofs.intval ofs) = Some (Values.Vint v1) ->
     eval_expr e m pm t a2 (Values.Vint v2) ->
     ParamMap.store e loc (Ptrofs.intval ofs) (Values.Vint (Int.add v1 Int.one) : val) = Some e' ->
-    (Int.unsigned (Int.add v1 Int.one) <= Int.unsigned v2)%Z ->
+    (Int.unsigned v1 < Int.unsigned v2)%Z ->
     step (State f Sskip t (Kfor i a2 s k) e m pm) E0
          (State f s t (Kfor i a2 s k) e' m pm)
   | step_for_iter_false: forall f i a2 s t k e m pm loc ofs v1 v2,
     eval_llvalue e m pm t (Evar i Bint) loc ofs ->
     ParamMap.get e loc (Ptrofs.intval ofs) = Some (Values.Vint v1) ->
     eval_expr e m pm t a2 (Values.Vint v2) ->
-    ¬ (Int.unsigned (Int.add v1 Int.one) <= Int.unsigned v2)%Z ->
+    ¬ (Int.unsigned v1 < Int.unsigned v2)%Z ->
     step (State f Sskip t (Kfor i a2 s k) e m pm) E0
          (State f Sskip t k e m pm)
 .
@@ -698,16 +698,6 @@ Proof.
     assert (v2 = v3) by congruence; subst.
     assert (v1 = v0) by congruence; subst.
     intuition.
-  + subst.
-    assert (v2 = v3) by congruence; subst.
-    assert (v1 = v0).
-    { congruence. }
-    subst. intuition.
-  + subst.
-    assert (v2 = v3) by congruence; subst.
-    assert (v1 = v0).
-    { congruence. }
-    subst. intuition.
 - (* single event *)
   red; simpl. destruct 1; simpl; try lia;
   eapply external_call_trace_length; eauto.
