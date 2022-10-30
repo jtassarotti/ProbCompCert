@@ -180,6 +180,23 @@ Proof.
   { inversion 1. }
 Qed.
 
+Lemma gsts pm pm' id ofs v :
+  store pm id ofs v = Some pm' ->
+  get pm' id ofs = Some v.
+Proof.
+  unfold get, store. intros Hneq.
+  destruct (pm ! id) as [|] eqn:Hpm.
+  {
+    destruct (ZTree.get ofs t) => /=.
+    inv Hneq.
+    { rewrite ?PTree.gss.
+      rewrite ZTree.gss; auto.
+    }
+    inv Hneq.
+  }
+  inv Hneq.
+Qed.
+
 Lemma is_id_set_other id id' pm o v :
   id' <> id -> is_id_alloc (set pm id o v) id' = is_id_alloc pm id'.
 Proof.

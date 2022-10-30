@@ -158,9 +158,8 @@ Fixpoint check_no_target_statement s : option unit :=
     Some tt
   | Starget e =>
     check_no_target_expr e
-  | Stilde e d el =>
-    do _ <- check_no_target_expr e;
-    check_no_target_exprlist el
+  (* Impossible *)
+  | Stilde e d el => None
   end.
 
 Fixpoint transf_statement (s: Stanlight.statement) {struct s} : option (Stanlight.statement) :=
@@ -173,13 +172,13 @@ Fixpoint transf_statement (s: Stanlight.statement) {struct s} : option (Stanligh
     Some (Ssequence s1 s2)
   | Sifthenelse e s1 s2 =>
     Some (Sifthenelse e s1 s2)
-  | Sfor i (Econst_int i1 b1) (Econst_int i2 b2) s =>
+  | Sfor i (Econst_int i1 Bint) (Econst_int i2 Bint) s =>
     match check_no_assign i s with
     | true =>
         do s <- transf_statement s;
-        Some (Sfor i (Econst_int i1 b1) (Econst_int i2 b2) s)
+        Some (Sfor i (Econst_int i1 Bint) (Econst_int i2 Bint) s)
     | false => 
-        Some (Sfor i (Econst_int i1 b1) (Econst_int i2 b2) s)
+        Some (Sfor i (Econst_int i1 Bint) (Econst_int i2 Bint) s)
     end
   | Sfor i e1 e2 s =>
     Some (Sfor i e1 e2 s)

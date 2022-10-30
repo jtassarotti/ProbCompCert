@@ -80,12 +80,12 @@ Fixpoint compute_const_statement' (s: Stanlight.statement) {struct s} : option R
     Some (s1 + s2)
   | Sifthenelse e s1 s2 =>
     Some 0
-  | Sfor i (Econst_int i1 b1) (Econst_int i2 b2) s =>
+  | Sfor i (Econst_int i1 Bint) (Econst_int i2 Bint) s =>
     match check_no_assign i s with
     | true =>
         do r <- compute_const_statement' s;
-        let i1' := Integers.Int.intval i1 in
-        let i2' := Integers.Int.intval i1 in
+        let i1' := Integers.Int.unsigned i1 in
+        let i2' := Integers.Int.unsigned i2 in
         Some (r * IZR (Z.max (i2' - i1' + 1)%Z 0)%Z)
     | false =>
         Some 0
@@ -683,12 +683,12 @@ Inductive match_cont: cont -> cont -> list (AST.ident * Integers.Int.int) -> R -
       match_cont (Kfor id e2 s k) (Kfor id e2 s k') iv r
   | match_Kfor_change: forall id ub s s' k k' iv r idval rloop
       (MCONT: match_cont k k' iv r)
-      (TRS: transf_statement' s = s')
+      (TRS: transf_statement s = Some s')
       (NT: check_no_target_statement s = Some tt)
       (NA: Forall (λ '(i, v), check_no_assign i s = true) ((id, idval) :: iv))
       (CONST: compute_const_statement' s = Some rloop),
       match_cont (Kfor id (Econst_int ub Bint) s k) (Kfor id (Econst_int ub Bint) s' k')
-        ((id, idval) :: iv) (IZR (Integers.Int.intval ub - Integers.Int.intval idval) * rloop + r).
+        ((id, idval) :: iv) (IZR (Integers.Int.unsigned ub - Integers.Int.unsigned idval) * rloop + r).
 
 (* Should run compute_const_statement on full body *)
 
@@ -728,7 +728,9 @@ Proof.
   }
   {
     destruct e; inv Heq; eauto.
+    destruct b; eauto.
     destruct e0; inv H0; eauto.
+    destruct b; eauto.
     destruct (check_no_assign i s); eauto.
     monadInv H1. exploit IHs; eauto. intros (r&->). eexists.
     eauto.
@@ -769,6 +771,11 @@ Proof.
     eapply typeof_fpmap; eauto. }
 Qed.
 *)
+
+Lemma eval_expr_const_int_inv genv e m pm t i1 v1  :
+  eval_expr genv e m pm t (Econst_int i1 Bint) (Values.Vint v1) ->
+  i1 = v1.
+Proof. inversion 1; subst; eauto. inv H0. inv H0. Qed.
 
 Lemma step_simulation:
   forall S1 t S2, step ge S1 t S2 ->
@@ -895,33 +902,153 @@ Proof.
     { destruct b; eauto. }
     { eapply Forall_impl; last eapply NA.
       intros (?&?). destruct b; apply andb_prop. }
+  - (* Target *)
+    inv TRSC.
+    {
+      monadInv TRS.
+      exploit evaluation_drop_const_aux; eauto.
+      { admit. }
+      { admit. }
+      { admit. }
+      destruct 1 as [Hid|Hex].
+      {
+        destruct Hid as (Hconst&Hcompute).
+        eexists. split.
+        {
+          rewrite Hconst.
+          econstructor; eauto.
+          { eapply eval_expr_preserved; eauto. }
+        }
+        econstructor; eauto.
+        { eapply transf_const_same. }
+        { rewrite ?float_add_irf' ?IFR_IRF_inv.
+          ring_simplify. inv CONST. nra. }
+      }
+      {
+        destruct Hex as (v'&Heval&(f'&Hv'&Hf')).
+        subst.
+        eexists. split.
+        {
+          econstructor. eauto.
+        }
+        econstructor; eauto.
+        { eapply transf_const_same. }
+        { rewrite ?float_add_irf' ?IFR_IRF_inv.
+          ring_simplify. inv CONST. nra. }
+      }
+    }
+    { eexists. split.
+      { econstructor; eauto. eapply eval_expr_preserved; eauto. }
+      { econstructor; eauto.
+        { eapply transf_const_same. }
+        { rewrite ?float_add_irf' ?IFR_IRF_inv.
+          ring_simplify. nra. }
+      }
+    }
+  - (* Tilde *)
+    (* Impossible case *)
+    congruence.
+  - (* For *)
+    apply some_bind_inversion in NT as ([]&?&NT).
+    apply some_bind_inversion in NT as ([]&?&NT).
+    apply some_bind_inversion in NT as ([]&?&NT).
+    assert ((s' = Sfor i a1 a2 s /\ rs = 0) ∨
+              (∃ i1 i2 sbody' rbody,
+                  s' = Sfor i a1 a2 sbody' /\
+                  a1 = Econst_int i1 Bint /\ a2 = Econst_int i2 Bint /\
+                                       check_no_assign i s = true /\
+                                       transf_statement s = Some sbody' /\
+                                       compute_const_statement' s = Some rbody /\
+                                       transf_const_match s sbody' rbody /\
+                                       rs = ((rbody * IZR (Z.max (Integers.Int.unsigned i2 -
+                                                                    Integers.Int.unsigned i1 + 1)%Z 0)%Z))))
+             as [Hid|Hchange].
+    { inv TRSC; last by eauto.
+      { simpl in CONST.
+        destruct a1; try (inv TRS; inv CONST; left; eauto; done); [].
+        simpl in TRS.
+        destruct b; try (inv TRS; inv CONST; left; eauto; done); [].
+        destruct a2; try (inv TRS; inv CONST; left; eauto; done); [].
+        destruct b; try (inv TRS; inv CONST; left; eauto; done); [].
+        destruct (check_no_assign i s); last first.
+        { inv CONST. inv TRS. eauto. }
+        right. monadInv TRS. monadInv CONST.
+        do 4 eexists.
+        { repeat split; eauto.
+          econstructor; eauto. }
+      }
+    }
+    { destruct Hid as [-> ->]. eexists. split.
+      { econstructor; eauto.
+        { eapply eval_llvalue_preserved; eauto. }
+        { eapply eval_expr_preserved; eauto. }
+        { eapply eval_expr_preserved; eauto. }
+      }
+      econstructor.
+      { econstructor; try eauto.
+        { eapply Forall_impl; last eapply NA.
+          intros (?&?). destruct (Pos.eq_dec p i); try inversion 1; auto. }
+      }
+      eapply transf_const_same.
+      eauto.
+      { eapply Forall_impl; last eapply NA.
+        intros (?&?). destruct (Pos.eq_dec p i); try inversion 1; auto. }
+      { eauto. }
+      eapply store_env_match_vals; eauto.
+      { inv H.
+        eapply Forall_impl; last eapply NA.
+        intros (?&?).
+        destruct (Pos.eq_dec p loc); try inversion 1; auto.
+        destruct (Pos.eq_dec loc p); try congruence.
+      }
+    }
+    {
+      destruct Hchange as (i1&i2&sbody'&rbody&->&->&->&Hcheck&Htransf'&Hcomp&Htransf&Hrs).
+      assert (i1 = v1) as ->.
+      { eapply eval_expr_const_int_inv; eauto. }
+      assert (i2 = v2) as ->.
+      { eapply eval_expr_const_int_inv; eauto. }
+
+      subst.
+      eexists. split.
+      { econstructor; eauto.
+        { eapply eval_llvalue_preserved; eauto. }
+        { eapply eval_expr_preserved; eauto. }
+        { eapply eval_expr_preserved; eauto. }
+      }
+      econstructor.
+      { eapply (match_Kfor_change) with (idval := v1); eauto.
+        { econstructor; eauto.
+          eapply Forall_impl; last eapply NA.
+          intros (?&?).
+          destruct (Pos.eq_dec i0 i); try inversion 1; auto.
+        }
+      }
+      eauto.
+      eauto.
+      { econstructor; eauto.
+        { eapply Forall_impl; last eapply NA.
+          intros (?&?).
+          destruct (Pos.eq_dec i0 i); try inversion 1; auto.
+        }
+      }
+      subst.
+      rewrite Z.max_l in DIFF; last first.
+      { lia. }
+      rewrite DIFF. ring_simplify. rewrite ?plus_IZR. nra.
+      inv H.
+      econstructor.
+      { eapply gsts; eauto. }
+      eapply store_env_match_vals; eauto.
+      { eapply Forall_impl; last eapply NA.
+        intros (?&?).
+        destruct (Pos.eq_dec p loc); try inversion 1; auto.
+        destruct (Pos.eq_dec loc p); try inversion 1; auto.
+        congruence.
+      }
+    }
 Abort.
 (*
-  - (* Target *)
-    monadInv TRS.
-    eexists. split.
-    {
-    eapply plus_one.
-    econstructor.
-    { eapply eval_expr_preserved; eauto. }
-    }
-    econstructor; eauto.
-  - (* Tilde *)
-    monadInv TRS.
-  - monadInv TRS.
-    exploit (eval_llvalue_preserved); eauto => /= ?.
-    eexists. split.
-    {
-    eapply plus_one.
-    econstructor.
-    { eauto. }
-    { eapply eval_expr_preserved; eauto. }
-    { eapply eval_expr_preserved; eauto. }
-    { eauto. }
-    { eauto. }
-    }
-    econstructor; eauto. econstructor; eauto.
-    eapply valid_env_store_preserve; eauto.
   - monadInv TRS.
     eexists. split.
     {
