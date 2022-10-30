@@ -658,26 +658,32 @@ Proof.
   unfold pr_parameters_ids. rewrite parameters_vars_preserved. auto.
 Qed.
 
+Inductive transf_const_match : _ -> _ -> _ -> Prop :=
+  | transf_const_change : forall s s' r
+    (TRS: transf_statement s = Some s')
+    (CONST: compute_const_statement' s = Some r),
+    transf_const_match s s' r
+  | transf_const_same : forall s,
+    transf_const_match s s 0.
+
 Inductive match_cont: cont -> cont -> list (AST.ident * Integers.Int.int) -> R -> Prop :=
-  | match_Kseq: forall s s' k k' iv r rnew r'
+  | match_Kseq_change: forall s s' k k' iv r rnew r'
       (MCONT: match_cont k k' iv r)
-      (TRS: transf_statement s = Some s')
+      (TRSC: transf_const_match s s' rnew)
       (NT: check_no_target_statement s = Some tt)
       (NA: Forall (λ '(i, v), check_no_assign i s = true) iv)
-      (CONST: compute_const_statement' s = Some rnew)
       (REQ: r' = r + rnew),
       match_cont (Kseq s k) (Kseq s' k') iv r'
   | match_Kstop:
       match_cont Kstop Kstop nil 0
-  | match_Kfor_match: forall id e2 s s' k k' iv r
+  | match_Kfor_match: forall id e2 s k k' iv r
       (MCONT: match_cont k k' iv r)
-      (TRS: transf_statement s = Some s)
       (NT: check_no_target_statement s = Some tt)
       (NA: Forall (λ '(i, v), check_no_assign i s = true) iv),
-      match_cont (Kfor id e2 s k) (Kfor id e2 s' k') iv r
+      match_cont (Kfor id e2 s k) (Kfor id e2 s k') iv r
   | match_Kfor_change: forall id ub s s' k k' iv r idval rloop
       (MCONT: match_cont k k' iv r)
-      (TRS: transf_statement s = Some s')
+      (TRS: transf_statement' s = s')
       (NT: check_no_target_statement s = Some tt)
       (NA: Forall (λ '(i, v), check_no_assign i s = true) ((id, idval) :: iv))
       (CONST: compute_const_statement' s = Some rloop),
@@ -695,10 +701,9 @@ Inductive match_states: state -> state -> Prop :=
       (TRS: transf_statement s = Some s')
       (NT: check_no_target_statement s = Some tt),
       match_states (Start f s t Kstop e m pm) (Start (transf_function f) s' t Kstop e m pm)
-  | match_regular_states: forall f s s' t t' k k' e m pm iv  rk rs
+  | match_regular_states_change: forall f s s' t t' k k' e m pm iv  rk rs
       (MCONT: match_cont k k' iv rk)
-      (TRS: transf_statement s = Some s')
-      (CONST: compute_const_statement' s = Some rs)
+      (TRSC: transf_const_match s s' rs)
       (NT: check_no_target_statement s = Some tt)
       (NA: Forall (λ '(i, v), check_no_assign i s = true) iv)
       (DIFF: IFR t - IFR t' = compute_const_statement (fn_body f) - rs - rk)
@@ -779,49 +784,67 @@ Proof.
       exploit transf_statement_some_compute_const; eauto. intros (r&Hcompute).
       econstructor; eauto.
       * econstructor.
-      * unfold compute_const_statement. rewrite Hcompute. nra.
+      * unfold compute_const_statement. econstructor; eauto. unfold compute_const_statement. rewrite Hcompute.
+        nra.
       * econstructor.
     }
   - (* Return *)
     inv MCONT.
-    inv TRS.
+    assert (s' = Sskip /\ rs = 0) as (->&->).
+    { inv TRSC; eauto. inv TRS; eauto. inv CONST. eauto. }
     eexists; split.
     { econstructor. }
-    { econstructor. inv CONST. nra. }
+    { econstructor. nra. }
   - (* Skip *)
-    inv TRS. inv MCONT; subst.
+    assert (s' = Sskip /\ rs = 0) as (->&->).
+    { inv TRSC; eauto. inv TRS; eauto. inv CONST; eauto. }
+    inv MCONT.
     eexists. split.
     { econstructor. }
-    { econstructor; eauto. inv CONST. nra. }
+    { econstructor; eauto. nra. }
   - (* Sequence *)
-    apply some_bind_inversion in TRS as (s1'&Heqs1'&TRS).
     apply some_bind_inversion in NT as ([]&?&NT).
     apply some_bind_inversion in NT as ([]&?&NT).
-    monadInv TRS.
     monadInv NT.
-    apply some_bind_inversion in CONST as (r1&Hcompute1&CONST).
-    apply some_bind_inversion in CONST as (r2&Hcompute2&CONST).
-    inv CONST.
-    eexists. split.
-    { econstructor. }
-    { econstructor.
-      { econstructor; eauto.
+    assert (∃ s1' s2' rs1 rs2, s' = (Ssequence s1' s2') /\
+                               rs = rs1 + rs2 /\
+                               transf_const_match s1 s1' rs1 /\
+                                 transf_const_match s2 s2' rs2)
+    as (s1'&s2'&rs1&rs2&Heq'&Hrs&Hmatch1&Hmatch2).
+    { inv TRSC.
+      { simpl in TRS.
+        apply some_bind_inversion in TRS as (s1'&Heqs1'&TRS).
+        apply some_bind_inversion in TRS as (s2'&Heqs2'&TRS).
+        simpl in CONST.
+        apply some_bind_inversion in CONST as (r1&Hcompute1&CONST).
+        apply some_bind_inversion in CONST as (r2&Hcompute2&CONST).
+        monadInv TRS. do 4 eexists; split; eauto; split => //=.
+        inv CONST; auto.
+        split; econstructor; eauto.
+      }
+      { exists s1, s2, 0, 0. split; auto. split; auto. nra.
+        split; eapply transf_const_same. }
+    }
+    subst.
+    { eexists. split.
+      { econstructor. }
+      { econstructor; try eassumption.
+        { econstructor; try eassumption.
+          { eapply Forall_impl; last eapply NA.
+            intros (?&?). apply andb_prop. }
+          reflexivity.
+        }
         { eapply Forall_impl; last eapply NA.
           intros (?&?). apply andb_prop. }
+        { nra. }
       }
-      eauto.
-      eauto.
-      eauto.
-      { eapply Forall_impl; last eapply NA.
-        intros (?&?). apply andb_prop. }
-      { nra. }
-      eauto.
     }
   - (* Assignment *)
-    monadInv TRS.
-    monadInv CONST.
     apply some_bind_inversion in NT as ([]&?&NT).
     apply some_bind_inversion in NT as ([]&?&NT).
+    monadInv NT.
+    assert (s' = Sassign a1 None a2 /\ rs = 0) as (->&->).
+    { inv TRSC; eauto. inv TRS. inv CONST. auto. }
     eexists.
     split.
     { econstructor.
@@ -830,43 +853,48 @@ Proof.
       eauto.
     }
     { econstructor; eauto.
-      rewrite //=.
+      { eapply transf_const_same. }
       { clear. induction iv => //=. econstructor; eauto. destruct a; auto. }
-      eauto.
       eapply store_env_match_vals.
       { inv H; eauto. }
       { eauto. }
       { eauto. }
     }
   - (* Assignment *)
-    monadInv TRS.
-    monadInv CONST.
     apply some_bind_inversion in NT as ([]&?&NT).
     apply some_bind_inversion in NT as ([]&?&NT).
+    monadInv NT.
+    assert (s' = Sassign a1 None a2 /\ rs = 0) as (->&->).
+    { inv TRSC; eauto. inv TRS. inv CONST. auto. }
+    eexists.
+    split.
     {
-      eexists. split.
-      {
-        eapply step_assign_mem.
-        { eapply eval_glvalue_preserved; eauto. }
-        { eapply eval_expr_preserved; eauto. }
-        { eauto. }
-        { eapply assign_loc_preserved; eauto. }
-      }
-      { econstructor; eauto; rewrite //=. clear. induction iv as [| (?&?)]; eauto. }
+      eapply step_assign_mem.
+      { eapply eval_glvalue_preserved; eauto. }
+      { eapply eval_expr_preserved; eauto. }
+      { eauto. }
+      { eapply assign_loc_preserved; eauto. }
     }
+    { econstructor; eauto; rewrite //=.
+      { eapply transf_const_same. }
+      clear. induction iv as [| (?&?)]; eauto. }
   - (* Conditional statement *)
-    monadInv TRS.
-    monadInv CONST.
     apply some_bind_inversion in NT as ([]&?&NT).
     apply some_bind_inversion in NT as ([]&?&NT).
     apply some_bind_inversion in NT as ([]&?&NT).
+    assert (s' = Sifthenelse a s1 s2 /\ rs = 0) as (->&->).
+    { inv TRSC; eauto. inv TRS. inv CONST. auto. }
     eexists. split.
     {
       econstructor.
       { eapply eval_expr_preserved; eauto. }
       { eauto. }
     }
-    econstructor; eauto; destruct b; eauto.
+    econstructor; eauto.
+    { eapply transf_const_same. }
+    { destruct b; eauto. }
+    { eapply Forall_impl; last eapply NA.
+      intros (?&?). destruct b; apply andb_prop. }
 Abort.
 (*
   - (* Target *)
