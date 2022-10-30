@@ -96,6 +96,12 @@ Fixpoint compute_const_statement' (s: Stanlight.statement) {struct s} : option R
   | Stilde e d el => None
   end.
 
+Definition compute_const_statement s :=
+  match compute_const_statement' s with
+  | Some r => r
+  | None => 0
+  end.
+
 Lemma transf_program_match:
   forall p: program,  match_prog p (transf_program p).
 Proof.
@@ -556,6 +562,53 @@ Proof.
   - inv H; eauto.
 Qed.
 
+Lemma eval_expr_preserved:
+  forall en m pm t t' e v,
+  check_no_target_expr e = Some tt ->
+  eval_expr ge en m pm t e v ->
+  eval_expr tge en m pm t' e v.
+Proof.
+  intros.
+  eapply evaluation_preserved_no_target; eauto.
+Qed.
+
+Lemma eval_glvalue_preserved:
+  forall en m pm t t' e loc ofs,
+  check_no_target_expr e = Some tt ->
+  eval_glvalue ge en m pm t e loc ofs ->
+  eval_glvalue tge en m pm t' e loc ofs.
+Proof.
+  intros.
+  eapply evaluation_preserved_no_target; eauto.
+Qed.
+
+Lemma eval_llvalue_preserved:
+  forall en m pm t t' e loc ofs,
+  check_no_target_expr e = Some tt ->
+  eval_llvalue ge en m pm t e loc ofs ->
+  eval_llvalue tge en m pm t' e loc ofs.
+Proof.
+  intros.
+  eapply evaluation_preserved_no_target; eauto.
+Qed.
+
+Lemma eval_exprlist_preserved:
+  forall en m pm t t' el vl,
+  check_no_target_exprlist el = Some tt ->
+  eval_exprlist ge en m pm t el vl ->
+  eval_exprlist tge en m pm t' el vl.
+Proof.
+  intros.
+  eapply evaluation_preserved_no_target; eauto.
+Qed.
+
+Lemma assign_loc_preserved ty m blk ofs v m2 :
+  assign_loc ge ty m blk ofs v m2 ->
+  assign_loc tge ty m blk ofs v m2.
+Proof.
+  inversion 1. econstructor; eauto.
+Qed.
+
 Lemma assign_global_locs_preserved bs m1 vs m2 :
   assign_global_locs ge bs m1 vs m2 ->
   assign_global_locs tge bs m1 vs m2.
@@ -605,36 +658,282 @@ Proof.
   unfold pr_parameters_ids. rewrite parameters_vars_preserved. auto.
 Qed.
 
-Inductive match_cont: cont -> cont -> Prop :=
-  | match_Kseq: forall s s' k k'
-      (MCONT: match_cont k k')
-      (TRS: transf_statement s = Some s'),
-      match_cont (Kseq s k) (Kseq s' k')
+Inductive match_cont: cont -> cont -> list (AST.ident * Integers.Int.int) -> R -> Prop :=
+  | match_Kseq: forall s s' k k' iv r rnew r'
+      (MCONT: match_cont k k' iv r)
+      (TRS: transf_statement s = Some s')
+      (NT: check_no_target_statement s = Some tt)
+      (NA: Forall (λ '(i, v), check_no_assign i s = true) iv)
+      (CONST: compute_const_statement' s = Some rnew)
+      (REQ: r' = r + rnew),
+      match_cont (Kseq s k) (Kseq s' k') iv r'
   | match_Kstop:
-      match_cont Kstop Kstop
-  | match_Kfor: forall id e2 s s' k k'
-      (MCONT: match_cont k k')
-      (TRS: transf_statement s = Some s'),
-      match_cont (Kfor id e2 s k) (Kfor id e2 s' k').
+      match_cont Kstop Kstop nil 0
+  | match_Kfor_match: forall id e2 s s' k k' iv r
+      (MCONT: match_cont k k' iv r)
+      (TRS: transf_statement s = Some s)
+      (NT: check_no_target_statement s = Some tt)
+      (NA: Forall (λ '(i, v), check_no_assign i s = true) iv),
+      match_cont (Kfor id e2 s k) (Kfor id e2 s' k') iv r
+  | match_Kfor_change: forall id ub s s' k k' iv r idval rloop
+      (MCONT: match_cont k k' iv r)
+      (TRS: transf_statement s = Some s')
+      (NT: check_no_target_statement s = Some tt)
+      (NA: Forall (λ '(i, v), check_no_assign i s = true) ((id, idval) :: iv))
+      (CONST: compute_const_statement' s = Some rloop),
+      match_cont (Kfor id (Econst_int ub Bint) s k) (Kfor id (Econst_int ub Bint) s' k')
+        ((id, idval) :: iv) (IZR (Integers.Int.intval ub - Integers.Int.intval idval) * rloop + r).
+
+(* Should run compute_const_statement on full body *)
+
+Definition env_match_vals (en: env) (ivs: list (AST.ident * Integers.Int.int)) : Prop :=
+  Forall (λ '(id, k), ParamMap.get en id 0 = Some (Values.Vint k)) ivs.
 
 Inductive match_states: state -> state -> Prop :=
-  | match_start_states: forall f s s' t k k' e m pm
-      (MCONT: match_cont k k')
-      (TRS: transf_statement s = Some s'),
-      match_states (Start f s t k e m pm) (Start (transf_function f) s' t k' e m pm)
-  | match_regular_states: forall f s s' t k k' e m pm
-      (MCONT: match_cont k k')
-      (TRS: transf_statement s = Some s'),
-      match_states (State f s t k e m pm) (State (transf_function f) s' t k' e m pm)
-  | match_return_states: forall f t e m pm,
-      match_states (Return f t e m pm) (Return (transf_function f) t e m pm).
+  | match_start_states: forall f s s' t e m pm
+      (FN: s = (fn_body f))
+      (TRS: transf_statement s = Some s')
+      (NT: check_no_target_statement s = Some tt),
+      match_states (Start f s t Kstop e m pm) (Start (transf_function f) s' t Kstop e m pm)
+  | match_regular_states: forall f s s' t t' k k' e m pm iv  rk rs
+      (MCONT: match_cont k k' iv rk)
+      (TRS: transf_statement s = Some s')
+      (CONST: compute_const_statement' s = Some rs)
+      (NT: check_no_target_statement s = Some tt)
+      (NA: Forall (λ '(i, v), check_no_assign i s = true) iv)
+      (DIFF: IFR t - IFR t' = compute_const_statement (fn_body f) - rs - rk)
+      (ENV: env_match_vals e iv),
+      match_states (State f s t k e m pm) (State (transf_function f) s' t' k' e m pm)
+  | match_return_states: forall f t t' e m pm
+      (DIFF: IFR t - IFR t' = compute_const_statement (fn_body f)),
+      match_states (Return f t e m pm) (Return (transf_function f) t' e m pm).
+
+Lemma transf_statement_some_compute_const s s' :
+  transf_statement s = Some s' ->
+  ∃ r, compute_const_statement' s = Some r.
+Proof.
+  revert s'.
+  induction s => //=; eauto => s' Heq.
+  { apply some_bind_inversion in Heq as (s1'&Heqs1'&Hrest).
+    apply some_bind_inversion in Hrest as (s2'&Heqs2'&Hrest).
+    inv Hrest.
+    exploit IHs1; eauto. intros (r1&Hr1).
+    exploit IHs2; eauto. intros (r2&Hr2).
+    eexists => //=. rewrite Hr1 Hr2 //=.
+  }
+  {
+    destruct e; inv Heq; eauto.
+    destruct e0; inv H0; eauto.
+    destruct (check_no_assign i s); eauto.
+    monadInv H1. exploit IHs; eauto. intros (r&->). eexists.
+    eauto.
+  }
+Qed.
+
+Lemma store_env_match_vals e id ofs v e' iv
+  (NA: Forall (λ '(i, v),
+           (match Pos.eq_dec id i return bool with | left _ => false | _ => true end) = true) iv):
+  env_match_vals e iv ->
+  store e id ofs v = Some e' ->
+  env_match_vals e' iv.
+Proof.
+  rewrite /env_match_vals => Hforall Hstore.
+  revert e e' Hforall Hstore.
+  induction iv as [| (?&?) iv'].
+  { intros e e' Hforall Hstore. econstructor. }
+  { intros e e' Hforall Hstore. inv Hforall.
+    econstructor; last first.
+    { eapply IHiv'; eauto. inv NA; eauto. }
+    inv NA. destruct (Pos.eq_dec).
+    { subst. congruence. }
+    erewrite gsto; eauto.
+  }
+Qed.
+
+(*
+Lemma typeof_transf_expr a :
+  typeof (transf_expr a) = typeof a.
+Proof.
+  induction a => //=; intros HEQ; try monadInv HEQ; subst => //=.
+  { destruct (fpmap i) as [fe|] eqn:Hfe => //=; try (by inversion HEQ).
+    destruct b; inversion HEQ => //=.
+    eapply typeof_fpmap; eauto. }
+  { destruct a => //=; try monadInv EQ0; subst => //=.
+    destruct (fpmap i) as [fe|] eqn:Hfe => //=; try (by inversion HEQ);
+    destruct b; inversion EQ0 => //=.
+    eapply typeof_fpmap; eauto. }
+Qed.
+*)
 
 Lemma step_simulation:
   forall S1 t S2, step ge S1 t S2 ->
   forall S1', match_states S1 S1' ->
   exists S2', step tge S1' t S2' /\ match_states S2 S2'.
 Proof.
+  induction 1; intros S1' MS; inversion MS; simpl in *; subst.
+  - (* Start *)
+    eexists.
+    split.
+    { econstructor. }
+    {
+      exploit transf_statement_some_compute_const; eauto. intros (r&Hcompute).
+      econstructor; eauto.
+      * econstructor.
+      * unfold compute_const_statement. rewrite Hcompute. nra.
+      * econstructor.
+    }
+  - (* Return *)
+    inv MCONT.
+    inv TRS.
+    eexists; split.
+    { econstructor. }
+    { econstructor. inv CONST. nra. }
+  - (* Skip *)
+    inv TRS. inv MCONT; subst.
+    eexists. split.
+    { econstructor. }
+    { econstructor; eauto. inv CONST. nra. }
+  - (* Sequence *)
+    apply some_bind_inversion in TRS as (s1'&Heqs1'&TRS).
+    apply some_bind_inversion in NT as ([]&?&NT).
+    apply some_bind_inversion in NT as ([]&?&NT).
+    monadInv TRS.
+    monadInv NT.
+    apply some_bind_inversion in CONST as (r1&Hcompute1&CONST).
+    apply some_bind_inversion in CONST as (r2&Hcompute2&CONST).
+    inv CONST.
+    eexists. split.
+    { econstructor. }
+    { econstructor.
+      { econstructor; eauto.
+        { eapply Forall_impl; last eapply NA.
+          intros (?&?). apply andb_prop. }
+      }
+      eauto.
+      eauto.
+      eauto.
+      { eapply Forall_impl; last eapply NA.
+        intros (?&?). apply andb_prop. }
+      { nra. }
+      eauto.
+    }
+  - (* Assignment *)
+    monadInv TRS.
+    monadInv CONST.
+    apply some_bind_inversion in NT as ([]&?&NT).
+    apply some_bind_inversion in NT as ([]&?&NT).
+    eexists.
+    split.
+    { econstructor.
+      eapply eval_llvalue_preserved; eauto.
+      eapply eval_expr_preserved; eauto.
+      eauto.
+    }
+    { econstructor; eauto.
+      rewrite //=.
+      { clear. induction iv => //=. econstructor; eauto. destruct a; auto. }
+      eauto.
+      eapply store_env_match_vals.
+      { inv H; eauto. }
+      { eauto. }
+      { eauto. }
+    }
+  - (* Assignment *)
+    monadInv TRS.
+    monadInv CONST.
+    apply some_bind_inversion in NT as ([]&?&NT).
+    apply some_bind_inversion in NT as ([]&?&NT).
+    {
+      eexists. split.
+      {
+        eapply step_assign_mem.
+        { eapply eval_glvalue_preserved; eauto. }
+        { eapply eval_expr_preserved; eauto. }
+        { eauto. }
+        { eapply assign_loc_preserved; eauto. }
+      }
+      { econstructor; eauto; rewrite //=. clear. induction iv as [| (?&?)]; eauto. }
+    }
+  - (* Conditional statement *)
+    monadInv TRS.
+    monadInv CONST.
+    apply some_bind_inversion in NT as ([]&?&NT).
+    apply some_bind_inversion in NT as ([]&?&NT).
+    apply some_bind_inversion in NT as ([]&?&NT).
+    eexists. split.
+    {
+      econstructor.
+      { eapply eval_expr_preserved; eauto. }
+      { eauto. }
+    }
+    econstructor; eauto; destruct b; eauto.
 Abort.
+(*
+  - (* Target *)
+    monadInv TRS.
+    eexists. split.
+    {
+    eapply plus_one.
+    econstructor.
+    { eapply eval_expr_preserved; eauto. }
+    }
+    econstructor; eauto.
+  - (* Tilde *)
+    monadInv TRS.
+  - monadInv TRS.
+    exploit (eval_llvalue_preserved); eauto => /= ?.
+    eexists. split.
+    {
+    eapply plus_one.
+    econstructor.
+    { eauto. }
+    { eapply eval_expr_preserved; eauto. }
+    { eapply eval_expr_preserved; eauto. }
+    { eauto. }
+    { eauto. }
+    }
+    econstructor; eauto. econstructor; eauto.
+    eapply valid_env_store_preserve; eauto.
+  - monadInv TRS.
+    eexists. split.
+    {
+    eapply plus_one.
+    eapply step_for_start_false.
+    { eapply eval_expr_preserved; eauto. }
+    { eapply eval_expr_preserved; eauto. }
+    { auto. }
+    }
+    econstructor; eauto.
+  - monadInv TRS.
+    inv MCONT.
+    exploit (eval_llvalue_preserved); eauto => /= ?.
+    eexists. split.
+    {
+    eapply plus_one.
+    eapply step_for_iter_true.
+    { eauto. }
+    { eauto. }
+    { eapply eval_expr_preserved; eauto. }
+    { eauto. }
+    { auto. }
+    }
+    econstructor; eauto. econstructor; eauto.
+    eapply valid_env_store_preserve; eauto.
+  - monadInv TRS.
+    inv MCONT.
+    exploit (eval_llvalue_preserved); eauto => /= ?.
+    eexists. split.
+    {
+    eapply plus_one.
+    eapply step_for_iter_false.
+    { eauto. }
+    { eauto. }
+    { eapply eval_expr_preserved; eauto. }
+    { auto. }
+    }
+    econstructor; eauto.
+Qed.
+*)
 
 Lemma transf_initial_states:
   forall S1, initial_state prog data params S1 ->

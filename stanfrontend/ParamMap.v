@@ -162,6 +162,24 @@ Proof.
     rewrite PTree.gso //. }
 Qed.
 
+Lemma gsto pm pm' id ofs id' ofs' v :
+  (id' <> id \/ ofs' <> ofs) ->
+  store pm id ofs v= Some pm' ->
+  get pm' id' ofs' = get pm id' ofs'.
+Proof.
+  unfold get, store. intros Hneq.
+  destruct (pm ! id) as [|] eqn:Hpm.
+  {
+    destruct (ZTree.get ofs t) => /=. inversion 1; subst.
+    destruct (Pos.eq_dec id' id); subst.
+    { rewrite ?PTree.gss Hpm.
+      rewrite ZTree.gso; auto. intuition.
+    }
+    rewrite PTree.gso //. inversion 1.
+  }
+  { inversion 1. }
+Qed.
+
 Lemma is_id_set_other id id' pm o v :
   id' <> id -> is_id_alloc (set pm id o v) id' = is_id_alloc pm id'.
 Proof.

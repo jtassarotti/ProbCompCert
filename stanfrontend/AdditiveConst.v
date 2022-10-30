@@ -188,6 +188,11 @@ Fixpoint transf_statement (s: Stanlight.statement) {struct s} : option (Stanligh
   | Stilde e d el => None
   end.
 
+Definition transf_statement' s :=
+  match transf_statement s with
+  | None => s
+  | Some s' => s'
+  end.
 
 Definition vars_check_shadow (p: AST.ident * basic) : option unit :=
   let '(id, b) := p in
