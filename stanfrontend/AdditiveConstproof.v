@@ -171,6 +171,12 @@ Remark some_bind_inversion:
   f = Some x /\ g x = Some y.
 Proof. intros A B f g y. destruct f => //=. eauto. Qed.
 
+Remark none_bind_inversion:
+  forall (A B: Type) (f: option A) (g: A -> option B),
+  (do x <- f; g x) = None ->
+  f = None ∨ (∃ x, f= Some x /\ g x = None).
+Proof. intros A B f g Heq. destruct f => //=; eauto. Qed.
+
 Ltac monadInv1 H :=
   match type of H with
   | (Some _ = Some _) =>
@@ -221,6 +227,25 @@ Ltac checkInv :=
     | [ H : check_no_target_exprlist _ = Some _ |- _] => monadInv H
     | [ H : unit |- _ ] => destruct H
   end.
+
+Lemma evaluation_preserved_same en m pm t:
+      (forall e v, eval_expr ge en m pm t e v ->
+                   eval_expr tge en m pm t e v)
+  /\  (forall el vl, eval_exprlist ge en m pm t el vl ->
+                   eval_exprlist tge en m pm t el vl)
+  /\  (forall e loc ofs, eval_llvalue ge en m pm t e loc ofs ->
+                         eval_llvalue tge en m pm t e loc ofs)
+  /\  (forall e loc ofs, eval_glvalue ge en m pm t e loc ofs ->
+                         eval_glvalue tge en m pm t e loc ofs).
+Proof.
+  intros.
+  apply (eval_exprs_ind ge en m pm t); intros; try (econstructor; eauto; done).
+  - econstructor; eauto.
+    { exploit (functions_translated); eauto. intros; subst. simpl; auto. }
+    { eapply Events.external_call_symbols_preserved; eauto. apply senv_preserved. }
+  - intros. econstructor; eauto.
+    rewrite symbols_preserved; auto.
+Qed.
 
 Lemma evaluation_preserved_no_target en m pm t t':
       (forall e v, eval_expr ge en m pm t e v ->
@@ -658,6 +683,43 @@ Proof.
   unfold pr_parameters_ids. rewrite parameters_vars_preserved. auto.
 Qed.
 
+
+Section nochange.
+
+Definition match_states_nochange: state -> state -> Prop := λ s1 s2, s1 = s2.
+
+Lemma step_simulation_nochange:
+  forall S1 t S2, step ge S1 t S2 ->
+  forall S1', match_states_nochange S1 S1' ->
+  exists S2', step tge S1' t S2' /\ match_states_nochange S2 S2'.
+Proof.
+  induction 1; intros S1' MS; inversion MS; simpl in *; subst;
+  try (eexists; split; econstructor; eauto; done);
+  try (eexists; split; last reflexivity; econstructor; eauto; eapply evaluation_preserved_same; eauto; done).
+  - eexists. split; last reflexivity.
+    { eapply step_assign_mem; eauto.
+      * eapply evaluation_preserved_same; eauto.
+      * eapply evaluation_preserved_same; eauto.
+      * apply assign_loc_preserved; auto.
+    }
+  - eexists. split; last reflexivity.
+    econstructor; eauto; try (eapply evaluation_preserved_same; eauto).
+    { exploit functions_translated; eauto. }
+    { eapply Events.external_call_symbols_preserved; eauto. apply senv_preserved. }
+Qed.
+
+Lemma transf_final_states_nochange:
+  forall S1 S2 t r, match_states_nochange S1 S2 -> final_state t S1 r -> final_state t S2 r.
+Proof.
+  intros S1 S2 t r Hmatch Hfinal. inv Hfinal; inv Hmatch.
+  { econstructor. auto. }
+  { econstructor. auto. }
+Qed.
+
+End nochange.
+
+Section change.
+
 Inductive transf_const_match : _ -> _ -> _ -> Prop :=
   | transf_const_change : forall s s' r
     (TRS: transf_statement s = Some s')
@@ -701,10 +763,18 @@ Inductive match_cont: cont -> cont -> list (AST.ident * Integers.Int.int) -> R -
 Definition env_match_vals (en: env) (ivs: list (AST.ident * Integers.Int.int)) : Prop :=
   Forall (λ '(id, k), ParamMap.get en id 0 = Some (Values.Vint k)) ivs.
 
+Definition compute_const_function (f: Stanlight.function) : R :=
+  let res := (do _ <- list_option_map (vars_check_shadow) (f.(fn_vars));
+    compute_const_statement' f.(fn_body)) in
+  match res with
+  | None => 0
+  | Some r => r
+  end.
+
 Inductive match_states: state -> state -> Prop :=
   | match_start_states: forall f s s' t e m pm
       (FN: s = (fn_body f))
-      (TRS: transf_statement s = Some s')
+      (TRS: s' = (fn_body (transf_function f)))
       (NT: check_no_target_statement s = Some tt)
       (ENOSHADOW: no_shadow_pdflib e)
       (PMNOSHADOW: no_shadow_pdflib pm),
@@ -714,13 +784,13 @@ Inductive match_states: state -> state -> Prop :=
       (TRSC: transf_const_match s s' rs)
       (NT: check_no_target_statement s = Some tt)
       (NA: Forall (λ '(i, v), check_no_assign i s = true) iv)
-      (DIFF: IFR t - IFR t' = compute_const_statement (fn_body f) - rs - rk)
+      (DIFF: IFR t - IFR t' = compute_const_function f - rs - rk)
       (ENV: env_match_vals e iv)
       (ENOSHADOW: no_shadow_pdflib e)
       (PMNOSHADOW: no_shadow_pdflib pm),
       match_states (State f s t k e m pm) (State (transf_function f) s' t' k' e m pm)
   | match_return_states: forall f t t' e m pm
-      (DIFF: IFR t - IFR t' = compute_const_statement (fn_body f)),
+      (DIFF: IFR t - IFR t' = compute_const_function f),
       match_states (Return f t e m pm) (Return (transf_function f) t' e m pm).
 
 Lemma transf_statement_some_compute_const s s' :
@@ -747,6 +817,38 @@ Proof.
   }
 Qed.
 
+Lemma compute_const_some_transf_statement s r :
+  compute_const_statement' s = Some r ->
+  ∃ s', transf_statement s = Some s'.
+Proof.
+  revert r.
+  induction s => //=; eauto => s' Heq.
+  { apply some_bind_inversion in Heq as (s1'&Heqs1'&Hrest).
+    apply some_bind_inversion in Hrest as (s2'&Heqs2'&Hrest).
+    inv Hrest.
+    exploit IHs1; eauto. intros (r1&Hr1).
+    exploit IHs2; eauto. intros (r2&Hr2).
+    eexists => //=. rewrite Hr1 Hr2 //=.
+  }
+  {
+    destruct e; inv Heq; eauto.
+    destruct b; eauto.
+    destruct e0; inv H0; eauto.
+    destruct b; eauto.
+    destruct (check_no_assign i s); eauto.
+    monadInv H1. exploit IHs; eauto. intros (r&->). eexists.
+    eauto.
+  }
+Qed.
+
+Lemma transf_statement_none_compute_const s :
+  transf_statement s = None ->
+  compute_const_statement' s = None.
+Proof.
+  intros. destruct (compute_const_statement' s) eqn:Hnone; auto.
+  exfalso. exploit (compute_const_some_transf_statement); eauto. intros (?&?); congruence.
+Qed.
+
 Lemma store_env_match_vals e id ofs v e' iv
   (NA: Forall (λ '(i, v),
            (match Pos.eq_dec id i return bool with | left _ => false | _ => true end) = true) iv):
@@ -767,21 +869,6 @@ Proof.
   }
 Qed.
 
-(*
-Lemma typeof_transf_expr a :
-  typeof (transf_expr a) = typeof a.
-Proof.
-  induction a => //=; intros HEQ; try monadInv HEQ; subst => //=.
-  { destruct (fpmap i) as [fe|] eqn:Hfe => //=; try (by inversion HEQ).
-    destruct b; inversion HEQ => //=.
-    eapply typeof_fpmap; eauto. }
-  { destruct a => //=; try monadInv EQ0; subst => //=.
-    destruct (fpmap i) as [fe|] eqn:Hfe => //=; try (by inversion HEQ);
-    destruct b; inversion EQ0 => //=.
-    eapply typeof_fpmap; eauto. }
-Qed.
-*)
-
 Lemma eval_expr_const_int_inv genv e m pm t i1 v1  :
   eval_expr genv e m pm t (Econst_int i1 Bint) (Values.Vint v1) ->
   i1 = v1.
@@ -789,7 +876,6 @@ Proof. inversion 1; subst; eauto. inv H0. inv H0. Qed.
 
 Variable prog_genv_has_mathlib :
   genv_has_mathlib (globalenv prog).
-
 
 Lemma transf_const_match_skip_inv s' rs :
   transf_const_match Sskip s' rs ->
@@ -828,6 +914,19 @@ Proof.
   }
 Qed.
 
+Lemma transf_const_match_fun f :
+  transf_const_match (fn_body f) (fn_body (transf_function f)) (compute_const_function f).
+Proof.
+  rewrite /transf_function/compute_const_function.
+  destruct (list_option_map _ _); last first.
+  { rewrite /=. apply transf_const_same. }
+  destruct (transf_statement (fn_body f)) eqn:Htransf.
+  { exploit transf_statement_some_compute_const; eauto. intros (r&Hcompute).
+    rewrite Hcompute. simpl. econstructor; eauto. }
+  { exploit transf_statement_none_compute_const; eauto. intros Hcompute.
+    rewrite Hcompute. eapply transf_const_same. }
+Qed.
+
 Lemma step_simulation:
   forall S1 t S2, step ge S1 t S2 ->
   forall S1', match_states S1 S1' ->
@@ -839,12 +938,11 @@ Proof.
     split.
     { econstructor. }
     {
-      exploit transf_statement_some_compute_const; eauto. intros (r&Hcompute).
       econstructor; eauto.
-      * econstructor.
-      * unfold compute_const_statement. econstructor; eauto. unfold compute_const_statement. rewrite Hcompute.
-        nra.
-      * econstructor.
+      { econstructor. }
+      { eapply transf_const_match_fun. }
+      { nra. }
+      econstructor.
     }
   - (* Return *)
     inv MCONT.
@@ -1246,16 +1344,46 @@ Proof.
     }
 Qed.
 
-Lemma transf_initial_states:
-  forall S1, initial_state prog data params S1 ->
-  exists S2, initial_state tprog data params S2 /\ match_states S1 S2.
-Proof.
-Abort.
 
 Lemma transf_final_states:
   forall S1 S2 t r, match_states S1 S2 -> final_state t S1 r -> final_state t S2 r.
 Proof.
 Abort.
+
+End change.
+
+Lemma transf_initial_states:
+  forall S1, initial_state prog data params S1 ->
+  exists S2, initial_state tprog data params S2 /\ match_states S1 S2.
+Proof.
+  intros S1 Hinit.
+  inv Hinit.
+  destruct TRANSL as (TRANSL'&_).
+  exploit (function_ptr_translated); eauto.
+  intros Hfind.
+  exists (Start (transf_function f) ((fn_body (transf_function f)))
+            (Floats.Float.of_int Integers.Int.zero) Kstop e m1 pm).
+  split.
+  { econstructor; eauto; eauto.
+    eapply (Genv.init_mem_match TRANSL'); eauto.
+    rewrite symbols_preserved. eauto.
+    eapply assign_global_locs_preserved. rewrite data_vars_preserved; eauto.
+    eapply set_global_params_preserved; rewrite parameters_vars_preserved parameters_ids_preserved. eauto.
+  }
+  econstructor; eauto.
+  { admit. }
+  (* Annoying, maybe do a case split elsewhere about whether transf function returned some... *)
+  (*
+  exploit (function_ptr_translated b (Ctypes.Internal f)); eauto.
+  intros TR.
+  unfold transf_fundef in TR. eauto.
+  eapply assign_global_locs_preserved. rewrite data_vars_preserved; eauto.
+  eapply set_global_params_preserved; rewrite parameters_vars_preserved, parameters_ids_preserved. eauto.
+  econstructor; eauto.
+  econstructor.
+   *)
+Abort.
+
 
 Theorem transf_program_correct t:
   forward_simulation (Ssemantics.semantics prog data params t) (Ssemantics.semantics tprog data params t).
