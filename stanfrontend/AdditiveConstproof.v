@@ -43,7 +43,8 @@ Definition math_fun_const : PTree.t R :=
 Definition match_prog (p: program) (tp: program) :=
   match_program (fun ctx f tf => tf = transf_fundef f) eq p tp /\
   pr_data_vars p = pr_data_vars tp /\
-  pr_parameters_vars p = pr_parameters_vars tp.
+  pr_parameters_vars p = pr_parameters_vars tp /\
+  Forall (λ '(id, _, _), ¬ In id pdf_idents) (pr_parameters_vars p).
 
 (* Returns the constant dropped by switching from the indicated function
    to its "u" variant *)
@@ -102,13 +103,33 @@ Definition compute_const_statement s :=
   | None => 0
   end.
 
-Lemma transf_program_match:
-  forall p: program,  match_prog p (transf_program p).
+Lemma param_check_shadow_ok id b o xt:
+  param_check_shadow (id, b, o) = OK xt ->
+  ¬ In id pdf_idents.
 Proof.
-  intros. unfold match_prog.
-  unfold transf_program. destruct p; simpl.
+  intros Hin.
+  unfold param_check_shadow in Hin.
+  destruct (forallb _ _) eqn:Hforallb; last by inv Hin.
+  rewrite forallb_forall in Hforallb * => Hforallb.
+  intros Hin'. eapply Hforallb in Hin'.
+  destruct (Pos.eq_dec id id); inv Hin'.
+  congruence.
+Qed.
+
+Lemma transf_program_match:
+  forall p tp: program, transf_program p = OK tp -> match_prog p tp.
+Proof.
+  intros p tp Htransf. unfold match_prog.
+  unfold transf_program in Htransf.
+  eapply bind_inversion in Htransf as (?&Hcheck&Htransf).
+  destruct p; simpl.
+  inv Htransf => /=.
   repeat split; eauto.
-  eapply match_transform_program; eauto.
+  { eapply match_transform_program; eauto. }
+  apply mmap_inversion in Hcheck.
+  apply Forall_forall. intros ((?&?)&?) Hin.
+  eapply list_forall2_in_left in Hcheck as (?&Hin'&Hcheck'); eauto.
+  eapply param_check_shadow_ok in Hcheck'; eauto.
 Qed.
 
 Section PRESERVATION.
@@ -1055,10 +1076,17 @@ Proof.
       }
     }
     {
-      admit.
+      destruct TRANSL as (?&?&?&Hcheck).
+      apply Forall_forall. intros x Hin.
+      destruct (is_id_alloc pm x) eqn:Heqsome; auto.
+      exploit (set_global_params_is_id_alloc); try eassumption. intros Hin'.
+      rewrite /pr_parameters_ids in Hin'.
+      apply in_map_iff in Hin' as (((?&?)&?)&?&Hin''). subst.
+      eapply Forall_forall in Hcheck; try eassumption. exfalso.
+      eapply Hcheck; eauto.
     }
   }
-Abort.
+Qed.
 
 Lemma step_simulation:
   forall S1 t S2, step ge S1 t S2 ->

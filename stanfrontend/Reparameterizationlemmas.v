@@ -98,48 +98,6 @@ Proof.
     eauto.
 Qed.
 
-Lemma assign_global_params_is_id_alloc_in_flat1 flat_ids pm1 vs pm2 :
-  assign_global_params flat_ids pm1 vs pm2 ->
-  ∀ id, ParamMap.is_id_alloc pm2 id  = true ->
-               (ParamMap.is_id_alloc pm1 id = true) ∨
-               (∃ b ofs', In (id, b, ofs') flat_ids).
-Proof.
-  induction 1.
-  - intuition.
-  - intros id' Halloc.
-    edestruct IHassign_global_params as [Hleft|Hright]; eauto.
-    { subst.
-      destruct (Pos.eq_dec id id'); subst.
-      { right. do 2 eexists; by left; eauto. }
-      { rewrite is_id_set_other in Hleft; eauto. }
-    }
-    right. clear -Hright. destruct Hright as (?&?&?).
-    do 2 eexists; eauto. right. eauto.
-Qed.
-
-Lemma assign_global_params_some_in_flat1 flat_ids pm1 vs pm2 :
-  assign_global_params flat_ids pm1 vs pm2 ->
-  ∀ id ofs fl, ParamMap.get pm2 id ofs = Some fl ->
-               (ParamMap.get pm1 id ofs = Some fl) ∨
-               (∃ b ofs', In (id, b, ofs') flat_ids /\ Integers.Ptrofs.intval ofs' = ofs).
-Proof.
-  induction 1.
-  - intuition.
-  - intros id' ofs' fl' Hget.
-    edestruct IHassign_global_params as [Hleft|Hright]; eauto.
-    { subst.
-      destruct (Pos.eq_dec id id'); subst.
-      { destruct (Z.eq_dec (Integers.Ptrofs.intval ofs) ofs'); subst.
-        { right. do 2 eexists; split; eauto.
-          left; eauto. }
-        { rewrite ParamMap.gso in Hleft; last by (right; congruence).
-          eauto. }
-      }
-      rewrite ParamMap.gso in Hleft; auto.
-    }
-    right. clear -Hright. destruct Hright as (?&?&?&?).
-    do 2 eexists; split; eauto. right. eauto.
-Qed.
 
 Lemma assign_global_params_some_in_combine flat_ids pm1 vs pm2 :
   assign_global_params flat_ids pm1 vs pm2 ->
@@ -237,43 +195,6 @@ Proof.
   induction 1; auto.
   subst. intros. rewrite IHreserve_global_params gr //.
 Qed.
-
-Lemma reserve_global_params_is_id_alloc_true ids pm1 pm2 id :
-  reserve_global_params ids pm1 pm2 ->
-  is_id_alloc pm2 id = true ->
-  (is_id_alloc pm1 id = true \/ In id ids).
-Proof.
-  induction 1.
-  - auto.
-  - intros His. subst. destruct IHreserve_global_params.
-    { eauto. }
-    { destruct (Pos.eq_dec id id0).
-      { subst. right. by left. }
-      { rewrite ParamMap.is_id_reserve_other in H; auto. }
-    }
-    right. by right.
-Qed.
-
-Lemma In_flatten_parameter_list_id' prs id b ofs :
-  In (id, b, ofs) (flatten_parameter_list prs) ->
-  In id (map (fun '(id, _ ,_) => id) prs).
-Proof.
-  induction prs.
-  - inversion 1.
-  - destruct a as ((?&[])&?) => //=;
-    try (destruct 1 as [Hleft|Hright]; [ left; congruence | right; eauto ]).
-    rewrite /flatten_parameter_list/=.
-    intros [Hleft|Hright]%in_app_or.
-    { rewrite /parameter_basic_to_list/data_basic_to_list/= in Hleft.
-      apply in_combine_l in Hleft. apply repeat_spec in Hleft. left; congruence. }
-    { right. eauto. }
-Qed.
-
-Lemma In_flatten_parameter_list_id pr id b ofs :
-  In (id, b, ofs) (flatten_parameter_list (pr_parameters_vars pr)) ->
-  In id (pr_parameters_ids pr).
-Proof. eapply In_flatten_parameter_list_id'. Qed.
-
 
 Lemma In_parameter_basic_to_list_inv id b ofs i b' oe :
   In (id, b, ofs) (parameter_basic_to_list (i, b', oe)) ->

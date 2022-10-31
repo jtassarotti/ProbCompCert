@@ -30,8 +30,8 @@ Notation "'do' X , Y , Z <- A ; B" := (match A with Some (X, Y, Z) => B | None =
 Local Open Scope option_monad_scope.
 
 Definition math_fun_remap : PTree.t (AST.ident) :=
-   PTree.set ($"normal_lpdf") ($"normal_lupdf") 
-  (PTree.set ($"cauchy_lpdf") ($"cauchy_lupdf") 
+   PTree.set ($"normal_lpdf") ($"normal_lupdf")
+  (PTree.set ($"cauchy_lpdf") ($"cauchy_lupdf")
              (PTree.empty _)).
 
 Definition Ezero := Econst_float (Floats.Float.zero) Breal.
@@ -90,7 +90,7 @@ Fixpoint check_no_target_expr (e: expr) : option (unit) :=
       do _ <- check_no_target_expr e;
       check_no_target_exprlist el
   | Eunop op e b => check_no_target_expr e
-  | Ebinop e1 op e2 b => 
+  | Ebinop e1 op e2 b =>
       do _ <- check_no_target_expr e1;
       check_no_target_expr e2
   | Eindexed e el b =>
@@ -103,7 +103,7 @@ Fixpoint check_no_target_expr (e: expr) : option (unit) :=
 with check_no_target_exprlist el : option (unit) :=
   match el with
   | Enil => Some tt
-  | Econs e el => 
+  | Econs e el =>
       do _ <- check_no_target_expr e;
       check_no_target_exprlist el
   end.
@@ -177,7 +177,7 @@ Fixpoint transf_statement (s: Stanlight.statement) {struct s} : option (Stanligh
     | true =>
         do s <- transf_statement s;
         Some (Sfor i (Econst_int i1 Bint) (Econst_int i2 Bint) s)
-    | false => 
+    | false =>
         Some (Sfor i (Econst_int i1 Bint) (Econst_int i2 Bint) s)
     end
   | Sfor i e1 e2 s =>
@@ -231,23 +231,22 @@ Definition transf_fundef (fd: Stanlight.fundef) : (Stanlight.fundef) :=
   | Ctypes.External ef targs tres cc => Ctypes.External ef targs tres cc
   end.
 
-Definition transf_program(p: program): program := 
-  let p1:= AST.transform_program transf_fundef p in
-  {|
-      Stanlight.pr_defs := AST.prog_defs p1;
-      Stanlight.pr_parameters_vars := p.(pr_parameters_vars);
-      Stanlight.pr_data_vars := p.(pr_data_vars);
-    |}.
-
-(* TODO: need to check whether params shadow *)
-(*
 Definition param_check_shadow (p: AST.ident * basic * option (expr -> expr)) :=
   let '(id, b, fe) := p in
   if forallb (fun id' => match (Pos.eq_dec id' id) with
                       | left _ => false
                       | right _ => true
-                         end) StanEnv.math_idents then
+                         end) StanEnv.pdf_idents then
     Errors.OK tt
   else
     Errors.Error (Errors.msg "Additive Const: parameter shadows global math functions").
-*)
+
+Definition transf_program(p: program): Errors.res program :=
+  Errors.bind (Errors.mmap (param_check_shadow ) (p.(pr_parameters_vars)))
+              (fun _ =>
+                let p1:= AST.transform_program transf_fundef p in
+                Errors.OK {|
+                    Stanlight.pr_defs := AST.prog_defs p1;
+                    Stanlight.pr_parameters_vars := p.(pr_parameters_vars);
+                    Stanlight.pr_data_vars := p.(pr_data_vars);
+                  |}).
