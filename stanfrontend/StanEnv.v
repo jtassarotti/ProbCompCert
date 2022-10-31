@@ -172,6 +172,16 @@ Proof.
   congruence.
 Qed.
 
+Lemma IFR_inj t1 t2 :
+  IFR t1 = IFR t2 ->
+  t1 = t2.
+Proof.
+  intros Heq.
+  rewrite -(IRF_IFR_inv t1).
+  rewrite -(IRF_IFR_inv t2).
+  congruence.
+Qed.
+
 Definition normal_lpdf_ef_external :=
   (AST.EF_external "normal_lpdf" (AST.mksignature (AST.Tfloat :: AST.Tfloat :: AST.Tfloat :: nil)
                                     (AST.Tret AST.Tfloat)

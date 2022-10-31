@@ -684,9 +684,35 @@ Proof.
 Qed.
 
 
+(* Simulation in the case where additive const doesn't change the program *)
 Section nochange.
 
+Variable no_change_model :
+  ∃ bprog btprog f,
+  Genv.find_symbol ge $"model" = Some bprog /\
+  Genv.find_funct_ptr ge bprog = Some (Ctypes.Internal f) /\
+  Genv.find_symbol tge $"model" = Some btprog /\
+  Genv.find_funct_ptr tge btprog = Some (Ctypes.Internal f).
+
 Definition match_states_nochange: state -> state -> Prop := λ s1 s2, s1 = s2.
+
+Lemma transf_initial_states_nochange:
+  forall S1, initial_state prog data params S1 ->
+  exists S2, initial_state tprog data params S2 /\ match_states_nochange S1 S2.
+Proof.
+  intros S1 Hinit. inv Hinit.
+  edestruct no_change_model as (bprog&btprog&f'&?&?&?&?).
+  rewrite /ge0 in H0 H1.
+  rewrite /ge in H5 H6.
+  assert (b = bprog) by congruence; subst.
+  assert (f = f') by congruence; subst.
+  eexists. split; last by econstructor.
+  econstructor; eauto.
+  destruct TRANSL as (TRANSL'&_).
+  eapply (Genv.init_mem_match TRANSL'); eauto.
+  eapply assign_global_locs_preserved. rewrite data_vars_preserved; eauto.
+  eapply set_global_params_preserved; rewrite parameters_vars_preserved parameters_ids_preserved. eauto.
+Qed.
 
 Lemma step_simulation_nochange:
   forall S1 t S2, step ge S1 t S2 ->
@@ -716,9 +742,29 @@ Proof.
   { econstructor. auto. }
 Qed.
 
+Theorem transf_program_correct_nochange t:
+  forward_simulation (Ssemantics.semantics prog data params t) (Ssemantics.semantics tprog data params t).
+Proof.
+  eapply forward_simulation_step.
+  eapply senv_preserved.
+  eexact transf_initial_states_nochange.
+  intros. eapply transf_final_states_nochange; eauto.
+  exact step_simulation_nochange.
+Qed.
+
 End nochange.
 
 Section change.
+
+Variable model_fn : function.
+
+Variable change_model :
+  ∃ bprog btprog body,
+  Genv.find_symbol ge $"model" = Some bprog /\
+  Genv.find_funct_ptr ge bprog = Some (Ctypes.Internal model_fn) /\
+  transf_function_body model_fn = Some body /\
+  Genv.find_symbol tge $"model" = Some btprog /\
+  Genv.find_funct_ptr tge btprog = Some (Ctypes.Internal (mkfunction body model_fn.(fn_vars))).
 
 Inductive transf_const_match : _ -> _ -> _ -> Prop :=
   | transf_const_change : forall s s' r
@@ -765,6 +811,7 @@ Definition env_match_vals (en: env) (ivs: list (AST.ident * Integers.Int.int)) :
 
 Definition compute_const_function (f: Stanlight.function) : R :=
   let res := (do _ <- list_option_map (vars_check_shadow) (f.(fn_vars));
+              do _ <- check_no_target_statement f.(fn_body);
     compute_const_statement' f.(fn_body)) in
   match res with
   | None => 0
@@ -772,26 +819,26 @@ Definition compute_const_function (f: Stanlight.function) : R :=
   end.
 
 Inductive match_states: state -> state -> Prop :=
-  | match_start_states: forall f s s' t e m pm
-      (FN: s = (fn_body f))
-      (TRS: s' = (fn_body (transf_function f)))
+  | match_start_states: forall s s' t e m pm
+      (FN: s = (fn_body model_fn))
+      (TRS: s' = (fn_body (transf_function model_fn)))
       (NT: check_no_target_statement s = Some tt)
       (ENOSHADOW: no_shadow_pdflib e)
       (PMNOSHADOW: no_shadow_pdflib pm),
-      match_states (Start f s t Kstop e m pm) (Start (transf_function f) s' t Kstop e m pm)
-  | match_regular_states: forall f s s' t t' k k' e m pm iv  rk rs
+      match_states (Start model_fn s t Kstop e m pm) (Start (transf_function model_fn) s' t Kstop e m pm)
+  | match_regular_states: forall s s' t t' k k' e m pm iv rk rs
       (MCONT: match_cont k k' iv rk)
       (TRSC: transf_const_match s s' rs)
       (NT: check_no_target_statement s = Some tt)
       (NA: Forall (λ '(i, v), check_no_assign i s = true) iv)
-      (DIFF: IFR t - IFR t' = compute_const_function f - rs - rk)
+      (DIFF: IFR t - IFR t' = compute_const_function model_fn - rs - rk)
       (ENV: env_match_vals e iv)
       (ENOSHADOW: no_shadow_pdflib e)
       (PMNOSHADOW: no_shadow_pdflib pm),
-      match_states (State f s t k e m pm) (State (transf_function f) s' t' k' e m pm)
-  | match_return_states: forall f t t' e m pm
-      (DIFF: IFR t - IFR t' = compute_const_function f),
-      match_states (Return f t e m pm) (Return (transf_function f) t' e m pm).
+      match_states (State model_fn s t k e m pm) (State (transf_function model_fn) s' t' k' e m pm)
+  | match_return_states: forall t t' e m pm
+      (DIFF: IFR t - IFR t' = compute_const_function model_fn),
+      match_states (Return model_fn t e m pm) (Return (transf_function model_fn) t' e m pm).
 
 Lemma transf_statement_some_compute_const s s' :
   transf_statement s = Some s' ->
@@ -917,8 +964,11 @@ Qed.
 Lemma transf_const_match_fun f :
   transf_const_match (fn_body f) (fn_body (transf_function f)) (compute_const_function f).
 Proof.
-  rewrite /transf_function/compute_const_function.
+  clear.
+  rewrite /transf_function/transf_function_body/compute_const_function.
   destruct (list_option_map _ _); last first.
+  { rewrite /=. apply transf_const_same. }
+  destruct (check_no_target_statement ); last first.
   { rewrite /=. apply transf_const_same. }
   destruct (transf_statement (fn_body f)) eqn:Htransf.
   { exploit transf_statement_some_compute_const; eauto. intros (r&Hcompute).
@@ -926,6 +976,89 @@ Proof.
   { exploit transf_statement_none_compute_const; eauto. intros Hcompute.
     rewrite Hcompute. eapply transf_const_same. }
 Qed.
+
+Lemma list_option_map_inversion {A B: Type} (f: A -> option B) (l: list A) (l' : list B) :
+  list_option_map f l = Some l' -> list_forall2 (λ x y, f x = Some y) l l'.
+Proof.
+  revert l'.
+  induction l; eauto.
+  { simpl. inversion 1; subst. econstructor; eauto. }
+  { intros l'.
+    simpl. intros Heq.
+    apply some_bind_inversion in Heq as (b'&?&Hrest).
+    apply some_bind_inversion in Hrest as (l''&Hrec&Hrest).
+    eapply IHl in Hrec. destruct l' as [|]; inv Hrest; [].
+    econstructor; eauto.
+  }
+Qed.
+
+Lemma vars_check_shadow_ok id b xt:
+  vars_check_shadow (id, b) = Some xt ->
+  ¬ In id pdf_idents.
+Proof.
+  intros Hin.
+  unfold vars_check_shadow in Hin.
+  destruct (forallb _ _) eqn:Hforallb; last by inv Hin.
+  rewrite forallb_forall in Hforallb * => Hforallb.
+  intros Hin'. assert (In id (pdf_idents ++ math_idents)) as Hin''.
+  { apply in_or_app; eauto. }
+  eapply Hforallb in Hin''.
+  destruct (Pos.eq_dec id id); inv Hin''.
+  congruence.
+Qed.
+
+Lemma transf_initial_states:
+  forall S1, initial_state prog data params S1 ->
+  exists S2, initial_state tprog data params S2 /\ match_states S1 S2.
+Proof.
+  intros S1 Hinit. inv Hinit.
+  edestruct change_model as (bprog&btprog&f'&Hfinds&Hfindp&Htransf&?&?).
+  rewrite /ge0 in H0 H1.
+  rewrite /ge in Hfinds Hfindp.
+  assert (b = bprog) by congruence; subst.
+  assert (f = model_fn) by congruence; subst.
+  eexists. split.
+  {
+    econstructor; eauto.
+    destruct TRANSL as (TRANSL'&_).
+    eapply (Genv.init_mem_match TRANSL'); eauto.
+    simpl. eapply assign_global_locs_preserved. rewrite data_vars_preserved; eauto.
+    eapply set_global_params_preserved; rewrite parameters_vars_preserved parameters_ids_preserved. eauto.
+  }
+  {
+    simpl.
+    assert ({| fn_body := f'; fn_vars := fn_vars model_fn |} = transf_function (model_fn)) as ->.
+    { rewrite /transf_function. rewrite Htransf //. }
+
+    econstructor; eauto.
+    { rewrite /transf_function. rewrite Htransf //=. }
+    { unfold transf_function_body in Htransf.
+      { apply some_bind_inversion in Htransf as (s1'&Heqs1'&Hrest).
+        apply some_bind_inversion in Hrest as ([]&Heqs2'&Hrest).
+        eauto.
+      }
+    }
+    { unfold transf_function_body in Htransf.
+      { apply some_bind_inversion in Htransf as (s1'&Heqs1'&Hrest).
+        apply Forall_forall. intros x Hin.
+        eapply list_option_map_inversion in Heqs1' as EQ.
+
+        destruct (is_id_alloc e x) as [] eqn:Hgetenv; auto.
+        eapply alloc_variables_in_env in Hgetenv; eauto.
+        destruct Hgetenv as [(?&Hin')|Hfalso].
+        {
+          eapply list_forall2_in_left in EQ as (?&?&Hin''); eauto.
+          apply vars_check_shadow_ok in Hin''.
+          intuition.
+        }
+        { rewrite is_id_empty in Hfalso; congruence. }
+      }
+    }
+    {
+      admit.
+    }
+  }
+Abort.
 
 Lemma step_simulation:
   forall S1 t S2, step ge S1 t S2 ->
@@ -1344,46 +1477,18 @@ Proof.
     }
 Qed.
 
-
 Lemma transf_final_states:
-  forall S1 S2 t r, match_states S1 S2 -> final_state t S1 r -> final_state t S2 r.
+  forall S1 S2 t r, match_states S1 S2 -> final_state t S1 r ->
+                    final_state (IRF (IFR t - compute_const_function model_fn)) S2 r.
 Proof.
-Abort.
+  intros S1 S2 t r Hmatch Hfinal. inv Hfinal; inv Hmatch.
+  { constructor. rewrite -DIFF. rewrite -[a in _ = a](IRF_IFR_inv t'). f_equal. ring. }
+  { constructor. rewrite -DIFF. rewrite -[a in _ = a](IRF_IFR_inv t').
+    intros Heq%IRF_inj. assert (IFR t = IFR t0) as Hfr by nra.
+    apply IFR_inj in Hfr. congruence. }
+Qed.
 
 End change.
-
-Lemma transf_initial_states:
-  forall S1, initial_state prog data params S1 ->
-  exists S2, initial_state tprog data params S2 /\ match_states S1 S2.
-Proof.
-  intros S1 Hinit.
-  inv Hinit.
-  destruct TRANSL as (TRANSL'&_).
-  exploit (function_ptr_translated); eauto.
-  intros Hfind.
-  exists (Start (transf_function f) ((fn_body (transf_function f)))
-            (Floats.Float.of_int Integers.Int.zero) Kstop e m1 pm).
-  split.
-  { econstructor; eauto; eauto.
-    eapply (Genv.init_mem_match TRANSL'); eauto.
-    rewrite symbols_preserved. eauto.
-    eapply assign_global_locs_preserved. rewrite data_vars_preserved; eauto.
-    eapply set_global_params_preserved; rewrite parameters_vars_preserved parameters_ids_preserved. eauto.
-  }
-  econstructor; eauto.
-  { admit. }
-  (* Annoying, maybe do a case split elsewhere about whether transf function returned some... *)
-  (*
-  exploit (function_ptr_translated b (Ctypes.Internal f)); eauto.
-  intros TR.
-  unfold transf_fundef in TR. eauto.
-  eapply assign_global_locs_preserved. rewrite data_vars_preserved; eauto.
-  eapply set_global_params_preserved; rewrite parameters_vars_preserved, parameters_ids_preserved. eauto.
-  econstructor; eauto.
-  econstructor.
-   *)
-Abort.
-
 
 Theorem transf_program_correct t:
   forward_simulation (Ssemantics.semantics prog data params t) (Ssemantics.semantics tprog data params t).

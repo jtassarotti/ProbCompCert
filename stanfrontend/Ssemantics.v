@@ -1133,3 +1133,18 @@ Proof.
   { intuition. }
   { eauto. }
 Qed.
+
+Lemma alloc_variables_in_env env vs env' :
+  alloc_variables env vs env'->
+  ∀ id, is_id_alloc env' id = true ->
+              (∃ b, In (id, b) vs) \/ is_id_alloc env id = true.
+Proof.
+  induction 1.
+  - intros. eauto.
+  - intros. edestruct IHalloc_variables as [Hleft|Hright].
+    { eauto. }
+    { left. destruct Hleft.  eexists; right. eauto. }
+    destruct (Pos.eq_dec id0 id). subst.
+    { left. eexists. left. eauto. }
+    { rewrite is_id_setv_other // in Hright. right; eauto. }
+Qed.

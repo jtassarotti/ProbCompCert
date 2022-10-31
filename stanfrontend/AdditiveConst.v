@@ -212,12 +212,14 @@ Fixpoint list_option_map {A B} (f: A -> option B) (l: list A) : option (list B) 
       Some (b :: l')
   end.
 
-Definition transf_function (f: Stanlight.function): (Stanlight.function) :=
-  let res :=
+Definition transf_function_body (f: Stanlight.function) : option statement :=
     do _ <- list_option_map (vars_check_shadow) (f.(fn_vars));
-    transf_statement f.(fn_body) in
+    do _ <- check_no_target_statement f.(fn_body);
+    transf_statement f.(fn_body).
+
+Definition transf_function (f: Stanlight.function): (Stanlight.function) :=
   let body :=
-    match res with
+    match transf_function_body f with
     | None => f.(fn_body)
     | Some b => b
     end in
