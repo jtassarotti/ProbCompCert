@@ -8,6 +8,7 @@ Require Import Maps.
 Require Import Stanlight.
 Require Import Ssemantics.
 Require Import AdditiveConst.
+Require DenotationalSimulation.
 Require Import DenotationalSimulationAdditive.
 Require Import Coqlib.
 Require Import Transforms.
@@ -709,6 +710,7 @@ Qed.
 Section nochange.
 
 Variable no_change_model :
+  forall S1, initial_state prog data params S1 ->
   ∃ bprog btprog f,
   Genv.find_symbol ge $"model" = Some bprog /\
   Genv.find_funct_ptr ge bprog = Some (Ctypes.Internal f) /\
@@ -721,10 +723,10 @@ Lemma transf_initial_states_nochange:
   forall S1, initial_state prog data params S1 ->
   exists S2, initial_state tprog data params S2 /\ match_states_nochange S1 S2.
 Proof.
-  intros S1 Hinit. inv Hinit.
-  edestruct no_change_model as (bprog&btprog&f'&?&?&?&?).
-  rewrite /ge0 in H0 H1.
-  rewrite /ge in H5 H6.
+  intros S1 Hinit.
+  edestruct no_change_model as (bprog&btprog&f'&Hfinds&Hfindp&Hfinds'&Hfindp'); eauto.
+  inv Hinit.
+  unfold ge0, ge in *.
   assert (b = bprog) by congruence; subst.
   assert (f = f') by congruence; subst.
   eexists. split; last by econstructor.
@@ -780,12 +782,13 @@ Section change.
 Variable model_fn : function.
 
 Variable change_model :
+  (∀ data params S1, initial_state prog data params S1 ->
   ∃ bprog btprog body,
   Genv.find_symbol ge $"model" = Some bprog /\
   Genv.find_funct_ptr ge bprog = Some (Ctypes.Internal model_fn) /\
   transf_function_body model_fn = Some body /\
   Genv.find_symbol tge $"model" = Some btprog /\
-  Genv.find_funct_ptr tge btprog = Some (Ctypes.Internal (mkfunction body model_fn.(fn_vars))).
+  Genv.find_funct_ptr tge btprog = Some (Ctypes.Internal (mkfunction body model_fn.(fn_vars)))).
 
 Inductive transf_const_match : _ -> _ -> _ -> Prop :=
   | transf_const_change : forall s s' r
@@ -1032,9 +1035,10 @@ Lemma transf_initial_states:
   forall S1, initial_state prog data params S1 ->
   exists S2, initial_state tprog data params S2 /\ match_states S1 S2.
 Proof.
-  intros S1 Hinit. inv Hinit.
-  edestruct change_model as (bprog&btprog&f'&Hfinds&Hfindp&Htransf&?&?).
-  rewrite /ge0 in H0 H1.
+  intros S1 Hinit.
+  edestruct change_model as (bprog&btprog&f'&Hfinds&Hfindp&Htransf&?&?); eauto.
+  inv Hinit.
+  unfold ge0 in *.
   rewrite /ge in Hfinds Hfindp.
   assert (b = bprog) by congruence; subst.
   assert (f = model_fn) by congruence; subst.
@@ -1506,6 +1510,30 @@ Proof.
 Qed.
 
 Lemma transf_final_states:
+  forall S1 S2 t r, match_states S1 S2 -> final_state (IRF t) S1 r ->
+                    final_state (IRF (-compute_const_function model_fn + t)) S2 r.
+Proof.
+  intros S1 S2 t r Hmatch Hfinal. inv Hfinal; inv Hmatch.
+  { constructor. rewrite -DIFF. rewrite -[a in _ = a](IRF_IFR_inv t'). f_equal.
+    rewrite IFR_IRF_inv. ring. }
+  { constructor. rewrite -DIFF. rewrite -[a in _ = a](IRF_IFR_inv t').
+    intros Heq%IRF_inj. assert (t = IFR t0) as Hfr by nra.
+    subst. rewrite IRF_IFR_inv in H. congruence. }
+Qed.
+
+Theorem transf_program_correct t:
+  forward_simulation (Ssemantics.semantics prog data params (IRF t))
+    (Ssemantics.semantics tprog data params (IRF (-compute_const_function model_fn + t))).
+Proof.
+  eapply forward_simulation_step.
+  eapply senv_preserved.
+  eexact transf_initial_states.
+  intros. eapply transf_final_states; eauto.
+  exact step_simulation.
+Qed.
+
+(*
+Lemma transf_final_states:
   forall S1 S2 t r, match_states S1 S2 -> final_state t S1 r ->
                     final_state (IRF (IFR t - compute_const_function model_fn)) S2 r.
 Proof.
@@ -1515,13 +1543,9 @@ Proof.
     intros Heq%IRF_inj. assert (IFR t = IFR t0) as Hfr by nra.
     apply IFR_inj in Hfr. congruence. }
 Qed.
+*)
 
 End change.
-
-Theorem transf_program_correct t:
-  forward_simulation (Ssemantics.semantics prog data params t) (Ssemantics.semantics tprog data params t).
-Proof.
-Abort.
 
 End PRESERVATION.
 
@@ -1530,14 +1554,78 @@ Section DENOTATIONAL_PRESERVATION.
 Variable prog: program.
 Variable tprog: program.
 Variable TRANSL: match_prog prog tprog.
+Let ge := globalenv prog.
+Let tge := globalenv tprog.
 
 Theorem denotational_preserved :
   denotational_refinement tprog prog.
 Proof.
-Abort.
+  (* This is a clunky way of case splitting on whether the optimization triggered on model block or not *)
+  assert ((∀ data params S1, initial_state prog data params S1 ->
+              ∃ bprog btprog f,
+                Genv.find_symbol ge $"model" = Some bprog /\
+                  Genv.find_funct_ptr ge bprog = Some (Ctypes.Internal f) /\
+                  Genv.find_symbol tge $"model" = Some btprog /\
+                  Genv.find_funct_ptr tge btprog = Some (Ctypes.Internal f)) ∨
+             (∃ model_fn,
+                 (∀ data params S1, initial_state prog data params S1 ->
+                  ∃ bprog btprog body,
+                    Genv.find_symbol ge $"model" = Some bprog /\
+                      Genv.find_funct_ptr ge bprog = Some (Ctypes.Internal model_fn) /\
+                      transf_function_body model_fn = Some body /\
+                      Genv.find_symbol tge $"model" = Some btprog /\
+                      Genv.find_funct_ptr tge btprog = Some (Ctypes.Internal (mkfunction body model_fn.(fn_vars)))
+         )))
+           as [Hnochange|Hchange].
+  {
+    destruct (Genv.find_symbol ge $"model") as [bprog|] eqn:Hfinds; last first.
+    { left. inversion 1. unfold ge, ge0 in *. congruence. }
+    destruct (Genv.find_funct_ptr ge bprog) as [model_fn'|] eqn:Hfindp; last first.
+    { left. inversion 1. unfold ge, ge0 in *. congruence. }
+    destruct model_fn' as [model_fn|]; last first.
+    { left. inversion 1. unfold ge, ge0 in *. congruence. }
+    destruct (transf_function_body model_fn) as [body|] eqn:Hbody.
+    { right. exists model_fn.  inversion 1; subst. unfold ge, ge0 in *.
+      exists bprog, bprog, body.
+      { repeat split; auto.
+        { unfold tge. erewrite symbols_preserved; eauto. }
+        exploit function_ptr_translated; eauto. unfold tge.
+        assert (b = bprog) by congruence. subst.
+        assert (f = model_fn) by congruence. subst.
+        intros ->.
+        simpl. rewrite /transf_function.
+        rewrite Hbody. eauto.
+      }
+    }
+    { left. intros. exists bprog, bprog, model_fn.
+      repeat split; auto.
+      { unfold tge. erewrite symbols_preserved; eauto. }
+      exploit function_ptr_translated; eauto. unfold tge.
+      intros ->.
+      rewrite //=.
+      do 2 f_equal. rewrite /transf_function Hbody //. destruct model_fn; auto.
+    }
+  }
+  { eapply DenotationalSimulation.denotational_preserved.
+    { intros data params t Hsafe. apply transf_program_correct_nochange; eauto. }
+    { destruct TRANSL as (Hmatch&?&?). eapply match_flatten_parameter_variables; eauto. intuition. }
+    { destruct TRANSL as (Hmatch&?&?).
+      eapply match_program_external_funct; eauto.
+      intros. simpl. congruence. }
+    - eapply Genv.senv_transf; apply TRANSL.
+    - apply symbols_preserved; auto.
+  }
+  { destruct Hchange as (model_fn&Hchange).
+    eapply DenotationalSimulationAdditive.denotational_preserved with
+      (target_const := λ _, - compute_const_function model_fn).
+    { intros data params t ??. apply transf_program_correct; eauto. }
+    { destruct TRANSL as (Hmatch&?&?). eapply match_flatten_parameter_variables; eauto. intuition. }
+    { destruct TRANSL as (Hmatch&?&?).
+      eapply match_program_external_funct; eauto.
+      intros. simpl. congruence. }
+    - eapply Genv.senv_transf; apply TRANSL.
+    - apply symbols_preserved; auto.
+  }
+Qed.
 
 End DENOTATIONAL_PRESERVATION.
-
-Global Instance TransfSamplingLink : TransfLink match_prog.
-Proof.
-Admitted.

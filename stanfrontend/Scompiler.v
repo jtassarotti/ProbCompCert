@@ -17,6 +17,7 @@ Require Import Sbackend.
 Require Import Coqlib.
 Require Import Linking. 
 
+Require AdditiveConstproof.
 Require Reparameterizationproof.
 Require Clightificationproof.
 Require Samplingproof.
@@ -34,12 +35,12 @@ Parameter print_CStan: Z -> CStan.program -> unit.
 Definition transf_stanlight_program (p: Stanlight.program) : res Stanlight.program :=
   OK p
   @@ time "Sampling" Sampling.transf_program
-  @@@ time "Reparameterization" Reparameterization.transf_program.
+  @@@ time "Reparameterization" Reparameterization.transf_program
+  @@@ time "AdditiveConst" AdditiveConst.transf_program.
 
 (* Full translation of stanlight to Clight *)
 Definition transf_stan_program(p: Stanlight.program): res Clight.program :=
   (transf_stanlight_program p)
-  @@@ time "AdditiveConst" AdditiveConst.transf_program
   @@@ time "Clightification" Clightification.transf_program
   @@ print (print_CStan 0)
   @@@ time "VariableAllocation" VariableAllocation.transf_program
@@ -59,8 +60,11 @@ Proof.
   eapply (denotational_refinement_trans); last first.
   { eapply Samplingproof.denotational_preserved.
     eapply Samplingproof.transf_program_match. }
+  eapply (denotational_refinement_trans); last first.
   { eapply Reparameterizationproof.denotational_preserved.
-    eapply Reparameterizationproof.transf_program_match; auto. }
+    eapply Reparameterizationproof.transf_program_match; eauto. }
+  { eapply AdditiveConstproof.denotational_preserved.
+    eapply AdditiveConstproof.transf_program_match; eauto. }
 Qed.
 
 Definition transf_stan_program_complete(p: Stanlight.program): res Asm.program :=

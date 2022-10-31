@@ -34,6 +34,7 @@ Variable target_const : list val -> R.
 
 Variable transf_correct:
   forall data params t,
+    genv_has_mathlib (globalenv prog) ->
     is_safe prog data params ->
     forward_simulation (Ssemantics.semantics prog data params (IRF t)) (Ssemantics.semantics tprog data params (IRF (target_const data + t))).
 
@@ -132,6 +133,10 @@ Lemma dimen_preserved:
   parameter_dimension tprog = parameter_dimension prog.
 Proof. rewrite /parameter_dimension/flatten_parameter_constraints. rewrite parameters_preserved //. Qed.
 
+Section has_mathlib.
+
+Variable MATH: genv_has_mathlib (globalenv prog).
+
 Lemma returns_target_value_fsim data params t:
   is_safe prog data params ->
   returns_target_value prog data params (IRF t) ->
@@ -178,7 +183,7 @@ Proof.
   { destruct (ClassicalEpsilon.constructive_indefinite_description) as [x Hx].
     symmetry.
     replace x with (IRF (IFR x)) in Hx; last by (rewrite IRF_IFR_inv).
-    exploit returns_target_value_fsim; eauto. 
+    exploit returns_target_value_fsim; eauto.
     intros Heq%log_density_of_program_trace. rewrite Heq.
     rewrite IFR_IRF_inv //.
   }
@@ -186,7 +191,7 @@ Proof.
   rewrite {1}/log_density_of_program.
   rewrite /pred_to_default_fun.
   destruct (ClassicalEpsilon.excluded_middle_informative) as [(v&Hreturns)|Hne']; auto.
-  { 
+  {
     exfalso. apply Hne.
     assert (v = IRF (target_const data + (IFR v - target_const data))) as Heq.
     { rewrite -{1}(IRF_IFR_inv v). f_equal. nra. }
@@ -216,7 +221,7 @@ Proof.
   split.
   {
     intros t s Hinit.
-    epose proof (transf_correct data (map R2val params) (- target_const data + IFR t)) as Hfsim. 
+    epose proof (transf_correct data (map R2val params) (- target_const data + IFR t)) as Hfsim.
     apply forward_to_backward_simulation in Hfsim as Hbsim;
       auto using semantics_determinate, semantics_receptive.
     edestruct Hbsim as [index order match_states props].
@@ -237,6 +242,8 @@ Proof.
   }
 Qed.
 
+End has_mathlib.
+
 Lemma parameter_list_rect_preserved :
   parameter_list_rect tprog = parameter_list_rect prog.
 Proof.
@@ -256,9 +263,9 @@ Proof.
     { specialize (exp_pos (target_const data)). nra. }
     {
       rewrite parameter_list_rect_preserved.
-      eapply is_IIRInt_list_ext; last first. 
+      eapply is_IIRInt_list_ext; last first.
       { apply is_IIRInt_list_scal; eauto. }
-      { intros x Hin. rewrite /program_normalizing_constant_integrand. 
+      { intros x Hin. rewrite /program_normalizing_constant_integrand.
         { rewrite /density_of_program/= -log_density_equiv //; try eapply Hsafe; eauto.
           rewrite exp_plus //=. }
       }
@@ -266,7 +273,7 @@ Proof.
     }
     {
       rewrite parameter_list_rect_preserved.
-      eapply is_IIRInt_list_ext; last first. 
+      eapply is_IIRInt_list_ext; last first.
       { apply is_IIRInt_list_scal; eauto. }
       { intros x Hin. rewrite /unnormalized_program_distribution_integrand.
         { rewrite /density_of_program/= -log_density_equiv //; try eapply Hsafe; eauto.
