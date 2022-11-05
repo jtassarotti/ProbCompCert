@@ -199,8 +199,8 @@ Inductive match_states: state -> state -> Prop :=
   | match_regular_states: forall f s t k k' e m pm
       (MCONT: match_cont k k'),
       match_states (State f s t k e m pm) (State (transf_function f) (transf_statement s) t k' e m pm)
-  | match_return_states: forall f t e m pm,
-      match_states (Return f t e m pm) (Return (transf_function f) t e m pm).
+  | match_return_states: forall t,
+      match_states (Return t) (Return t).
 
 Lemma step_simulation:
   forall S1 t S2, step ge S1 t S2 ->
@@ -216,7 +216,7 @@ Proof.
   econstructor; eauto.
   - (* Return *)
   inv MCONT.
-  exists (Return (transf_function f) t e m pm).
+  exists (Return t).
   split.
   econstructor.
   econstructor; eauto.

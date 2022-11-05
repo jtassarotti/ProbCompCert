@@ -860,9 +860,9 @@ Inductive match_states: state -> state -> Prop :=
       (ENOSHADOW: no_shadow_pdflib e)
       (PMNOSHADOW: no_shadow_pdflib pm),
       match_states (State model_fn s t k e m pm) (State (transf_function model_fn) s' t' k' e m pm)
-  | match_return_states: forall t t' e m pm
+  | match_return_states: forall t t'
       (DIFF: IFR t - IFR t' = compute_const_function model_fn),
-      match_states (Return model_fn t e m pm) (Return (transf_function model_fn) t' e m pm).
+      match_states (Return t) (Return t').
 
 Lemma transf_statement_some_compute_const s s' :
   transf_statement s = Some s' ->

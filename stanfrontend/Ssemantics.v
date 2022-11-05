@@ -220,11 +220,7 @@ Inductive state: Type :=
       (m: mem)
       (pm: param_mem float)
   | Return
-      (f: function)
       (t: float)
-      (e: env)
-      (m: mem)
-      (pm: param_mem float)
     : state.
 
 Definition var_names (vars: list(ident * basic)) : list ident :=
@@ -237,7 +233,7 @@ Inductive step: state -> trace -> state -> Prop :=
 
   | step_return : forall f t e m pm,
       step (State f Sskip t Kstop e m pm)
-        E0 (Return f t e m pm)
+        E0 (Return t)
 
   | step_skip_seq: forall f t s k e m pm,
       step (State f Sskip t (Kseq s k) e m pm)
@@ -471,12 +467,12 @@ Inductive initial_state (p: program) (data : list val) (params: list val) : stat
    (where 1 is true), but we are adhering to the unix tradition where "0" return value is "normal"
    and 1 is exceptional. It remains to be seen if this convention is confusing *)
 Inductive final_state (testval: float) : state -> int -> Prop :=
-  | final_state_match: forall f t e m pm,
+  | final_state_match: forall t,
       testval = t ->
-      final_state testval (Return f t e m pm) Integers.Int.zero
-  | final_state_nonmatch: forall f t e m pm,
+      final_state testval (Return t) Integers.Int.zero
+  | final_state_nonmatch: forall t,
       testval <> t ->
-      final_state testval (Return f t e m pm) Integers.Int.one.
+      final_state testval (Return t) Integers.Int.one.
 
 End SEMANTICS.
 

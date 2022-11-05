@@ -1678,12 +1678,9 @@ Inductive match_states: state -> state -> Prop :=
       (MPM: match_param_mem_full pm pm'),
       match_states (State f s t k e m pm)
                    (State f' s' t k' e m pm')
-  | match_return_states: forall f f' t e m pm pm'
-      (TRF: transf_function fpmap fcorrection f = OK f')
-      (VE: valid_env_full e pm')
-      (MPM: match_param_mem_full pm pm'),
-      match_states (Return f (IRF t) e m pm)
-                   (Return f' (IRF (target_map data (map R2val (param_unmap params)) t)) e m pm').
+  | match_return_states: forall t,
+      match_states (Return (IRF t))
+                   (Return (IRF (target_map data (map R2val (param_unmap params)) t))).
 
 Lemma flat_nodups_parameters : flat_nodups (flatten_parameter_list (pr_parameters_vars tprog)).
 Proof.
