@@ -1154,9 +1154,9 @@ Proof.
   eapply reserve_global_params_same; eauto.
 Qed.
 
-Lemma initial_states_match_param_none  d1 d2 p1 p2 f1 f2 fn1 fn2 t1 t2 K1 K2 e1 e2 m1 m2 pm1 pm2:
-  initial_state prog d1 p1 (Start f1 fn1 t1 K1 e1 m1 pm1) ->
-  initial_state tprog d2 p2 (Start f2 fn2 t2 K2 e2 m2 pm2) ->
+Lemma initial_states_match_param_none  d1 d2 p1 p2 f1 f2 fn1 fn2 t1 t2 e1 e2 m1 m2 pm1 pm2:
+  initial_state prog d1 p1 (Start f1 fn1 t1 e1 m1 pm1) ->
+  initial_state tprog d2 p2 (Start f2 fn2 t2 e2 m2 pm2) ->
   match_param_mem_none pm1 pm2.
 Proof.
   intros Hinit1 Hinit2.
@@ -1327,9 +1327,9 @@ Proof.
   }
 Qed.
 
-Lemma initial_states_match_param_some f1 f2 fn1 fn2 t1 t2 K1 K2 e1 e2 m1 m2 pm1 pm2:
-  initial_state prog data (map R2val params) (Start f1 fn1 t1 K1 e1 m1 pm1) ->
-  initial_state tprog data (map R2val (param_unmap params)) (Start f2 fn2 t2 K2 e2 m2 pm2) ->
+Lemma initial_states_match_param_some f1 f2 fn1 fn2 t1 t2 e1 e2 m1 m2 pm1 pm2:
+  initial_state prog data (map R2val params) (Start f1 fn1 t1 e1 m1 pm1) ->
+  initial_state tprog data (map R2val (param_unmap params)) (Start f2 fn2 t2 e2 m2 pm2) ->
   match_param_mem_some pm1 pm2.
 Proof.
   intros Hinit1 Hinit2.
@@ -1454,8 +1454,8 @@ Proof.
   eapply reserve_global_params_wf; eauto.
 Qed.
 
-Lemma wf_param_mem_init d f fn t K e m pm:
-  initial_state prog d (map R2val params) (Start f fn t K e m pm) ->
+Lemma wf_param_mem_init d f fn t e m pm:
+  initial_state prog d (map R2val params) (Start f fn t e m pm) ->
   wf_param_mem pm.
 Proof.
   intros Hinit. inv Hinit.
@@ -1668,8 +1668,8 @@ Inductive match_states: state -> state -> Prop :=
       (TRS: transf_statement fpmap s = OK s')
       (VE: valid_env_full e pm')
       (MPM: match_param_mem_full pm pm'),
-      match_states (Start f s t Kstop e m pm)
-                   (Start f' (Ssequence s' (Starget fcorrection)) t Kstop e m pm')
+      match_states (Start f s t e m pm)
+                   (Start f' (Ssequence s' (Starget fcorrection)) t e m pm')
   | match_regular_states: forall f f' s s' t k k' e m pm pm'
       (TRF: transf_function fpmap fcorrection f = OK f')
       (TRS: transf_statement fpmap s = OK s')
@@ -2109,8 +2109,7 @@ Proof.
   exploit (function_ptr_translated); eauto.
   intros (f'&Hfindf'&Htransff').
   monadInv Htransff'.
-  eexists (Start x (fn_body x) (Floats.Float.of_int Integers.Int.zero)
-            Kstop e _ _).
+  eexists (Start x (fn_body x) (Floats.Float.of_int Integers.Int.zero) e _ _).
   split.
   { econstructor; eauto.
     { destruct TRANSL' as (TRANS_GEN&?). eapply (Genv.init_mem_match TRANS_GEN); eauto. }
@@ -2236,6 +2235,3 @@ Proof.
 Qed.
 
 End DENOTATIONAL_PRESERVATION.
-
-Global Instance TransfReparameterizationtLink : TransfLink match_prog.
-Admitted.

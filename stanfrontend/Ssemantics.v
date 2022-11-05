@@ -216,7 +216,6 @@ Inductive state: Type :=
       (f: function)
       (s: statement)
       (t: float)
-      (k: cont)
       (e: env)
       (m: mem)
       (pm: param_mem float)
@@ -232,9 +231,9 @@ Definition var_names (vars: list(ident * basic)) : list ident :=
   List.map (@fst ident basic) vars.
 
 Inductive step: state -> trace -> state -> Prop :=
-  | step_start : forall f s t k e m pm,
-      step (Start f s t k e m pm)
-        E0 (State f s t k e m pm)
+  | step_start : forall f s t e m pm,
+      step (Start f s t e m pm)
+        E0 (State f s t Kstop e m pm)
 
   | step_return : forall f t e m pm,
       step (State f Sskip t Kstop e m pm)
@@ -247,6 +246,7 @@ Inductive step: state -> trace -> state -> Prop :=
   | step_seq: forall f t s1 s2 k e m pm,
     step (State f (Ssequence s1 s2) t k e m pm) E0 (State f s1 t (Kseq s2 k) e m pm)
 
+         (* TODO: we so far only give sem to case where Bop is none *)
   | step_assign_env: forall f t a1 a2 k e m pm id ofs v2 e',
       eval_llvalue e m pm t a1 id ofs ->
       eval_expr e m pm t a2 v2 ->
@@ -463,7 +463,7 @@ Inductive initial_state (p: program) (data : list val) (params: list val) : stat
       assign_global_locs ge (flatten_data_list p.(pr_data_vars)) m0 data m1 ->
       set_global_params (pr_parameters_ids p) (flatten_parameter_list p.(pr_parameters_vars))
                             params (ParamMap.empty float) pm ->
-      initial_state p data params (Start f f.(fn_body) ((Floats.Float.of_int Integers.Int.zero)) Kstop e m1 pm).
+      initial_state p data params (Start f f.(fn_body) ((Floats.Float.of_int Integers.Int.zero)) e m1 pm).
 
 
 (* A final state returns 0 if the target matches testval and 1 otherwise,

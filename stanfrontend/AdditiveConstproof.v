@@ -849,7 +849,7 @@ Inductive match_states: state -> state -> Prop :=
       (NT: check_no_target_statement s = Some tt)
       (ENOSHADOW: no_shadow_pdflib e)
       (PMNOSHADOW: no_shadow_pdflib pm),
-      match_states (Start model_fn s t Kstop e m pm) (Start (transf_function model_fn) s' t Kstop e m pm)
+      match_states (Start model_fn s t e m pm) (Start (transf_function model_fn) s' t e m pm)
   | match_regular_states: forall s s' t t' k k' e m pm iv rk rs
       (MCONT: match_cont k k' iv rk)
       (TRSC: transf_const_match s s' rs)

@@ -194,9 +194,8 @@ Inductive match_cont: cont -> cont -> Prop :=
       match_cont (Kfor id e2 s k) (Kfor id e2 (transf_statement s) k').
 
 Inductive match_states: state -> state -> Prop :=
-  | match_start_states: forall f s t k k' e m pm
-      (MCONT: match_cont k k'),
-      match_states (Start f s t k e m pm) (Start (transf_function f) (transf_statement s) t k' e m pm)
+  | match_start_states: forall f s t e m pm,
+      match_states (Start f s t e m pm) (Start (transf_function f) (transf_statement s) t e m pm)
   | match_regular_states: forall f s t k k' e m pm
       (MCONT: match_cont k k'),
       match_states (State f s t k e m pm) (State (transf_function f) (transf_statement s) t k' e m pm)
@@ -210,9 +209,10 @@ Lemma step_simulation:
 Proof.
   induction 1; intros S1' MS; inversion MS; simpl in *; subst.
   - (* Start *)
-  exists (State (transf_function f) (transf_statement s) t k' e m pm).
+  exists (State (transf_function f) (transf_statement s) t Kstop e m pm).
   split.
   econstructor.
+  econstructor; eauto.
   econstructor; eauto.
   - (* Return *)
   inv MCONT.
@@ -297,7 +297,7 @@ Lemma transf_initial_states:
   exists S2, initial_state tprog data params S2 /\ match_states S1 S2.
 Proof.
   intros. inversion H.
-  exists (Start (transf_function f) (transf_statement (fn_body f)) (Floats.Float.of_int Integers.Int.zero) Kstop e m1 pm).
+  exists (Start (transf_function f) (transf_statement (fn_body f)) (Floats.Float.of_int Integers.Int.zero) e m1 pm).
   split.
   econstructor; eauto.
   destruct TRANSL as (TRANSL'&_).
@@ -308,7 +308,6 @@ Proof.
   eapply assign_global_locs_preserved. rewrite data_vars_preserved; eauto.
   eapply set_global_params_preserved; rewrite parameters_vars_preserved, parameters_ids_preserved. eauto.
   econstructor; eauto.
-  econstructor.
 Qed.
 
 Lemma transf_final_states:
@@ -351,7 +350,3 @@ Proof.
 Qed.
 
 End DENOTATIONAL_PRESERVATION.
-
-Global Instance TransfSamplingLink : TransfLink match_prog.
-Proof.
-Admitted.
