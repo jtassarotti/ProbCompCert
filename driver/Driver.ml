@@ -115,8 +115,11 @@ let compile_stan_file sourcename ifile ofile =
   let stan = Sparse.parse_stan_file sourcename ifile in
   (* generate the proposal function *)
   let proposal = Spropose.generate_proposal stan in
+  let bridge_proposal = Sbridge_propose.generate_proposal stan in
   (* Generate the prelude *)
   Sprelude.generate_prelude sourcename stan proposal;
+  (* Generate the bridge prelude *)
+  Sbridge_prelude.generate_prelude sourcename stan bridge_proposal;
   (* Convert to Asm *)
   let asm =
     match Compiler.apply_partial

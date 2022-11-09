@@ -1,0 +1,23 @@
+# Adapted from the 
+
+
+BRIDGESTAN=~/repos/bridgestan
+BRIDGE=$(BRIDGESTAN)/src/bridgestan.cpp
+include $(BRIDGESTAN)/Makefile
+
+MODEL?=code
+
+lib$(MODEL)_model.so: $(MODEL)_model.so
+	cp $(MODEL)_model.so lib$(MODEL)_model.so
+
+Runtime$(EXE): Bridgeruntime.o lib$(MODEL)_model.so
+	$(LINK.c) -o bridge bridgeparser.o bridgestanlib.o bridgeprelude.o Bridgeruntime.o -lm -Wl,-rpath ./ -L ./ -l$(MODEL)_model
+
+
+%_model.so : %.hpp $(BRIDGE_O) $(LIBSUNDIALS) $(MPI_TARGETS) $(TBB_TARGETS)
+	@echo ''
+	@echo '--- Compiling C++ code ---'
+	$(COMPILE.cpp) $(CXXFLAGS_PROGRAM) -fPIC $(CXXFLAGS_THREADS) -x c++ -o $(subst  \,/,$*).o $(subst \,/,$<)
+	@echo '--- Linking C++ code ---'
+	$(LINK.cpp) -shared -lm -fPIC -o $(patsubst %.hpp, %_model.so, $(subst \,/,$<)) $(subst \,/,$*.o) $(BRIDGE_O) $(LDLIBS) $(LIBSUNDIALS) $(MPI_TARGETS) $(TBB_TARGETS)
+	$(RM) $(subst  \,/,$*).o
