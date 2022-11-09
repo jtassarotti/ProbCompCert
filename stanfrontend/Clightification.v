@@ -165,11 +165,13 @@ Fixpoint transf_expression (e: Stanlight.expr) {struct e}: mon (list CStan.state
     do (ls2, e2) <~ transf_expression e2;
     ret (ls1 ++ ls2, CStan.Ebinop o e1 e2 ty)
   | Eindexed e (Econs i Enil) ty =>
+    let one := Integers.Int.repr 1 in
+    let eone := CStan.Econst_int one tint in
     do (le, e) <~ transf_expression e;
     do ty <~ transf_type ty;
     do (li, i) <~ transf_expression i;
     (* ret (le ++ li, CStan.Ebinop Oadd (CStan.Ederef e (tptr ty)) i ty) *)
-    ret (le ++ li, CStan.Ederef (CStan.Ebinop Oadd e i (tptr ty)) ty)
+    ret (le ++ li, CStan.Ederef (CStan.Ebinop Oadd e (CStan.Ebinop Osub i eone tint) (tptr ty)) ty)
   | Eindexed e _ ty =>
     error (Errors.msg "Clightification.transf_expression (NYI): Eindexed [i, ...]")
   | Etarget ty => 
@@ -232,10 +234,10 @@ Fixpoint transf_statement (s: Stanlight.statement) {struct s}: mon CStan.stateme
     let one := Integers.Int.repr 1 in
     let eone := CStan.Econst_int one tint in
     (* set i to first pointer in array: convert 1-idx to 0-idx *)
-    let init := CStan.Sassign (CStan.Evar i tint) (CStan.Ebinop Osub e1 eone tint) in
+    let init := CStan.Sassign (CStan.Evar i tint) e1 in
 
-    (* break condition of e1 == e2 *)
-    let cond := CStan.Ebinop Olt (CStan.Evar i (CStan.typeof e1)) e2 tint in
+    (* break condition of e1 > e2 *)
+    let cond := CStan.Ebinop Ole (CStan.Evar i (CStan.typeof e1)) e2 tint in
 
     let eincr := CStan.Ebinop Oadd (CStan.Evar i (CStan.typeof e1)) eone tint in
 
