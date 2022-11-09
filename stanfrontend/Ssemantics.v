@@ -836,6 +836,23 @@ Section DENOTATIONAL.
     inv Hfin'. auto.
   Qed.
 
+  (* Alternate versions for paper *)
+  Definition returns_target_value' (p: program) (data: list val) (params: list val) (t: float) :=
+    exists s1,
+      Smallstep.initial_state (semantics p data params t) s1 /\
+        Star (semantics p data params t) s1 E0 (Return t).
+
+  Lemma returns_target_value_equiv p data params t :
+    returns_target_value p data params t <->
+      returns_target_value' p data params t.
+  Proof.
+    split.
+    - intros (s1&s2&Hinit&Hstar&Hfin). inv Hfin.
+      { eexists; split; eauto. }
+    - intros (s1&Hinit&Hstar). exists s1. eexists; split; eauto.
+      split; eauto. econstructor. auto.
+  Qed.
+
   Lemma log_density_of_program_trace p data params t :
     returns_target_value p data params t ->
     log_density_of_program p data params = IFR t.
