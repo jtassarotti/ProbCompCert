@@ -248,7 +248,13 @@ let rec el_s s =
   | Stan.Sbreak -> raise (Unsupported "statement: break")
   | Stan.Scontinue -> raise (Unsupported "statement: continue")
   | Stan.Sreturn oe -> raise (Unsupported "statement: return")
-  | Stan.Svar v -> Stanlight.Sskip     
+  | Stan.Svar v ->
+     (match (v.Stan.vd_init) with
+      | None -> Stanlight.Sskip
+      | Some e ->
+         let id = Camlcoq.intern_string v.Stan.vd_id in
+         let t = el_b v.Stan.vd_type v.Stan.vd_dims in
+         Stanlight.Sassign (Stanlight.Evar (id, t), None, el_e e))
   | Stan.Scall (i,el) -> raise (Unsupported "statement: call")
   | Stan.Sprint lp -> raise (Unsupported "statement: print")
   | Stan.Sreject lp -> raise (Unsupported "statement: reject")
