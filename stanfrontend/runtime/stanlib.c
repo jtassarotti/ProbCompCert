@@ -81,14 +81,14 @@ double uniform_lpmf(int x, double a, double b)
     return (k < a || k > b) ? INFINITY : (-log(b - a));
 }
 
-double normal_lpdf(double x, double mean, double variance)
+double normal_lpdf(double x, double mean, double sigma)
 {
-  return log(1 / (sqrt(variance * 2 * M_PI)) * exp(- pow((x-mean),2) / (2 * variance)));
+  return log(1 / (sqrt(2 * M_PI) * sigma) * exp(- pow((x-mean)/sigma,2) / 2));
 }
 
-double normal_lupdf(double x, double mean, double variance)
+double normal_lupdf(double x, double mean, double sigma)
 {
-  return (- log(sqrt(variance)) - pow((x-mean),2) / (2 * variance));
+  return (- log(sigma) - (pow((x-mean)/sigma,2) / 2));
 }
 
 double bernoulli_lpmf(int x, double p)

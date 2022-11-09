@@ -14,8 +14,8 @@ double expit(double a);
 
 double uniform_lpdf(double x, double a, double b);
 double uniform_lpmf(int x, double a, double b);
-double normal_lpdf(double x, double mean, double variance);
-double normal_lupdf(double x, double mean, double variance);
+double normal_lpdf(double x, double mean, double stddev);
+double normal_lupdf(double x, double mean, double stddev);
 double bernoulli_lpmf(int x, double p);
 double cauchy_lpdf(double x, double location, double scale);
 double cauchy_lupdf(double x, double location, double scale);
