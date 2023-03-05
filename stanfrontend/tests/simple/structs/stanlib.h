@@ -1,1 +1,0 @@
-../stanlib.h

@@ -3,10 +3,10 @@
 # This script is for development use
 
 # Clean everything
-pushd classics/$1/
+pushd bench/$1/
 if [ $? -ne 0 ]; then
     echo 'Test not found. Possible tests are: '
-    ls classics
+    ls bench
     exit
 fi
 rm *.c
@@ -19,13 +19,13 @@ rm code.stan.c.all
 popd
 
 # Compilation
-cp ../runtime/stanlib.h classics/$1/
-cp ../runtime/stanlib.c classics/$1/
-cp ../runtime/Runtime.c classics/$1/
-cp ../runtime/jsmn.h classics/$1/
-cp ../runtime/parser.h classics/$1/
-cp ../runtime/parser.c classics/$1/
-pushd classics/$1/
+cp ../runtime/stanlib.h bench/$1/
+cp ../runtime/stanlib.c bench/$1/
+cp ../runtime/Runtime.c bench/$1/
+cp ../runtime/jsmn.h bench/$1/
+cp ../runtime/parser.h bench/$1/
+cp ../runtime/parser.c bench/$1/
+pushd bench/$1/
 ../../../../ccomp -c stanlib.c
 if [ $? -ne 0 ]; then
     echo 'Compilation of stan library failed'

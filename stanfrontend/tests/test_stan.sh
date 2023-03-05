@@ -5,10 +5,10 @@ if [[ ! -v STANPATH ]]; then
     exit
 fi
 
-pushd classics/$1/
+pushd bench/$1/
 if [ $? -ne 0 ]; then
     echo 'Test not found. Possible tests are: '
-    ls classics
+    ls bench
     exit
 fi
 
