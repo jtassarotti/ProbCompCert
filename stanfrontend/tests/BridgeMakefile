@@ -1,7 +1,4 @@
-# Adapted from the 
-
-
-BRIDGESTAN=~/repos/bridgestan
+BRIDGESTAN=$(BRIDGEPATH)
 BRIDGE=$(BRIDGESTAN)/src/bridgestan.cpp
 include $(BRIDGESTAN)/Makefile
 
