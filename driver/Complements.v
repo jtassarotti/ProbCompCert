@@ -39,14 +39,6 @@ Proof.
   apply transf_c_program_correct; auto.
 Qed.
 
-Theorem transf_clight_program_preservation:
-  forall p tp beh,
-  transf_clight_program p = OK tp ->
-  program_behaves (Asm.semantics tp) beh ->
-  exists beh', program_behaves (Clight.semantics2 p) beh' /\ behavior_improves beh' beh.
-Proof.
-Admitted.
-
 (** As a corollary, if the source C code cannot go wrong, i.e. is free of
   undefined behaviors, the behavior of the generated assembly code is
   one of the possible behaviors of the source C code. *)
@@ -60,14 +52,6 @@ Proof.
   intros. eapply backward_simulation_same_safe_behavior; eauto.
   apply transf_c_program_correct; auto.
 Qed.
-
-Theorem transf_clight_program_is_refinement:
-  forall p tp,
-  transf_clight_program p = OK tp ->
-  (forall beh, program_behaves (Clight.semantics2 p) beh -> not_wrong beh) ->
-  (forall beh, program_behaves (Asm.semantics tp) beh -> program_behaves (Clight.semantics2 p) beh).
-Proof.
-Admitted. 
 
 (** If we consider the C evaluation strategy implemented by the compiler,
   we get stronger preservation results. *)
@@ -322,72 +306,3 @@ Qed.
 
 End SEPARATE_COMPILATION.
 
-Section CLIGHT_SEPARATE_COMPILATION.
-
-(** The source: a list of C compilation units *)
-Variable c_units: nlist Clight.program.
-
-(** The compiled code: a list of Asm compilation units, obtained by separate compilation *)
-Variable asm_units: nlist Asm.program.
-Hypothesis separate_compilation_succeeds: 
-  nlist_forall2 (fun cu tcu => transf_clight_program cu = OK tcu) c_units asm_units.
-
-(** We assume that the source C compilation units can be linked together
-    to obtain a monolithic C program [c_program]. *)
-Variable c_program: Clight.program.
-Hypothesis source_linking: link_list c_units = Some c_program.
-
-(** Then, linking the Asm units obtained by separate compilation succeeds. *)
-Lemma clight_compiled_linking_succeeds:
-  { asm_program | link_list asm_units = Some asm_program }.
-Proof.
-Admitted.
-
-(** Let asm_program be the result of linking the Asm units. *)
-Let asm_program: Asm.program := proj1_sig clight_compiled_linking_succeeds.
-Let compiled_linking: link_list asm_units = Some asm_program := proj2_sig clight_compiled_linking_succeeds.
-
-(** Then, [asm_program] preserves the semantics and the specifications of
-  [c_program], in the following sense.
-  First, every behavior of [asm_program] improves upon one of the possible
-  behaviors of [c_program]. *)
-
-Theorem separate_transf_clight_program_preservation:
-  forall beh,
-  program_behaves (Asm.semantics asm_program) beh ->
-  exists beh', program_behaves (Clight.semantics2 c_program) beh' /\ behavior_improves beh' beh.
-Proof.
-Admitted.
-
-(** As a corollary, if [c_program] is free of undefined behaviors, 
-  the behavior of [asm_program] is one of the possible behaviors of [c_program]. *)
-
-Theorem separate_transf_clight_program_is_refinement:
-  (forall beh, program_behaves (Clight.semantics2 c_program) beh -> not_wrong beh) ->
-  (forall beh, program_behaves (Asm.semantics asm_program) beh -> program_behaves (Clight.semantics2 c_program) beh).
-Proof.
-  intros. exploit separate_transf_clight_program_preservation; eauto. intros (beh' & P & Q).
-  assert (not_wrong beh') by auto.
-  inv Q.
-- auto.
-- destruct H2 as (t & U & V). subst beh'. elim H1. 
-Qed.
-
-(** We now show that if all executions of [c_program] satisfy a specification,
-  then all executions of [asm_program] also satisfy the specification, provided
-  the specification is of the safety-enforcing kind. *)
-
-Theorem separate_transf_clight_program_preserves_spec:
-  forall spec,
-  safety_enforcing_specification spec ->
-  clight_program_satisfies_spec c_program spec ->
-  asm_program_satisfies_spec asm_program spec.
-Proof.
-  intros spec SES CSAT; red; intros beh AEXEC.
-  exploit separate_transf_clight_program_preservation; eauto. intros (beh' & CEXEC & IMPR).
-  apply CSAT in CEXEC. destruct IMPR as [EQ | [t [A B]]].
-- congruence.
-- subst beh'. apply SES in CEXEC. contradiction. 
-Qed.
-
-End CLIGHT_SEPARATE_COMPILATION.

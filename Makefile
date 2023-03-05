@@ -66,7 +66,10 @@ COQCOPTS ?= \
   -w -unused-pattern-matching-variable \
   -w -deprecated-ident-entry \
   -w -deprecated-hint-rewrite-without-locality \
-  -w -omega-is-deprecated
+  -w -omega-is-deprecated \
+  -w -ambiguous-paths \
+  -w -notation-overridden
+
 
 cparser/Parser.vo: COQCOPTS += -w -deprecated-instance-without-locality
 

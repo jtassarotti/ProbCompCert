@@ -111,7 +111,6 @@ Section EXPR.
 Variable e: env.
 Variable le: temp_env.
 Variable m: mem.
-Locate deref_loc.
 
 Inductive eval_expr: expr -> val -> Prop :=
   | eval_Econst_int:   forall i ty,
@@ -242,9 +241,9 @@ Fixpoint find_label (lbl: label) (s: statement) (k: cont)
       | None => find_label lbl s2 (Kloop2 s1 s2 k)
       end
   | _ => None
-  end
+  end.
 
-with find_label_ls (lbl: label) (sl: labeled_statements) (k: cont)
+Fixpoint find_label_ls (lbl: label) (sl: labeled_statements) (k: cont)
                     {struct sl}: option (statement * cont) :=
   match sl with
   | LSnil => None

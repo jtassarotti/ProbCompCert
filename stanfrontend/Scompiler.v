@@ -22,7 +22,6 @@ Require Reparameterizationproof.
 Require Clightificationproof.
 Require Samplingproof.
 Require VariableAllocationproof.
-Require Targetproof.
 Require Sbackendproof.
 
 Open Scope string_scope.

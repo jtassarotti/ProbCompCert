@@ -243,8 +243,8 @@ Fixpoint map_transf_statement (m: program -> statement -> mon statement) (p: pro
 
 
 
-Section Util.
 Require Import Errors.
+Section Util.
 Notation "'do' X <- A ; B" := (bind A (fun X => B))
    (at level 200, X ident, A at level 100, B at level 200)
    : gensym_monad_scope.
@@ -337,10 +337,4 @@ Definition option_mon_mmap {X Y:Type} (f: X -> mon Y) (ox: option X) : mon (opti
   end.
 
 Require Import Linking.
-
-
-(* Example of what needs to be done: https://compcert.org/doc/html/compcert.cfrontend.Ctypes.html#Linker_program *)
-
-Instance L: Linker CStan.program.
-Admitted.
 
