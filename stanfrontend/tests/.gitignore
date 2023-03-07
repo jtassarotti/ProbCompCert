@@ -1,5 +1,14 @@
+*.gch
+*.cpp
+*.hpp
+#*#
+*.so
+bridge
 *.c.*
 *.s
 *.c
 *.h
+bench/*/Makefile
 executable
+code
+output.csv
