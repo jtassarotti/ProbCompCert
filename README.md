@@ -41,7 +41,7 @@ few exceptions where rubber meets the road:
 * [Makefile.extr](Makefile.extr): Makefile to build the final executable
 * [extraction](extraction/extraction.v): extended to handle the generation of compiler for stan inputs
 
-Notes to developpers:
+Notes to developers:
 
 * In general, you do not need to edit the driver or the extraction
 * You only need to modify Makefile.extr if you want to add plain Caml code in new directories. Such directories need to be declared so that the OCaml build tools know where to look for code
