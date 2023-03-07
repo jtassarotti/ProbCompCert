@@ -1,6 +1,11 @@
 #!/bin/bash
 
+if [[ ! -v NUM_SAMPLES ]] || [[ ! -v THIN ]]; then
 . ./bench_config.sh
+fi
+
+echo "NUM_SAMPLES=$NUM_SAMPLES"
+echo "THIN=$THIN"
 
 if [[ ! -v STANPATH ]]; then
     echo "STANPATH not set. Please set it to the root of the cmdstan-2.30.1 build path"

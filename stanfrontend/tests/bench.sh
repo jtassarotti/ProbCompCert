@@ -1,6 +1,13 @@
 #!/bin/bash
 
+if [[ ! -v NUM_SAMPLES ]] || [[ ! -v THIN ]]; then
 . ./bench_config.sh
+fi
+
+echo "NUM_SAMPLES=$NUM_SAMPLES"
+echo "THIN=$THIN"
+
+
 echo "Benching $1 (pcc)"
 
 # This script is for development use
