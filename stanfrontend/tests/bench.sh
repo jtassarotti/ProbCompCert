@@ -1,10 +1,12 @@
 #!/bin/bash
 
 . ./bench_config.sh
+echo "Benching $1 (pcc)"
 
 # This script is for development use
 
 # Clean everything
+{
 pushd bench/$1/
 if [ $? -ne 0 ]; then
     echo 'Test not found. Possible tests are: '
@@ -29,20 +31,21 @@ cp ../runtime/parser.h bench/$1/
 cp ../runtime/parser.c bench/$1/
 pushd bench/$1/
 ../../../../ccomp -c stanlib.c
+}  > /dev/null 2>&1
 if [ $? -ne 0 ]; then
     echo 'Compilation of stan library failed'
     exit
 else
     echo "Compilation success: library"
 fi
-../../../../ccomp -c parser.c
+../../../../ccomp -c parser.c > /dev/null
 if [ $? -ne 0 ]; then
     echo 'Compilation of runtime parser failed'
     exit
 else
     echo "Compilation success: runtime parser"
 fi
-../../../../ccomp -c -dcstan -dclight code.stan
+../../../../ccomp -c -dcstan -dclight code.stan > /dev/null
 if [ $? -ne 0 ]; then
     echo 'Compilation of stan program' $1 'failed'
     cat code.stan.c.* > code.stan.c.all
@@ -51,8 +54,8 @@ else
     echo 'Compilation success: stan'
 fi
 cat code.stan.c.* > code.stan.c.all
-../../../../ccomp -c code.s
-../../../../ccomp -I. -c prelude.c
+../../../../ccomp -c code.s > /dev/null
+../../../../ccomp -I. -c prelude.c > /dev/null
 if [ $? -ne 0 ]; then
     echo 'Compilation of prelude failed'
     exit
@@ -70,12 +73,13 @@ fi
 
 # Run
 rm pcc_timing_$1.txt
+echo "Running trials, times given in seconds..."
 for i in {1..5}
 do
 TIMEFORMAT=%R
 (time (./executable --num_samples $NUM_SAMPLES --data data.json --init params.json --thin $THIN > /dev/null)) 2>&1 | tee -a pcc_timing_$1.txt
 done
-popd
+popd > /dev/null
 
 
 
