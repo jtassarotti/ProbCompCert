@@ -63,7 +63,6 @@ let ini_dir = Filename.dirname ini_file_name
 let stan_runtime_path =
   let exe_dir = Filename.dirname Sys.executable_name in
   let runtime_dir = exe_dir ^ "/stanfrontend/runtime/" in
-  Printf.printf "%s\n" runtime_dir;
   if not (Sys.file_exists runtime_dir) then
     begin
       eprintf "Cannot find Stan related runtime libraries.\n";
