@@ -27,8 +27,10 @@ let tool_name = "C verified compiler"
 (* Optional sdump suffix *)
 let sdump_suffix = ref ".json"
 
+let nolink_flag = ref false
+
 let nolink () =
-  !option_c || !option_S || !option_E || !option_interp
+  !option_c || !option_S || !option_E || !option_interp || !nolink_flag
 
 let object_filename sourcename suff =
   if nolink () then
@@ -160,12 +162,6 @@ let process_i_file sourcename =
   ensure_inputfile_exists sourcename;
   compile_i_file sourcename sourcename
 
-(* Processing of a .stan file (Stan) *)
-
-let process_stan_file sourcename =
-  ensure_inputfile_exists sourcename;
-  compile_stan_file sourcename sourcename (output_filename sourcename ".stan" ".s")
-  
 (* Processing of .S and .s files *)
 
 let process_s_file sourcename =
@@ -196,6 +192,81 @@ let process_h_file sourcename =
     ""
   end else
     fatal_error no_loc "input file %s ignored (not in -E mode)\n" sourcename
+
+(* TODO: this seems non portable *)
+let copy_file source dest =
+  let _ = Sys.command (Filename.quote_command "cp" [source; dest]) in
+  ()
+;;
+
+let invoke_c_ccomp opts fname =
+  let outname = " -o " ^ Filename.quote (Filename.chop_suffix fname ".c" ^ ".o") in
+  let cmd = (Filename.quote (Sys.executable_name) ^ " " ^ opts ^ outname ^ " " ^ Filename.quote fname) in
+  Printf.printf "Running %s\n" cmd;
+  flush stdout;
+  let _ = Sys.command cmd in
+  ()
+;;
+
+let invoke_c_ccomp_link opts files outname =
+  let outopt = " -o " ^ Filename.quote outname in
+  let file_str = String.concat " " (List.map (Filename.quote) files) in
+  let cmd = Filename.quote (Sys.executable_name) ^ " " ^ file_str ^ outopt ^ " " ^ opts in
+  Printf.printf "Running %s\n" cmd;
+  flush stdout;
+  let _ = Sys.command cmd in
+  ()
+;;
+
+let process_stan_lib sourcename =
+  let source_dir = Filename.dirname sourcename ^ "/" in
+  Printf.printf "Found stanruntime in %s going to dump object files to %s\n" Configuration.stan_runtime_path source_dir;
+  let runtime_name fname =
+    (Configuration.stan_runtime_path ^ fname)
+  in
+  copy_file (runtime_name "/jsmn.h") source_dir;
+  copy_file (runtime_name "/parser.h") source_dir;
+  copy_file (runtime_name "/Bridgeruntime.c") source_dir;
+  copy_file (runtime_name "/Runtime.c") source_dir;
+  copy_file (runtime_name "/stanlib.c") source_dir;
+  copy_file (runtime_name "/stanlib.h") source_dir;
+  copy_file (runtime_name "/parser.c") source_dir;
+  invoke_c_ccomp "-c" (source_dir ^ "stanlib.c");
+  invoke_c_ccomp "-c" (source_dir ^ "parser.c");
+;;
+
+(* Determine names for output stan files. Like output_filename but puts in source directory instead
+   of current directory. *)
+
+let output_stan_filename ?(final = false) source_file source_suffix output_suffix =
+  match !option_o with
+  | Some file when final -> file
+  | _ ->
+    (Filename.chop_suffix source_file source_suffix) ^ output_suffix
+
+
+let post_process_stan_file fname =
+  let source_dir = Filename.dirname fname ^ "/" in
+  let stan_o = Filename.basename ((Filename.chop_suffix fname ".s") ^ ".o") in
+  invoke_c_ccomp "-c" fname;
+  invoke_c_ccomp ("-I" ^ (Filename.quote source_dir) ^ " -c ") (source_dir ^ "prelude.c");
+  invoke_c_ccomp ("-I" ^ (Filename.quote source_dir) ^ " -c ") (source_dir ^ "Runtime.c");
+  if not (!option_c) then
+    invoke_c_ccomp_link "-lm"
+      (List.map (fun x -> source_dir ^ x) ["parser.o"; "stanlib.o"; "prelude.o"; "Runtime.o"; stan_o])
+      (output_stan_filename ~final:true fname ".s" ".exe")
+  else
+    ()
+
+(* Processing of a .stan file (Stan) *)
+
+let process_stan_file sourcename =
+  ensure_inputfile_exists sourcename;
+  process_stan_lib sourcename;
+  let str = compile_stan_file sourcename sourcename (output_stan_filename sourcename ".stan" ".s") in
+  post_process_stan_file (output_stan_filename sourcename ".stan" ".s");
+  str
+
 
 let target_help =
   if Configuration.arch = "arm" && Configuration.model <> "armv6" then
@@ -448,7 +519,7 @@ let cmdline_actions =
   (* GCC compatibility: .h files can be preprocessed with -E *)
   Suffix ".h", Self (fun s ->
       push_action process_h_file s; incr num_source_files; incr num_input_files);
-  Suffix ".stan", Self (fun s ->
+  Suffix ".stan", Self (fun s -> nolink_flag := true;
       push_action process_stan_file s; incr num_source_files; incr num_input_files);
   ]
 

@@ -40,6 +40,9 @@ val asm_supports_cfi: bool
 val stdlib_path: string
   (** Path to CompCert's library *)
 
+val stan_runtime_path: string
+  (** Path to ProbCompCert's stan runtime library *)
+
 val has_runtime_lib: bool
   (** True if CompCert's library is available. *)
 
