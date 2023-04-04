@@ -1,3 +1,19 @@
+(** * Syntax of the Stanlight language.
+
+  This is a simplified subset of Stan that is the input to the
+  verified section of ProbCompCert compiler. Features supported
+  include arrays, 1-dimensional constraints.
+
+  Stan's built-ins for various mathematical operations and
+  distributions are not modeled as primitive parts of the
+  syntax. Instead, these are modeled as function calls from an
+  enviroment.
+
+  See Ssemantics.v for the semantics.
+
+*)
+
+
 Require Import Integers.
 Require Import Coqlib.
 Require Import Floats.
@@ -40,18 +56,18 @@ Inductive expr :=
   | Ecall: expr -> exprlist -> basic -> expr
   | Eunop: u_op -> expr -> basic -> expr
   | Ebinop: expr -> b_op -> expr -> basic -> expr
-  | Eindexed: expr -> exprlist -> basic -> expr
-  | Etarget: basic -> expr
+  | Eindexed: expr -> exprlist -> basic -> expr (**r indexing into an array e[e1,...,en] of type ty *)
+  | Etarget: basic -> expr                      (**r accessing the value of the target variable *)
 with exprlist :=
   | Enil: exprlist
   | Econs: expr -> exprlist -> exprlist.
 
 
 Inductive constraint :=
-  | Cidentity
-  | Clower: float -> constraint
-  | Cupper: float -> constraint
-  | Clower_upper: float -> float -> constraint.
+  | Cidentity                         (**r no constraint *)
+  | Clower: float -> constraint       (**r <lower=r> *)
+  | Cupper: float -> constraint       (**r <upper=r> *)
+  | Clower_upper: float -> float -> constraint. (**r <lower=r1, upper=r2> *)
 
 Inductive statement :=
   | Sskip : statement
@@ -59,8 +75,8 @@ Inductive statement :=
   | Ssequence: statement -> statement -> statement
   | Sifthenelse: expr -> statement -> statement -> statement
   | Sfor: ident -> expr -> expr -> statement -> statement
-  | Starget: expr -> statement
-  | Stilde: expr -> expr -> exprlist -> statement.
+  | Starget: expr -> statement                     (**r add to target variable, target += e *)
+  | Stilde: expr -> expr -> exprlist -> statement. (**r sampling statements, e1 ~ e2(es) *)
 
 Record variable := mkvariable {
   vd_type: basic;
@@ -74,8 +90,17 @@ Record function := mkfunction {
 
 Definition fundef := Ctypes.fundef function.
 
-(* John: I think it is a mistake for the parameters and data to carry their types, it should be fetched from the variable*)
-(* Joe: I agree *)
+(* A Stanlight program consists of:
+   - pr_defs: definitions of all of identifiers (globals, parameters, data vars, functions, etc. Compare
+     with the "prog_defs" field of CompCert's AST.program record.
+   - pr_parameters_vars: Listing of designated "parameter" variables and "output maps" expr -> expr
+   - pr_data_vars: Listing of the designated "data" variables *)
+
+(* TODO : it is probably better to not includ ethe "basic" field of
+   the pr_parameters/data_vars in this record, since the information is
+   therefore redundant across the definitions of these variables in
+   pr_defs *)
+
 Record program := mkprogram {
   pr_defs: list (ident * globdef fundef variable);
   (* Last part of tuple is an expression showing how to map a paramter from internal representation to
@@ -84,12 +109,22 @@ Record program := mkprogram {
   pr_data_vars: list (ident * basic);
 }.
 
+(* Many CompCert libraries assume "programs" are of the AST.program
+   type which designates a list of definitions, a list of public
+   identifiers, and the identifier of the "main" function.  That does
+   not quite make sense for a Stanlight program, but it is
+   nevertheless useful to be able to map a Stanlight program to an
+   AST.program by filling in trivial definitions for public/main *)
+
 Definition program_of_program (p: program) : AST.program fundef variable :=
   {| AST.prog_defs := p.(pr_defs);
      AST.prog_public := nil;
      AST.prog_main := xH |}.
 
 Coercion program_of_program: program >-> AST.program.
+
+(* Constructing a CompCert globalenv from the program by adding all
+   defs to an empty environment *)
 
 Definition globalenv (p: program) :=
    Genv.add_globals (Genv.empty_genv fundef variable nil) p.(prog_defs).
