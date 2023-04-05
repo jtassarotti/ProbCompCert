@@ -1,3 +1,29 @@
+(** * Semantics of the Stanlight language.
+
+  See Stanlight.v for the syntax.
+
+  The semantics of a program is a function from data to a posterior
+  distribution on parameters.
+
+  To achieve this, the semantics is divided up into two parts, an operational layer and
+  a denotational layer.  The operational layer gives a small-step
+  semantics for Stanlight programs in a style similar to how CompCert
+  specifies small-step semantics for all of its IRs. The denotational layer
+  defines a probability distribution on the program's parameters using
+  the operational layer.
+
+  Note: Stan's built-ins for various mathematical operations and
+  distributions are not modeled as primitive parts of the
+  semantics. Instead, these are represented as function calls in the
+  AST, and in all proofs, we shall implicitly assume there is some
+  ambient environment. We assume that this environment contains the
+  math operations (exp, logit, etc.) that the compiler inserts, but
+  otherwise make no assumptions. This is because the compiler does not
+  need to reason about the semantics of those distributions for its
+  transformations as it does not change them.
+
+*)
+
 From Coq Require Import Reals Psatz ssreflect Utf8.
 Require Import Coqlib Errors Maps String.
 Local Open Scope string_scope.
@@ -25,8 +51,8 @@ Definition env := param_mem val.
 
 Definition empty_env: env := empty _.
 
-(* Global parameters, indexed by *name* of the identifier instead of via pointer
-   redirection *)
+(* Helper definitions for accessing locations from CompCert's memory model based on their
+   size/reference type *)
 
 Definition access_mode (ty: basic) : mode :=
   match ty with
@@ -44,6 +70,8 @@ Fixpoint sizeof (t: basic) : Z :=
   | Bfunction _ _ => 1
   end.
 
+(* Deref a pointer (i.e. a block b + pointer offset ofs) from memory m. *)
+
 Inductive deref_loc (ty: basic) (m: mem) (b: block) (ofs: ptrofs) : val -> Prop :=
   | deref_loc_value: forall chunk v,
       access_mode ty = By_value chunk ->
@@ -53,6 +81,8 @@ Inductive deref_loc (ty: basic) (m: mem) (b: block) (ofs: ptrofs) : val -> Prop 
       access_mode ty = By_reference ->
       deref_loc ty m b ofs (Vptr b ofs).
 
+(* Assign through a pointer (i.e. a block b + pointer offset ofs) from memory m. *)
+
 Inductive assign_loc (ce: genv) (ty: basic) (m: mem) (b: block) (ofs: ptrofs): val -> mem -> Prop :=
   | assign_loc_value: forall v chunk m',
       access_mode ty = By_value chunk ->
@@ -60,6 +90,18 @@ Inductive assign_loc (ce: genv) (ty: basic) (m: mem) (b: block) (ofs: ptrofs): v
       assign_loc ce ty m b ofs v m'.
 
 Section SEMANTICS.
+
+(* This section defines the operational semantics for Stanlight programs.
+   We follow the CompCert framework for small step semantics which involves 4 ingredients:
+
+   (1) a type of program states
+   (2) a small step transition relation between states
+   (3) a predicate classifying which states are valid initial states
+
+   (4) a relation classifying which states are valid final states, and
+   the return value from reaching such a final state.
+
+ *)
 
 Variable ge: genv.
 
@@ -74,11 +116,22 @@ Inductive alloc_variables: env -> list (ident * basic) -> env -> Prop :=
 
 Section EXPR.
 
+(* Evaluation of expressions is done in a big-step style. The evaluation relation is indexed by a number of parameters,
+   which we represent as Variables in this section: *)
+
+(* A CompCert env and memory *)
 Variable e: env.
 Variable m: mem.
-(* parameter mem indexed by id + offset rather than pointer indirection model *)
+(* parameter "memory" is a mapping from parameter ids + offsets to floats, in contrast
+  to the CompCert memory m which is indexed by memory addresses + offsets *)
 Variable pm : param_mem float.
+(* the current value of the distinguished "target" variable *)
 Variable t: float.
+
+(* We reuse CompCert's model of various operations like addition, multiplication, etc.
+   In C, the meaning of, say `x + y` depends upon the typos of x and y, so in CompCert,
+   the semantics of such operations are indexed by the types of the operands. Thus, we need
+   to map Stanlight types down to the analogous C types *)
 
 Fixpoint transf_type (t: basic) : type :=
   match t with
@@ -93,6 +146,7 @@ with transf_typelist (tl: basiclist) : typelist :=
   | Bcons t tl => Ctypes.Tcons (transf_type t) (transf_typelist tl)
   end.
 
+(* Converting Stanlight operations into corresponding CompCert operations *)
 Definition unary_op_conversion (op: u_op): unary_operation :=
   match op with
   | PNot => Onotbool
@@ -115,9 +169,14 @@ Definition binary_op_conversion (op: b_op): binary_operation :=
   | Geq => Oge
   end.
 
+(* This captures that an external call of a particular function does not
+   depend on the memory, i.e. if it returned the result vres in memory m,
+   it will also do so in memory m'. *)
 Definition no_mem_dep ef ge vargs m vres : Prop :=
   external_call ef ge vargs m E0 vres m ->
   forall m', external_call ef ge vargs m' E0 vres m'.
+
+(* Evaluation of expressions -- compare with Clight *)
 
 Inductive eval_expr: expr -> val -> Prop :=
   | eval_Econst_int: forall i ty,
@@ -133,6 +192,16 @@ Inductive eval_expr: expr -> val -> Prop :=
       eval_expr a2 v2 ->
       sem_binary_operation (PTree.empty composite) (binary_op_conversion op) v1 (transf_type (typeof a1)) v2 (transf_type (typeof a2)) = Some v ->
       eval_expr (Ebinop a1 op a2 ty) v
+  (* To model calls a(al) where al is a list of arguments, we first
+      (1) evaluate a to the function identifier vf
+      (2) evaluate the arguemtns al to vargs
+      (3) lookup the function in the environment, which is presumed to be an external
+
+      Then we check to see if the function evaluates to some value vres with an empty
+      trace of events and does not modify the memory m. If so, that is the return value.
+
+      Thus, external calls to functions that could modify memory / emit events are UB. But this is
+      appropriate for the fragment of Stan we consider *)
   | eval_Ecall: forall a al vf ef name sig fd vargs tyargs ty vres tyres cconv,
       eval_expr a vf ->
       eval_exprlist al vargs ->
@@ -148,15 +217,19 @@ Inductive eval_expr: expr -> val -> Prop :=
       eval_expr a v1 ->
       sem_cast v1 (transf_type (typeof a)) (transf_type ty) = Some v ->
       eval_expr (Ecast a ty) v
+  (* Looking up variables is handled differently depending on if the variable is a pointer, data, or otherwise: *)
+  (* Looking up local variables *)
   | eval_Elvalue: forall a id ofs v,
       eval_llvalue a id ofs ->
       ParamMap.get e id (Ptrofs.intval ofs) = Some v ->
       eval_expr a v
+  (* Looking up parameters *)
   | eval_Eplvalue: forall a id ofs f,
       eval_llvalue a id ofs ->
       ParamMap.is_id_alloc e id = false ->
       ParamMap.get pm id (Ptrofs.intval ofs) = Some f ->
       eval_expr a (Vfloat f)
+  (* Looking up globals *)
   | eval_Eglvalue: forall a loc ofs v,
       eval_glvalue a loc ofs ->
       deref_loc (typeof a) m loc ofs v ->
@@ -169,6 +242,7 @@ with eval_llvalue: expr -> ident -> ptrofs -> Prop :=
       eval_exprlist al ((Vint v) :: nil) ->
       eval_llvalue (Eindexed (Evar id tya) al ty) id (Ptrofs.of_int v)
 
+(* These handle evaluation of a pointer variable into an address/offset value: *)
 with eval_glvalue: expr -> block -> ptrofs -> Prop :=
   | eval_Evar_global: forall id l ty,
       ParamMap.is_id_alloc pm id = false ->
@@ -203,6 +277,12 @@ Inductive cont: Type :=
         (* Kfor i e2 s k = runs after s in for(i = e1 to e2) { s } *)
   .
 
+(* States for the small step relation. Many of these parameters are
+   similar to in Clight and other CompCert languages. Important
+   differences are (1) the parameter t which represents the value of
+   the target float variable, and (2) the parameter pm which stores
+   the values of parameters. *)
+
 Inductive state: Type :=
   | State
       (f: function)
@@ -226,6 +306,7 @@ Inductive state: Type :=
 Definition var_names (vars: list(ident * basic)) : list ident :=
   List.map (@fst ident basic) vars.
 
+(* Small step relation between program states. The interesting cases are tilde and target *)
 Inductive step: state -> trace -> state -> Prop :=
   | step_start : forall f s t e m pm,
       step (Start f s t e m pm)
@@ -242,7 +323,7 @@ Inductive step: state -> trace -> state -> Prop :=
   | step_seq: forall f t s1 s2 k e m pm,
     step (State f (Ssequence s1 s2) t k e m pm) E0 (State f s1 t (Kseq s2 k) e m pm)
 
-         (* TODO: we so far only give sem to case where Bop is none *)
+  (* TODO: we so far only give sem to case where Bop is none *)
   | step_assign_env: forall f t a1 a2 k e m pm id ofs v2 e',
       eval_llvalue e m pm t a1 id ofs ->
       eval_expr e m pm t a2 v2 ->
@@ -263,10 +344,13 @@ Inductive step: state -> trace -> state -> Prop :=
     bool_val v1 (transf_type (typeof a)) = Some b ->
     step (State f (Sifthenelse a s1 s2) t k e m pm) E0 (State f (if b then s1 else s2) t k e m pm)
 
+  (* target += a -- evaluate a, add to the designated target variable t; a must evaluate to a float *)
   | step_target: forall f t a v k e m pm,
     eval_expr e m pm t a (Vfloat v) ->
     step (State f (Starget a) t k e m pm) E0 (State f Sskip (Floats.Float.add t v) k e m pm)
 
+  (* a ~ ad(al) -- evaluate a, ad, al -- ad should yield a function f and we call f(a, al) to get
+     a value that is added to target. The distribution function f cannot modify memory/generate traces *)
   | step_tilde: forall f t a ad al v k e m pm vf vargs vres ef name sig tyargs tyres cconv fd,
     eval_expr e m pm t ad vf ->
     eval_expr e m pm t a v ->
@@ -355,6 +439,13 @@ Definition variable_to_list {A} (ib : ident * variable * A) : list (ident * vari
   | Bfunction _ _ => ib :: nil
   end.
 
+(* Parameters and data can be arrays. However, when defining the
+   denotational semantics, we need to integrate over the parameter
+   space. Thus, it is useful to "flatten" the array of parameters as
+   if a parameter real p[10] was really 10 parameters p0, ..., p9. The
+   following helper functions flatten a list of parameters in this way
+   *)
+
 Definition flatten_data_list (ibs: list (ident * basic)) :
   list (ident * basic * Ptrofs.int) :=
   List.concat (map data_basic_to_list ibs).
@@ -365,6 +456,8 @@ Definition flatten_parameter_list (ibs: list (ident * basic * option (expr -> ex
 
 Definition flatten_ident_variable_list {A} (ibs: list (ident * variable * A)) :=
   List.concat (map variable_to_list ibs).
+
+(* The next several definitions are used for initializing program state with globals, parameters, etc. *)
 
 Inductive assign_global_locs (ge: genv) : list (ident * basic * Ptrofs.int) -> mem -> list val -> mem -> Prop :=
   | assign_global_locs_nil : forall m,
@@ -430,24 +523,17 @@ Proof.
   eapply assign_global_params_preserves_alloc; eauto.
 Qed.
 
-(*
-Inductive loaded_global_params : list (ident * basic * Ptrofs.int) -> mem -> list val -> Prop :=
-  | loaded_global_params_nil : forall m,
-      loaded_global_params nil m nil
-  | loaded_global_params_cons : forall m id ty ofs v bs vs,
-      Mem.loadv Mfloat64 m (Vptr id ofs) = Some v ->
-      loaded_global_params bs m vs ->
-      loaded_global_params ((id, ty, ofs) :: bs) m (v :: vs).
-*)
-
-
-(* Joe: TODO: this initial state loading here may not be correct for array data/params *)
 
 Definition default {A : Type} (x : A) (o: option A) :=
   match o with
   | None => x
   | Some a => a
   end.
+
+(* initial_state p d p describes a starting state of execution that
+   has the lists d and p of data and parameters loaded into
+   memory/param mapping *)
+(* TODO: this initial state loading here will not be correct for nested array data/params *)
 
 Inductive initial_state (p: program) (data : list val) (params: list val) : state -> Prop :=
   | initial_state_intro: forall b f m0 m1 e pm,
@@ -462,10 +548,19 @@ Inductive initial_state (p: program) (data : list val) (params: list val) : stat
       initial_state p data params (Start f f.(fn_body) ((Floats.Float.of_int Integers.Int.zero)) e m1 pm).
 
 
-(* A final state returns 0 if the target matches testval and 1 otherwise,
-   this may seem backwards from one expecting this to function like an "indicator"
-   (where 1 is true), but we are adhering to the unix tradition where "0" return value is "normal"
-   and 1 is exceptional. It remains to be seen if this convention is confusing *)
+(* We would like to represent a model block in a Stanlight program as
+   operationally returning the target value computed by the model
+   block.  However, CompCert's framework for operational semantics
+   requires "return values" of a final state to be an integer (which
+   makes sense for describing complete C programs). To work around
+   this, we parameterize the predicate final_state by a float
+   "testval". Then, the final_state returns 0 if at termination the
+   target matches testval and 1 otherwise.
+
+   This 0 vs. 1 convention may seem backwards from one expecting this to
+   function like an "indicator" (where 1 is true), but we are adhering
+   to the unix tradition where "0" return value is "normal" and 1 is
+   exceptional. *)
 Inductive final_state (testval: float) : state -> int -> Prop :=
   | final_state_match: forall t,
       testval = t ->
@@ -475,6 +570,28 @@ Inductive final_state (testval: float) : state -> int -> Prop :=
       final_state testval (Return t) Integers.Int.one.
 
 End SEMANTICS.
+
+(* We can now assemble the pieces to define a semantics of a program p, as a function of
+   data, params, and a testval *)
+
+Definition semantics (p: program) (data: list val) (params: list val) (testval: float) :=
+  let ge := Genv.globalenv p in
+  Semantics_gen step (initial_state p data params) (final_state testval) ge ge.
+
+
+(* The operational semantics just defined is deterministic, as we now
+   prove. This is important for two reasons:
+
+   (1) It lets us prove backwards simulation via proof of forward
+       simulation (as in CompCert)
+
+   (2) For the denotational semantics, we will want to interpret the
+       operational semantics of a model block as defining a partial
+       function that represents a probability density function. For
+       this to make sense, we want the operational semantics to be
+       deterministic so that the induced function has a unique value.
+
+*)
 
 Ltac determ_aux :=
     match goal with
@@ -627,10 +744,6 @@ Proof.
   eapply assign_global_params_determ; eauto.
 Qed.
 
-Definition semantics (p: program) (data: list val) (params: list val) (testval: float) :=
-  let ge := Genv.globalenv p in
-  Semantics_gen step (initial_state p data params) (final_state testval) ge ge.
-
 Ltac Determ :=
   try congruence;
   match goal with
@@ -726,8 +839,6 @@ Proof.
   red; simpl; intros. inv H; simpl; try lia.
 Qed.
 
-(* Example of what needs to be done: https://compcert.org/doc/html/compcert.cfrontend.Ctypes.html#Linker_program *)
-
 Axiom variable_eq: forall (ty1 ty2: variable), {ty1=ty2} + {ty1<>ty2}.
 
 Global Program Instance LV: Linker variable := {
@@ -752,22 +863,48 @@ Require ClassicalEpsilon.
 
 Section DENOTATIONAL.
 
+(* This section defines the denotational semantics of programs.  The
+   strategy (already alluded to above) is to interpret the operational
+   semantics as inducing a partial function that defines a probability
+   density, which is then integrated and normalized to give a
+   distribution.
+
+ *)
+
   (* returns_target_value p data params t holds if it is possible for p to go from an
      initial state with data and params loaded to a final state with t as the target value *)
-  (*
-  Definition returns_target_value (p: program) (data: list val) (params: list val) (t: float) :=
-    exists s1 tr f e m,
-      Smallstep.initial_state (semantics p data params) s1 /\
-      Star (semantics p data params) s1 tr (State f Sskip t Kstop e m).
-   *)
   Definition returns_target_value (p: program) (data: list val) (params: list val) (t: float) :=
     exists s1 s2,
       Smallstep.initial_state (semantics p data params t) s1 /\
         Star (semantics p data params t) s1 E0 s2 /\
         Smallstep.final_state (semantics p data params t) s2 Integers.Int.zero.
 
-  (* Given a predicate P : V -> Prop, pred_to_default_fun P default will return
+  (* Alternate versions for paper *)
+  Definition returns_target_value' (p: program) (data: list val) (params: list val) (t: float) :=
+    exists s1,
+      Smallstep.initial_state (semantics p data params t) s1 /\
+        Star (semantics p data params t) s1 E0 (Return t).
+
+  Lemma returns_target_value_equiv p data params t :
+    returns_target_value p data params t <->
+      returns_target_value' p data params t.
+  Proof.
+    split.
+    - intros (s1&s2&Hinit&Hstar&Hfin). inv Hfin.
+      { eexists; split; eauto. }
+    - intros (s1&Hinit&Hstar). exists s1. eexists; split; eauto.
+      split; eauto. econstructor. auto.
+  Qed.
+
+   (* The above definition defines a _relation_ from which we want to obtain a _function_
+      of type program -> list val -> list val -> Real
+
+     To do so we will use Hilbert's Epsilon operator, which lets us define a Coq function
+     from a predicate. We wrap this up in the following helper function, pred_to_default_fun.
+
+     Given a predicate P : V -> Prop, pred_to_default_fun P default will return
      an arbitrary value v such that P v holds, if such a v exists, and otherwise returns default. *)
+
   Definition pred_to_default_fun {V: Type} (P: V -> Prop) (default: V) : V :=
     let s := ClassicalEpsilon.excluded_middle_informative (exists v : V, P v) in
     match s with
@@ -795,8 +932,11 @@ Section DENOTATIONAL.
     - auto.
   Qed.
 
-  (* Return a final target value if one can be obtained from running the program, otherwise
-     returns Float.zero *)
+  (* We now apply pred_to_default_fun to the returns_target_value predicate we defined above, thereby
+     obtaining the log density induced by the model block.
+
+     This returns the final target value if one can be obtained from running the program, otherwise
+     returns Float.zero, and then we coerce these floats to coq Reals (R) using IFR. *)
   Definition log_density_of_program (p: program) (data: list val) (params: list val) : R :=
     IFR (pred_to_default_fun (returns_target_value p data params) Float.zero).
 
@@ -815,6 +955,7 @@ Section DENOTATIONAL.
     { inv Hstep2; auto. exfalso. eapply Hno''; eauto. }
   Qed.
 
+  (* Because the semantics is determinstic, return_target_value is deterministic *)
   Lemma returns_target_value_determ p data params t t' :
     returns_target_value p data params t ->
     returns_target_value p data params t' ->
@@ -836,23 +977,6 @@ Section DENOTATIONAL.
     inv Hfin'. auto.
   Qed.
 
-  (* Alternate versions for paper *)
-  Definition returns_target_value' (p: program) (data: list val) (params: list val) (t: float) :=
-    exists s1,
-      Smallstep.initial_state (semantics p data params t) s1 /\
-        Star (semantics p data params t) s1 E0 (Return t).
-
-  Lemma returns_target_value_equiv p data params t :
-    returns_target_value p data params t <->
-      returns_target_value' p data params t.
-  Proof.
-    split.
-    - intros (s1&s2&Hinit&Hstar&Hfin). inv Hfin.
-      { eexists; split; eauto. }
-    - intros (s1&Hinit&Hstar). exists s1. eexists; split; eauto.
-      split; eauto. econstructor. auto.
-  Qed.
-
   Lemma log_density_of_program_trace p data params t :
     returns_target_value p data params t ->
     log_density_of_program p data params = IFR t.
@@ -866,8 +990,16 @@ Section DENOTATIONAL.
     eapply returns_target_value_determ; eauto.
   Qed.
 
+  (* The model block defines the _log_ density, so we must exponentiate before integrating *)
   Definition density_of_program (p: program) (data: list val) (params: list val) : R :=
     exp (log_density_of_program p data params).
+
+  (* The model block specifies an _unnormalized_ density, which we
+     must normalize to get a probability distribution. However, when
+     normalizing, we only want to consider the probabilities of
+     parameter values that respect the constraints specified by the
+     program. Thus, we map these constraints into intervals over the
+     reals, which will give the bounds of integration. *)
 
   Definition constraint_to_interval (c: constraint) :=
     match c with
@@ -876,6 +1008,11 @@ Section DENOTATIONAL.
     | Cupper f  => mk_interval m_infty (IFR f)
     | Clower_upper f1 f2 => mk_interval (IFR f1) (IFR f2)
     end.
+
+  (* A "rectangle" is a product of intervals. We represent these
+     either as a dependent type rectangle n or as a list of arbitrary
+     length. The following definitions are indicator functions that return 1 when a
+     vector or list of reals lies within a specified rectangle, and 0 otherwise. *)
 
   Definition rect_list_indicator (rt: rectangle_list) (v: list R) : R.
     destruct (ClassicalEpsilon.excluded_middle_informative (in_list_rectangle v rt)).
@@ -929,6 +1066,8 @@ Section DENOTATIONAL.
         eapply IHlist_forall2; eauto.
   Qed.
 
+  (* Again it is necessary to "flatten" the arrays of parameters into a list so we can talk about
+     the rectangle that corresponds to the parameter space *)
   Definition flatten_parameter_variables (p: program) :=
     flatten_ident_variable_list (map (fun '(id, _, f) => (lookup_def_ident p id, f)) (pr_parameters_vars p)).
 
@@ -947,11 +1086,9 @@ Section DENOTATIONAL.
   Definition parameter_rect (p: program) : rectangle (parameter_dimension p) :=
     Vector.of_list (parameter_list_rect p).
 
-  (*
-  Definition eval_expr_fun ge e m a :=
-    pred_to_default_fun (eval_expr ge e m (Float.zero) a) (Vfloat (Float.zero)).
-   *)
-
+  (* We can use the same pred_to_default_fun to get a function that returns what an expression would evaluate to.
+     It is necessary to specify some default memory/target values in which the expression will evaluate to,
+     we choose empty here. *)
   Definition eval_expr_fun p a :=
     pred_to_default_fun (eval_expr (globalenv p) empty_env Mem.empty (ParamMap.empty float)
                            (Float.zero) a) (Vfloat (Float.zero)).
@@ -1045,8 +1182,16 @@ Section DENOTATIONAL.
   Definition R2val v : val :=
     Vfloat (IRF v).
 
+  (* Recall that in the program ast from Stanlight.v, we track a special "out mapping" function
+     for each parameter, which models the function that the generated code uses to print "unconstrained"
+     internal parameters back to the "constrained" representation that the user expects.
+
+     The following two definitions take a program a list/vector of parameter values and apply these
+     mapping expressions to each value to get a list/vector of constrained outputs *)
+
   Definition eval_param_map_list (p : program) (vt: list R) : list R :=
-    List.map (fun '(v,f) => val2R (eval_expr_fun p (f (Econst_float (IRF v) Breal)))) (List.combine vt (flatten_parameter_out p)).
+    List.map (fun '(v,f) => val2R (eval_expr_fun p (f (Econst_float (IRF v) Breal))))
+      (List.combine vt (flatten_parameter_out p)).
 
   Program Definition eval_param_map (p : program) (vt: Vector.t R (parameter_dimension p)) :
     Vector.t R (parameter_dimension p) :=
@@ -1056,6 +1201,12 @@ Section DENOTATIONAL.
     unfold parameter_dimension, flatten_parameter_out, flatten_parameter_constraints.
     repeat rewrite map_length. auto.
   Qed.
+
+  (* The next definitions assigns an unnormalized "probability" to a
+     rectangle rt of parameters by integrating the density of the
+     program times an indicator which checks whether the variable of
+     integration is in the parameter rectangle rt after
+     constraining. *)
 
   Definition unnormalized_program_distribution_integrand p data rt :=
     (fun v => density_of_program p data (map (fun r => Vfloat (IRF r)) v)
@@ -1073,6 +1224,7 @@ Section DENOTATIONAL.
         (unnormalized_program_distribution_integrand p data rt)
         (parameter_list_rect p).
 
+  (* We next define the normalization constant, which uses the same integrand without the indicator variable. *)
   Definition program_normalizing_constant_integrand p data :=
         (fun v => density_of_program p data (map (fun r => Vfloat (IRF r)) v)).
 
@@ -1085,6 +1237,9 @@ Section DENOTATIONAL.
   Definition program_normalizing_constant (p : program) (data: list val) : R :=
       IIRInt_list (program_normalizing_constant_integrand p data) (parameter_list_rect p).
 
+  (* Finally, the actual distribution is obtained by dividing the
+  unnormalized values by the normalization constant. *)
+
   Definition is_program_distribution (p: program) (data: list val) (rt : rectangle_list) (v: R) : Prop :=
     ∃ vnum vnorm, vnorm <> 0 /\
       is_program_normalizing_constant p data vnorm /\
@@ -1094,6 +1249,8 @@ Section DENOTATIONAL.
   Definition program_distribution (p: program) (data: list val) : rectangle_list -> R :=
     fun rt => (unnormalized_program_distribution p data rt) / program_normalizing_constant p data.
 
+  (* We need to restrict our attention to source programs that don't trigger "undefined behavior",
+     i.e. safe programs that do not get "stuck" operationally for any valid parameter assignment *)
   Definition is_safe p data params : Prop :=
     (forall t, exists s, Smallstep.initial_state (semantics p data params t) s) /\
     (forall t s, Smallstep.initial_state (semantics p data params t) s ->
@@ -1105,13 +1262,14 @@ Section DENOTATIONAL.
     in_list_rectangle params (parameter_list_rect p) ->
     is_safe p data (map (fun r => Vfloat (IRF r)) params)).
 
-  (* p1 refines p2 if:
+  (* The compiler is said to be correct if compiled programs refine source programs, where
+     p1 refines p2 if:
 
     (1) They have the same dimensions of parameter space,
     (2) Anything that is considered a "safe" data input for p2 is also safe for p1
     (3) For all of those safe data inputs, the distribution of p1 is the same as p2 for all rectangular subsets
         of that dimension
- *)
+  *)
 
   Definition denotational_refinement (p1 p2: program) :=
     ∃ (Hpf: parameter_dimension p1 = parameter_dimension p2),
@@ -1128,6 +1286,8 @@ Section DENOTATIONAL.
       (wf_rectangle_list (parameter_list_rect p2) -> wf_rectangle_list (parameter_list_rect p1)).
 
 End DENOTATIONAL.
+
+(* The remainder of this file proves a few helper lemmas. *)
 
 Lemma denotational_refinement_trans p1 p2 p3 :
   denotational_refinement p1 p2 ->

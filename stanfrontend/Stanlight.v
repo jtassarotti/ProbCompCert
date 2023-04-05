@@ -6,8 +6,7 @@
 
   Stan's built-ins for various mathematical operations and
   distributions are not modeled as primitive parts of the
-  syntax. Instead, these are modeled as function calls from an
-  enviroment.
+  syntax. Instead, these are modeled as function calls.
 
   See Ssemantics.v for the semantics.
 
