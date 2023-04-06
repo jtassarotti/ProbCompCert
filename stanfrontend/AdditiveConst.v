@@ -1,3 +1,45 @@
+(* Additive constant transformation.
+
+   This is an optimization pass that removes addition of constants to the target variable.
+   That is, we replace an expresison like
+
+      target += x + c
+
+   where c is a constant, with
+
+      target += x + 0
+
+   similarly, when there is a call to an lpdf function whose result is added to target, we replace the call
+   with lupdf (i.e. the unnormalized pdf). E.g we replace
+
+   target += normal_lpdf(x, mu, sigma)
+
+   with
+
+   target += normal_lupdf(x, mu, sigma)
+
+   where _lupdf is a version of lpdf with additive constants similarly removed.
+
+   The justification for this transformation is that the model block
+   computes an *unnormalized* log density which is then later
+   normalized. So, subtracting a constant c from the target
+   effectively just scales this unnormalized density and the
+   normalization constant by a constant factor of exp(-c), which is
+   then canceled out by normalization.
+
+   IMPORTANT: we can only drop the constant when the statement being
+   modified has no control flow dependency on parameter
+   values. Otherwise, such a dependency means that the constant being
+   added is not really a constant! E.g.
+
+   if (mu > 0) {
+     target += c
+   }
+
+   is not adding a constant c to the target.
+
+*)
+
 Require Import List.
 Require Import String.
 Require Import ZArith.
@@ -29,6 +71,7 @@ Notation "'do' X , Y , Z <- A ; B" := (match A with Some (X, Y, Z) => B | None =
 
 Local Open Scope option_monad_scope.
 
+(* This map stores what lpdfs should be replaced with which corresponding lupdf. *)
 Definition math_fun_remap : PTree.t (AST.ident) :=
    PTree.set ($"normal_lpdf") ($"normal_lupdf")
   (PTree.set ($"cauchy_lpdf") ($"cauchy_lupdf")
@@ -36,6 +79,7 @@ Definition math_fun_remap : PTree.t (AST.ident) :=
 
 Definition Ezero := Econst_float (Floats.Float.zero) Breal.
 
+(* Returns an expression with additive constants dropped from e *)
 Fixpoint drop_const (e: Stanlight.expr) {struct e} : expr :=
   match e with
   | Econst_float _ Breal => Ezero
@@ -59,30 +103,10 @@ Fixpoint drop_const (e: Stanlight.expr) {struct e} : expr :=
   | _ => e
   end.
 
-(*
-Fixpoint drop_const (cid: AST.ident -> bool) (e: Stanlight.expr) {struct e} : expr :=
-  match e with
-  | Evar id Breal =>
-      if cid id then
-        Ezero
-      else
-        Evar id Breal
-  | Econst_float _ Breal => Ezero
-  | Ecall (Evar id tyf) el ty =>
-      match PTree.get id math_fun_remap with
-      | Some id' =>
-          Ecall (Evar id' tyf) el ty
-      | None =>
-          e
-      end
-  | Ebinop e1 Plus e2 Breal =>
-      Ebinop (drop_const cid e1) Plus (drop_const cid e2) Breal
-  | Ebinop e1 Minus e2 Breal =>
-      Ebinop (drop_const cid e1) Minus (drop_const cid e2) Breal
-  | _ => e
-  end.
-*)
-
+(* We will need to check whether the program reads the target variable
+   using Etarget. If it does, then dropping constants may not be
+   semantically preserving, because the value read from from Etarget
+   will change. This check could be made more precise. *)
 Fixpoint check_no_target_expr (e: expr) : option (unit) :=
   match e with
   | Ecast e _ => check_no_target_expr e
@@ -108,33 +132,7 @@ with check_no_target_exprlist el : option (unit) :=
       check_no_target_exprlist el
   end.
 
-Fixpoint check_no_assign i s : bool :=
-  match s with
-  | Sskip => true
-  | Sassign e1 o e2 =>
-      match e1 with
-      | Evar id' _ | Eindexed (Evar id' _) _ _ =>
-          if Pos.eq_dec id' i then
-            false
-          else
-            true
-      | _ => false
-      end
-  | Ssequence s1 s2 =>
-      check_no_assign i s1 && check_no_assign i s2
-  | Sfor id' e1 e2 s =>
-      if Pos.eq_dec i id' then
-        false
-      else
-        check_no_assign i s
-  | Sifthenelse e s1 s2 =>
-      check_no_assign i s1 && check_no_assign i s2
-  | Starget e => true
-  | Stilde _ _ _ => true
-  end.
-
-(* This checks for no Etarget; i.e. it does not depend upon the value of target;
-   an Starget is ok *)
+(* This checks for no Etarget in a whole statement *)
 Fixpoint check_no_target_statement s : option unit :=
   match s with
   | Sskip => Some tt
@@ -162,6 +160,33 @@ Fixpoint check_no_target_statement s : option unit :=
   | Stilde e d el => None
   end.
 
+(* Checks whether statement s assigns to the variable i. *)
+Fixpoint check_no_assign i s : bool :=
+  match s with
+  | Sskip => true
+  | Sassign e1 o e2 =>
+      match e1 with
+      | Evar id' _ | Eindexed (Evar id' _) _ _ =>
+          if Pos.eq_dec id' i then
+            false
+          else
+            true
+      | _ => false
+      end
+  | Ssequence s1 s2 =>
+      check_no_assign i s1 && check_no_assign i s2
+  | Sfor id' e1 e2 s =>
+      if Pos.eq_dec i id' then
+        false
+      else
+        check_no_assign i s
+  | Sifthenelse e s1 s2 =>
+      check_no_assign i s1 && check_no_assign i s2
+  | Starget e => true
+  | Stilde _ _ _ => true
+  end.
+
+
 Fixpoint transf_statement (s: Stanlight.statement) {struct s} : option (Stanlight.statement) :=
   match s with
   | Sskip => Some (Sskip)
@@ -173,6 +198,8 @@ Fixpoint transf_statement (s: Stanlight.statement) {struct s} : option (Stanligh
   | Sifthenelse e s1 s2 =>
     Some (Sifthenelse e s1 s2)
   | Sfor i (Econst_int i1 Bint) (Econst_int i2 Bint) s =>
+    (* We only do the transformation if the for loop iterator variable i is not
+       modified in the body of the loop. *)
     match check_no_assign i s with
     | true =>
         do s <- transf_statement s;
