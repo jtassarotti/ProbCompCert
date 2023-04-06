@@ -1,3 +1,38 @@
+(* Denotational correctness proof for the additive constant optimization.
+
+   As the name suggests, the transformation drops addition of
+   constants from a model block -- the total constants dropped can be
+   a function of the *data* input to the program, but it cannot depend
+   upon the parameters.
+
+   Let p be a program and tp be the transformed program. We assume
+   there is a function target_const : list val -> R such that
+   target_const(d) is the negation of the constant dropped by the
+   transform when the data is d.
+
+   The proof here takes as input a forward simulation between p and tp
+   such that, with data d and parameters ρ, when the "testval" of the
+   final state of the simulation is t on program p, the "testval" for
+   tp is target_const (d) + t.
+
+   From this we deduce that
+
+   log_density_of_program p d ρ = log_density_of_program tp d ρ - target_const d
+
+   Hence
+
+   density_of_program p d ρ = c * density_of_program tp d ρ
+
+   where c is exp(-target_const d)
+
+   Since integration is a linear operator, this means that both the
+   unnormalized distribution and the normalization constant of target
+   program will be scaled by c, hence when we divide, the scalar c
+   cancels out, giving the same distribution as the original program p.
+
+ *)
+
+
 Require Import Coqlib Errors Maps String.
 Local Open Scope string_scope.
 Require Import Integers Floats Values AST Memory Builtins Events Globalenvs.
