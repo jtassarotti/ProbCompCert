@@ -1,3 +1,20 @@
+(*
+   Extra lemmas about Riemann integrals that are not found in the coquelicot library.
+
+   The most important for ProbCompCert is is_RInt_comp_noncont, which
+   is a lemma about change of variables in integrals. Coquelicot has a
+   change of variables lemmas (is_RInt_comp), but it requires that the
+   integrand be continuous. This continuity assumption seems hard to
+   satisfy in the context of ProbCompCert, where we would have to
+   argue that (1) the PDF of a program is continuous and (2) that the
+   iterated improprer integrals in the definition of the probability
+   distribution are also continuous.
+
+   In contrast, to avoid that, the is_RInt_comp_noncont lemma proved
+   here removes that continuity assumption.
+
+*)
+
 Require Export RelationClasses Morphisms Utf8.
 From mathcomp Require Import ssreflect ssrbool eqtype.
 From Coquelicot Require Import Hierarchy Markov Rcomplements Rbar Lub Lim_seq SF_seq Continuity Hierarchy RInt RInt_analysis Derive AutoDerive.

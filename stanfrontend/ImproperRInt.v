@@ -1,3 +1,23 @@
+(*
+
+   This develops a definition of improper Riemann integration, in
+   which the limits of integration can be elements of Rbar instead of
+   R (i.e. can be +/- infty).
+
+   The definition starts with the integral RInt/is_RInt/ex_RInt from
+   Coquelicot.  Then we define *upper* improper Riemann integrals
+   (UIRInt, is_UIRInt, ex_UIRInt) where the lower bound of integration
+   is a real, but the upper is allowed to be an Rbar. This is done by
+   taking a limit of RInt, where the limit variable is the upper bound
+   of the integral.
+
+   Then, we define "full" improper integrals (IRInt, is_IRInt) where
+   both bounds of integration can be in Rbar. This is done by taking
+   limits of UIRint as the *lower* bound of integration tends to an
+   element of Rbar.
+
+*)
+
 From Coq Require Import Reals Psatz ssreflect ssrbool Utf8.
 From mathcomp Require Import eqtype seq.
 

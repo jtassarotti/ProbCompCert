@@ -1,3 +1,22 @@
+(* Libray for Iterated Improper Integrals.
+
+   We define iterated integration two ways:
+
+   1) Vector based (is_IIRInt): The range of integration is specified as a vector of n intervals,
+      and the integrand is a function of type Vector.t R n -> R. This is defined inductively
+      as repeated nesting of IIRint.
+
+   2) List based (is_IIRInt_list): The range of integration is specified as a list of intervals, and
+      the integrand is a function of type list R -> R.
+
+   The former feels more "proper" in some sense, as the types rule out
+   a mismatch between the length of the arguments that the integrand
+   expects vs. the length of the variable of integration. On the other
+   hand, it means dealing with dependent types and vectors, which can
+   be frustrating.
+
+*)
+
 Require Import Utf8.
 
 Inductive Forall3 {A B C : Type} (P : A → B → C → Prop) : list A → list B → list C → Prop :=
@@ -513,7 +532,7 @@ Proof.
     * rewrite //=.
     * rewrite IIRInt_unfold_cons. rewrite IIRInt_list_unfold_cons; last done. eapply IRInt_ext.
       { inversion Hwf. subst. sigT_inj. eauto. }
-      intros x Hlt. 
+      intros x Hlt.
       rewrite IHr; last first.
       { inversion Hwf. subst. sigT_inj. eauto. }
       simpl.
@@ -701,7 +720,7 @@ Proof.
       transitivity
         (scal (x4 x)
            (IIRInt_list (λ xbar, list_mult (list_apply v4 xbar) * f (list_apply (x1 :: v1) (x :: xbar))) (i2 :: r))).
-      { 
+      {
         rewrite -IIRInt_list_scal; eauto.
         { eapply IIRInt_list_ext; eauto.
           intros. rewrite //=. rewrite Rmult_assoc. reflexivity. }
