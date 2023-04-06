@@ -1,3 +1,34 @@
+(* This file shows that the standard notion of forward simulation in
+   CompCert implies denotational refinement for Stanlight. In other
+   words, for the majority of compiler passes one might do, which can
+   be expected to preserve the operational behavior of programs, we
+   get that they automatically preserve denotational behavior as
+   well.
+
+   The basic idea of the argument is as follows. Let p be a program
+   and let tp be its translation. Assume there's a forward simulation
+   between p and tp.  Then by the deterministic nature of the
+   language, we also have a backward simulation. This implies that
+
+   returns_target_value p data params t <-> returns_target_value tp data params t
+
+   (under the assumption that the programs are safe to run on data/params)
+
+   Hence, when we use Hilbert's epsilon to convert
+   returns_target_value to log_density_of_program, we will have that
+
+   log_density_of_program p data params = log_density_of_program tp data params.
+
+   and
+
+   density_of_program p data params = density_of_program tp data params.
+
+   Since the distribution of p and tp is defined by integrating
+   density_of_program, the integrals involved will have the same
+   integrand, and thus will be equal.
+
+*)
+
 Require Import Coqlib Errors Maps String.
 Local Open Scope string_scope.
 Require Import Integers Floats Values AST Memory Builtins Events Globalenvs.
@@ -18,7 +49,11 @@ From Coq Require Import Reals Psatz ssreflect ssrbool Utf8.
 
 Require Import Ssemantics.
 
-(* TODO: generalize these results to any denotational semantics obtained this way *)
+
+(* We enclose the results in a section and introduce section Variables
+   for all of the assumptions. Outside of the section, these become
+   assumptions a user of the theorem must instantiate. *)
+
 Section DENOTATIONAL_SIMULATION.
 
 Variable prog: Stanlight.program.
