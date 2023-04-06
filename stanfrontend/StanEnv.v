@@ -1,3 +1,29 @@
+(* Axioms about floating points and math environments.
+
+   The transformations performed by the compiler (and even Stan's
+   reference compiler) can only be seen as semantically preserving if
+   one pretends that floating point operations behave as if they were
+   exact computations on the reals. Similarly, we must assume that the
+   standard libraries for various math operations in the program's
+   environment (exp, normal_lpdf, etc.) perfectly compute their
+   mathematical equivalents.
+
+   This file defines these assumptions and the requirements on the
+   global environment.
+
+   WARNING: The axioms herein can be used to derive False IF one
+   treats floats as anything other than an abstract type (E.g. trying
+   to exploit the fact that floats technically have a finite encoding,
+   would let one derive a contradiction because IFR/IRF would imply
+   the reals are a finite set.)
+
+   See the discussion in the paper on this subject for caveats about
+   what such assumptions mean for the correctness guarantees of the
+   compiler.
+
+
+*)
+
 From Coq Require Import Reals Psatz ssreflect Utf8.
 Require Import Smallstep.
 Require Import Errors.
@@ -23,7 +49,9 @@ Local Open Scope clight_scope.
 Require Import RealsExt.
 Import Continuity.
 
-(* IFR -> inject float into real, named in analogy to INR : nat -> R, IZR: Z -> R *)
+(* IFR/IRF inject float into real and vice versa, named in analogy to
+   INR : nat -> R, IZR: Z -> R from Coq *)
+
 Axiom IFR : float -> R.
 Axiom IRF: R -> float.
 
@@ -54,13 +82,6 @@ Axiom exp_ext_spec :
   Events.external_call exp_ef_external ge
     (Values.Vfloat (IRF a) :: nil) m Events.E0 (Values.Vfloat (IRF (exp a))) m.
 
-(*
-Axiom exp_ext_no_mem_dep :
-  forall a ge m,
-  no_mem_dep exp_ef_external ge (Values.Vfloat (IRF a) :: nil) m
-    (Values.Vfloat (IRF (exp a))).
-*)
-
 Definition expit_ef_external :=
   (AST.EF_external "expit" (AST.mksignature (AST.Tfloat :: nil) (AST.Tret AST.Tfloat)
                             (AST.mkcallconv None false false))).
@@ -79,13 +100,6 @@ Axiom expit_ext_spec :
   forall a ge m,
   Events.external_call expit_ef_external ge
     (Values.Vfloat (IRF a) :: nil) m Events.E0 (Values.Vfloat (IRF (logit_inv a))) m.
-
-(*
-Axiom expit_ext_no_mem_dep :
-  forall a ge m,
-  no_mem_dep expit_ef_external ge
-    (Values.Vfloat (IRF a) :: nil) m (Values.Vfloat (IRF (logit_inv a))).
-*)
 
 Definition log_ef_external :=
   (AST.EF_external "log" (AST.mksignature (AST.Tfloat :: nil) (AST.Tret AST.Tfloat)
@@ -123,13 +137,6 @@ Lemma log_ext_spec'' :
 Proof.
   intros ???? <-. eapply log_ext_spec'.
 Qed.
-
-(*
-Axiom log_ext_no_mem_dep :
-  forall a ge m,
-  no_mem_dep log_ef_external ge
-    (Values.Vfloat (IRF a) :: nil) m (Values.Vfloat (IRF (ln a))).
-*)
 
 Axiom float_add_irf: forall a b,
   (Floats.Float.add (IRF a) (IRF b)) = IRF (a + b).
