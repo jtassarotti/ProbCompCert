@@ -272,7 +272,7 @@ Proof.
 Qed.
 
 
-Let lower_upper_correction_expr :=
+Local Definition lower_upper_correction_expr :=
       (fun a b x =>
               let a := Econst_float a Breal in
               let b := Econst_float b Breal in
