@@ -81,6 +81,7 @@ Variable wf_paramter_rect_tprog :
   wf_rectangle_list (parameter_list_rect prog) ->
   wf_rectangle_list (parameter_list_rect tprog).
 
+(* Param map/unmap are inverses on the parameter rectangle *)
 Variable param_map_unmap :
   ∀ x, in_list_rectangle x (parameter_list_rect prog) ->
        param_map (param_unmap x) = x.
@@ -113,15 +114,6 @@ Variable transf_correct:
 
 Variable genv_mathlib_pres :
   genv_has_mathlib (globalenv prog) -> genv_has_mathlib (globalenv tprog).
-
-(*
-Variable parameters_phi:
-  flatten_parameter_variables tprog = flatten_parameter_variables prog.
-
-Lemma dimen_preserved:
-  parameter_dimension tprog = parameter_dimension prog.
-Proof. rewrite /parameter_dimension/flatten_parameter_constraints. rewrite parameters_preserved //. Qed.
-*)
 
 Section has_math.
 
@@ -237,7 +229,9 @@ Qed.
 End has_math.
 
 (* The last lemma assumes that the transformation actually in fact
-   corresponds to a change of variables where we've accounted for the Jacobian *)
+   corresponds to a change of variables where we've accounted for the
+   Jacobian *)
+
 Variable gs : list (R -> R).
 Variable log_dgs : list (R -> R).
 
