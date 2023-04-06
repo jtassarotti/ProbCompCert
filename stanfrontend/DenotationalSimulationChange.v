@@ -1,3 +1,33 @@
+(* Denotational Proofs for Reparameterization
+
+   The reparameterization transform remaps parameters to be
+   unconstrained and adds a jacobian correction factor to the target.
+
+   The proof here takes as input a forward simulation between a
+   program p and its transformed version tp, in which the parameters
+   have been remapped and the target has been corrected by a jacobian
+   by the time the program returns.
+
+   From this it proves that the probability distributions of p and tp
+   are equivalent. The core of the proof is a repeated change of
+   variables theorem showing that the integrals that define the
+   probability distribution are equal.
+
+   The change of variables theorem we use ends up causing us to
+   require that the reparameterization transform be monotone
+   increasing (see assumption gs_monotone), which turns out to be true
+   for the reparam transforms ProbCompCert uses, though it is not true
+   for Stan's transforms for some of the same constraints.
+
+   TODO: When establishing and using these lemmas, it's very easy to
+   confuse oneself about the direction of param_map/param_unmap and
+   target_map/target_unmap which are the functions that convert
+   between constrained/unconstrained target values and the
+   corrected/uncorrected version of the target value.  Could we use a
+   richer type on these to avoid that?
+
+*)
+
 Require Import Coqlib Errors Maps String.
 Local Open Scope string_scope.
 Require Import Integers Floats Values AST Memory Builtins Events Globalenvs.
@@ -29,7 +59,7 @@ Variable param_map : list R -> list R.
 
 (* Input:
    - data
-   - unconstrained parameters 
+   - unconstrained parameters
    - original target
    Output:
    - corrected target *)
@@ -71,6 +101,7 @@ Variable param_map_in_dom :
        in_list_rectangle x (parameter_list_rect tprog) ->
        in_list_rectangle (param_map x) (parameter_list_rect prog).
 
+(* This is the key forward simulation assumption that the proof will use. *)
 Variable transf_correct:
   forall data params t,
     genv_has_mathlib (globalenv prog) ->
