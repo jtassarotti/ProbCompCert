@@ -1,3 +1,32 @@
+(* Proof of correctness of the AdditiveConst pass.
+
+   The proof here starts by constructing a forward simulation between
+   the input program prog and the pass's output, tprog. This forward
+   simulation is set up to ensure that when prog returns with a target
+   value of t, tprog will return with target value of t - c, where c
+   is a constant computed from the code of the model block. This
+   forward simulation is then combined with the denotational proof in
+   DenotationalSimulationAdditive.v to obtain semantic refinement.
+
+   The most interesting part of the simulation proof is the simulation
+   relation on the programs. To define it, we first define a way to
+   compute the total constant dropped by the transform when applied to
+   a statement s. Then, the simulation relation tracks:
+
+   (1) the difference between the target variables of the two programs,
+   (2) the difference between how much the current statements being executed
+       by both programs woulda add to the target variables
+   (3) the difference between how much every statement on the continuation stacks
+       would add to the target variables
+
+   The sum of 1-3 is an invariant and should be equal to c, the total
+   constant dropped by the transformation. Moreover, this invariant
+   implies that when both programs reach their final return state, the
+   difference in the target variables shall be c, since (2) and (3)
+   above will be 0.
+
+*)
+
 From Coq Require Import Reals Psatz ssreflect Utf8.
 Require Import Smallstep.
 Require Import Errors.
@@ -1531,19 +1560,6 @@ Proof.
   intros. eapply transf_final_states; eauto.
   exact step_simulation.
 Qed.
-
-(*
-Lemma transf_final_states:
-  forall S1 S2 t r, match_states S1 S2 -> final_state t S1 r ->
-                    final_state (IRF (IFR t - compute_const_function model_fn)) S2 r.
-Proof.
-  intros S1 S2 t r Hmatch Hfinal. inv Hfinal; inv Hmatch.
-  { constructor. rewrite -DIFF. rewrite -[a in _ = a](IRF_IFR_inv t'). f_equal. ring. }
-  { constructor. rewrite -DIFF. rewrite -[a in _ = a](IRF_IFR_inv t').
-    intros Heq%IRF_inj. assert (IFR t = IFR t0) as Hfr by nra.
-    apply IFR_inj in Hfr. congruence. }
-Qed.
-*)
 
 End change.
 

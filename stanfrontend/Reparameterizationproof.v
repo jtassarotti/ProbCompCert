@@ -1,3 +1,38 @@
+(* Proof of correctness of the Reparameterization pass.
+
+   The proof here constructs a forward simulation between a source
+   program prog and output tprog. In contrast to other simulations,
+   the parameter values between the prog and tprog executions are
+   different: the parameter values in tprog are the results of
+   applying the *unconstrain* transformations to the prog versions.
+   Moreover, the simulation ensures that the final target value
+   returned by tprog as the additional Jacobian factor added to it.
+
+   This simulation proof is combined with
+   DenotationalSimulationChange.v to obtain semantic preservation.
+   Also see Transforms.v which proves many of the mathematical
+   properties of the constrain/unconstrain mappings that are needed
+   (e.g. derivatives, monotonicity, continuity of derivatives, etc.)
+
+   The proof is very long and is also split across Reparameterizationlemmas.v.
+   However, conceptually the forward simulation argument is pretty simple:
+   the simulation relation enforces two key properties:
+
+   (1) the expected mapping between parameter variables between the
+   two programs, and
+
+   (2) tprog contains a final Starget statement that adds the
+   appropriate Jacobian for every parameter (or this statement is on
+   the continuation stack)
+
+   Part of the size of the proof is that we have to prove that the
+   Stanlight expressions for each of the (a) parameter map/unmap
+   transforms, and (b) jacobian factors each actually compute the
+   intended mathematical statements.
+
+
+*)
+
 From Coq Require Import Reals Psatz ssreflect Utf8.
 Require Import Smallstep.
 Require Import Errors.

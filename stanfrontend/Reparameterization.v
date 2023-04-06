@@ -1,3 +1,19 @@
+(* Reparameterization transform.
+
+   This transformation removes constraints on parameters in a model.
+
+   After this transform, the parameter inputs to the model block are
+   assumed to be unconstrained (i.e. arbitrary floats or
+   reals). Therefore, at each use of a parameter variable, the pass
+   inserts code to remap the parameter variable into the original
+   constrained space.
+
+   This amounts to a change of variables in an integral, so the pass
+   also inserts a Jacobian correction factor at the *end* of the model
+   block that adds the Jacobian to the target.
+
+*)
+
 Require Import List.
 Require Import String.
 Require Import ZArith.
@@ -20,6 +36,8 @@ Notation "'do' X <- A ; B" := (Errors.bind A (fun X => B))
 
 Local Open Scope gensym_monad_scope.
 
+(* pmap stores, for each parameter identifier, the code to remap the
+   value into constrained space *)
 Fixpoint transf_expr (pmap: AST.ident -> option (expr -> expr)) (e: Stanlight.expr) {struct e}: Errors.res Stanlight.expr :=
   match e with
   | Evar id ty =>
@@ -73,7 +91,6 @@ with transf_exprlist (pmap: AST.ident -> option (expr -> expr)) (el: exprlist) {
       Errors.OK (Econs e el)
   end.
 
-(* WARNING: missing lists *)
 Fixpoint transf_statement (pmap: AST.ident -> option (expr -> expr))
   (s: Stanlight.statement) {struct s} : Errors.res (Stanlight.statement) :=
   match s with
@@ -179,6 +196,14 @@ Fixpoint find_parameter {A} (defs: list (AST.ident * AST.globdef fundef variable
     end
   end.
 
+(* This maps each constraint into a function g : expr -> expr such
+   that, given an expression e that computes to an unconstrained
+   value, g(e) is an expression that computes a value that is in the
+   constrained mapping. These are Stanlight expressions encoding
+   various mathematical transforms.  To see the "mathematical"
+   description of the transform being applied as a function R -> R,
+   look at Transforms.v *)
+
 Definition unconstrained_to_constrained_fun (c: constraint) : expr -> expr :=
   fun i =>
   match c with
@@ -213,6 +238,15 @@ Fixpoint u_to_c_rewrite_map {A} (parameters: list (AST.ident * variable * A)) {s
         if positive_eq_dec id param then (unconstrained_to_constrained v) else (inner_map param)
   end.
 
+(* Maps each constraint into a function g : expr -> expr that computes
+   the (log) jacobian for the transform. That is, given an expression
+   e that computes to an unconstrained  parametervalue, g(e) is an expression
+   that computes the logarithm of the Jacobian of the constraint mapping for c.
+
+   These are Stanlight expressions encoding the Jacobian.  To see the
+   "mathematical" description as a function R -> R, look at
+   Transforms.v *)
+
 Definition change_of_variable_correction_fun (c: constraint) : option (expr -> expr) :=
     match c with
     | Cidentity => None
@@ -231,6 +265,13 @@ Definition change_of_variable_correction_fun (c: constraint) : option (expr -> e
     | Cupper b =>
       Some (fun x => Ebinop (Econst_float Floats.Float.zero Breal) Minus x Breal)
     end.
+
+(* Insert the change of variable correction function. For arrays, this
+   generates an expression that is linear in the size of the array. It
+   would be better to generate a for loop statement for a large array
+   of parameters, but this would then require making
+   change_of_variable_correction a statement instead of an
+   expression. *)
 
 Definition change_of_variable_correction (i: AST.ident) (v: variable): option expr :=
   let typ := v.(vd_type) in

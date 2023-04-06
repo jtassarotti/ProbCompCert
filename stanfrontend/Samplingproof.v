@@ -1,3 +1,11 @@
+(* Proof of correctness of the Sampling pass.
+
+   Since it preserves operational behavior exactly, this transform is
+   the simplest verified pass so far. The forward simulation invariant
+   is exact matching between the two program states.
+
+*)
+
 Require Import Smallstep.
 Require Import Linking.
 Require Import Globalenvs.
