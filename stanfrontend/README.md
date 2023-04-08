@@ -54,7 +54,7 @@ are associated with multiple semantics.
 ## Parsing
 
 The parser uses Menhir's verified parsing tools. The verified parser
-was largely developped by Brian Ward as part of his [honor's
+was largely developed by Brian Ward as part of his [honor's
 thesis](https://www.bc.edu/content/dam/bc1/schools/mcas/cs/pdf/honors-thesis/Ward_Brian_Thesis.pdf)
 at Boston College.
 
