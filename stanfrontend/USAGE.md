@@ -32,13 +32,13 @@ data {
 }
 parameters {
   real<lower=0.0,upper=1.0> mu;
-} 
+}
 model {
   mu ~ uniform(0,1);
   for (i in 1:100) {
     flips[i] ~ bernoulli(mu);
   }
-} 
+}
 ```
 
 The data here consists of an array of 100 coin flips, where the
@@ -87,7 +87,12 @@ $ cat data.json
 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1]}
 $ cat params.json
 {"mu": 0.254}
+$ grep -o "1" data.json | wc -l
+21
 ```
+
+From the last command, we can see there are 21 flips with value 1, so maximum
+likelihood estimate for mu would be 0.21.
 
 We can invoke the the sampler as follows:
 ```
@@ -102,7 +107,7 @@ the data/parameters we just saw. The output parameters are put in a
 file called `output.csv` in the same directory:
 
 ```
-$ cat output.csv 
+$ cat output.csv
 lp__,accept_stat__,stepsize__,int_time__,energy__,mu
 0.000000,0.000000,0.000000,0.000000,0.000000,0.254000
 0.000000,0.000000,0.000000,0.000000,0.000000,0.254000
@@ -135,7 +140,7 @@ some summary statistics about the samples generated:
 $ stansummary output.csv
 Warning: non-fatal error reading metadata
 Warning: non-fatal error reading adaptation data
-Inference for Stan model: 
+Inference for Stan model:
 1 chains: each with iter=(10); warmup=(0); thin=(0); 10 iterations saved.
 
 Warmup took 0.00 seconds
@@ -153,7 +158,7 @@ mu              0.21    0.019   0.037  0.18  0.18  0.25      3.9      inf      1
 
 Samples were drawn using  with .
 For each parameter, N_Eff is a crude measure of effective sample size,
-and R_hat is the potential scale reduction factor on split chains (at 
+and R_hat is the potential scale reduction factor on split chains (at
 convergence, R_hat=1).
 ```
 
@@ -182,12 +187,24 @@ for this and (very roughly) gives in some sense a measure of how many
 "distinct" samples there are.  The Stan reference manual contains
 [more information](https://mc-stan.org/docs/reference-manual/effective-sample-size.html).
 
-Let's re-run the model, this time collecting far more samples. This
-time, we will also use the `--thin`, which lets us only record every
-nth sample, instead of saving all of them:
+In this case, even though we drew relatively few samples, the mean
+estimate was fairly close to the MLE estimate. On the other hand we
+also started the chain fairly close to this MLE estimate.
+
+Let's re-run the model, this time starting at a far away point and
+collecting far more samples.  The file `params2.json` initializes `mu`
+to .8:
 
 ```
-./coin.exe --num_samples 1000000 --thin 1000 --data data.json --init params.json
+$ cat params2.json
+{"mu": 0.8}
+```
+
+This time, we will also use the `--thin`, which lets us only record
+every nth sample, instead of saving all of them:
+
+```
+./coin.exe --num_samples 1000000 --thin 1000 --data data.json --init params2.json
 ```
 (this takes about 15 seconds to run on the author's machine)
 
@@ -208,7 +225,7 @@ samples, we reduce some of the autocorrelation between samples.
 $ stansummary output.csv
 Warning: non-fatal error reading metadata
 Warning: non-fatal error reading adaptation data
-Inference for Stan model: 
+Inference for Stan model:
 1 chains: each with iter=(1000); warmup=(0); thin=(0); 1000 iterations saved.
 
 Warmup took 0.00 seconds
@@ -222,10 +239,56 @@ stepsize__      0.00      nan    0.00  0.00  0.00  0.00      nan      nan      n
 int_time__      0.00      nan    0.00  0.00  0.00  0.00      nan      nan      nan
 energy__        0.00      nan    0.00  0.00  0.00  0.00      nan      nan      nan
 
-mu              0.22  1.3e-03   0.042  0.15  0.22  0.29     1114      inf     1.00
+mu              0.22  1.4e-03   0.043  0.15  0.22  0.29      926      inf      1.0
 
 Samples were drawn using  with .
 For each parameter, N_Eff is a crude measure of effective sample size,
-and R_hat is the potential scale reduction factor on split chains (at 
+and R_hat is the potential scale reduction factor on split chains (at
 convergence, R_hat=1).
+```
+
+As expected, the generated samples again have a mean close to the MLE
+of 0.22.
+
+# Not Yet Supported Features
+
+ProbCompCert does not support the full Stan language. Here are some
+missing features (not exhaustive): vectors, multi-dimensional arrays,
+multi-dimensional constraints, ODE solvers, user defined functions.
+
+Additionally, ProbCompCert's standard library lacks many built-in
+distrubtions and math functions that are found in Stan. Here are the
+supported distribution/PDF functions in `stanlib.h`:
+
+```
+double uniform_lpdf(double x, double a, double b);
+double uniform_lpmf(int x, double a, double b);
+double normal_lpdf(double x, double mean, double stddev);
+double normal_lupdf(double x, double mean, double stddev);
+double bernoulli_lpmf(int x, double p);
+double cauchy_lpdf(double x, double location, double scale);
+double cauchy_lupdf(double x, double location, double scale);
+double bernoulli_logit_lpmf(int x, double alpha);
+double poisson_lpmf(int x, double lambda);
+double exponential_lpdf(double x, double lambda);
+```
+
+For the most part, compilation and the correctness proof treat these
+distributions as "black boxes", so it is not difficult to extend the
+standard library with additional functions. (See DEVELOPERS.md for
+information about that).
+
+Additionally, ProbCompCert does not support Stan's "|" syntax for
+dividing the arguments of a `_lpdf` function from the distribution's
+parameter.  That is, whereas in Stan one may write:
+
+```
+normal_lpdf(x | 0, 1)
+```
+
+for the log PDF of the Normal(0, 1) distribution at x, in ProbCompCert
+one must write:
+
+```
+normal_lpdf(x, 0, 1)
 ```
