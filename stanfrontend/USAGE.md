@@ -274,8 +274,8 @@ double exponential_lpdf(double x, double lambda);
 ```
 
 For the most part, compilation and the correctness proof treat these
-distributions as "black boxes", so it is not difficult to extend the
-standard library with additional functions. (See DEVELOPERS.md for
+distributions as "black boxes", so it is not too difficult to extend
+the standard library with additional functions. (See DEVELOPERS.md for
 information about that).
 
 Additionally, ProbCompCert does not support Stan's "|" syntax for
