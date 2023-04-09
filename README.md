@@ -12,6 +12,8 @@ ProbCompCert is derived from CompCert. With the exception of the files
 in the stanfrontend directory, all files are subject to
 CompCert's licensing and copyright rules, as explained below. 
 
+See more details in [stanfrontend/README.md](stanfrontend/README.md)
+
 ## License
 CompCert is not free software.  This non-commercial release can only
 be used for evaluation, research, educational and personal purposes.
@@ -46,6 +48,5 @@ Notes to developers:
 * You only need to modify Makefile.extr if you want to add plain Caml code in new directories. Such directories need to be declared so that the OCaml build tools know where to look for code
 * If you add new Coq file in stanfrontend, it needs to be listed in the Makefile, and order does matter
 
-See more information in
-[stanfrontend/README.md](stanfrontend/README.md) and
+Again, more information is included in [stanfrontend/README.md](stanfrontend/README.md) and
 [stanfrontend/DEVELOPERS.md](stanfrontend/DEVELOPERS.md)
