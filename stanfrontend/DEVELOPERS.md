@@ -66,3 +66,79 @@ that is extracted called by the OCaml Driver.ml code as part of
 `compile_stan_file`.
 
 ## Extending the Standard Library
+
+To add a new distribution or mathematical function to the standard
+library, there are 3 steps.
+
+1) Add the C signature for the function to
+`ProbCompCert/stanfrontend/runtime/stanlib.h`.
+
+2) Add the implementation of the function to
+`ProbCompCert/stanfrontend/runtime/stanlib.c`.
+
+3) Add the function and its signature to the list
+`library_math_functions` in
+`ProbCompCert/stanfrontend/driver/Sstanlib.ml`.
+
+For example, suppose we wanted to add the `lognormal`
+distribution. Then, we would apply the following changes, which we
+list here in `patch` notation:
+
+```
+--- a/stanfrontend/driver/Sstanlib.ml
++++ b/stanfrontend/driver/Sstanlib.ml
+@@ -25,6 +25,9 @@ let library_math_functions = [
+     "normal_lpdf",
+     tdouble,
+     [tdouble; tdouble; tdouble];
++    "lognormal_lpdf",
++    tdouble,
++    [tdouble; tdouble; tdouble];
+     "normal_lupdf",
+     tdouble,
+     [tdouble; tdouble; tdouble];
+
+--- a/stanfrontend/runtime/stanlib.c
++++ b/stanfrontend/runtime/stanlib.c
+@@ -91,6 +91,11 @@ double normal_lupdf(double x, double mean, double sigma)
+   return (- log(sigma) - (pow((x-mean)/sigma,2) / 2));
+ }
+ 
++double lognormal_lpdf(double x, double mean, double sigma)
++{
++  return normal_lpdf(log(x), mean, sigma);
++}
++
+ double bernoulli_lpmf(int x, double p)
+ {
+     /* printf("bernoulli_lpmf(%d, %f)\n", x, p); */
+
+--- a/stanfrontend/runtime/stanlib.h
++++ b/stanfrontend/runtime/stanlib.h
+@@ -16,6 +16,7 @@ double uniform_lpdf(double x, double a, double b);
+ double uniform_lpmf(int x, double a, double b);
+ double normal_lpdf(double x, double mean, double stddev);
+ double normal_lupdf(double x, double mean, double stddev);
++double lognormal_lpdf(double x, double mean, double stddev);
+ double bernoulli_lpmf(int x, double p);
+ double cauchy_lpdf(double x, double location, double scale);
+ double cauchy_lupdf(double x, double location, double scale);
+```
+
+Re-make the compiler, and then it should be possible to use
+`lognormal_lpdf` as a function that is called, as well as using
+`lognormal` in Stan's sampling notation, as in a statement like `mu ~
+lognormal(mu, sigma)`.
+
+In particular, the OCaml elaborator, when it encounters `mu ~
+lognormal(mu, sigma)` will automatically elaborate this to `mu ~
+lognormal_lpdf(mu, sigma)` in the `Stanlight` AST (it searches for
+either a `_lpdf` or `_lpmf` variant in the list of functions declared
+in `Sstanlib.ml` and uses whichever it finds).
+
+Note that the `AdditiveConst.v` optimization pass can also be extended
+to remap `lognormal_lpdf` to `lognormal_lupdf` (if we had also added
+the latter). However, that is a more substantial under taking as we
+would also have to define the semantics of `lognormal_lpdf` and
+`lognormal_lupdf` in `StanEnv.v` and prove that they differ by only an
+additive constant.
