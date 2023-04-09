@@ -48,5 +48,6 @@ Notes to developers:
 * You only need to modify Makefile.extr if you want to add plain Caml code in new directories. Such directories need to be declared so that the OCaml build tools know where to look for code
 * If you add new Coq file in stanfrontend, it needs to be listed in the Makefile, and order does matter
 
-Again, more information is included in [stanfrontend/README.md](stanfrontend/README.md) and
+Again, more information is included in
+[stanfrontend/README.md](stanfrontend/README.md) and
 [stanfrontend/DEVELOPERS.md](stanfrontend/DEVELOPERS.md)
