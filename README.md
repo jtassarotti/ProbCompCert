@@ -47,5 +47,5 @@ Notes to developers:
 * If you add new Coq file in stanfrontend, it needs to be listed in the Makefile, and order does matter
 
 See more information in
-[/stanfrontend/README.md](stanfrontend/README.md) and
-[/stanfrontend/DEVELOPERS.md](stanfrontend/DEVELOPERS.md)
+[stanfrontend/README.md](stanfrontend/README.md) and
+[stanfrontend/DEVELOPERS.md](stanfrontend/DEVELOPERS.md)
