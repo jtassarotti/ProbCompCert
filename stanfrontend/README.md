@@ -17,14 +17,14 @@ represent.
 
 # Installation
 
-Please see [INSTALL.md](install.md) for instructions on getting
+Please see [INSTALL.md](INSTALL.md) for instructions on getting
 ProbCompCert built.
 
 # Usage
 
 For a step-by-step walkthrough that explains how to compile a Stan
 model, run the resulting binary, and analyze the generated output, please
-see [USAGE.md](usage.md)
+see [USAGE.md](USAGE.md)
 
 # Overview
 
