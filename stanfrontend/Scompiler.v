@@ -1,3 +1,14 @@
+(* Composing the passes for Stan compilation.
+
+   This also includes the proof of semantic refinement for
+   the composition of the 3 passes that have been verified so far.
+
+   The function [transf_stan_program_complete] is extracted and called
+   by the main OCaml driver, so new Coq passes must be inserted either
+   there or in the functions it calls.
+
+*)
+
 Require Import Stanlight.
 Require Import Ssemantics.
 Require Import Clight.
